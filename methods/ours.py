@@ -242,9 +242,8 @@ class Ours(ER):
 
 # customized MemoryDataset
 import os
-from utils.data_loader import MemoryDataset, collate_fn
+from utils.data_loader import MemoryDataset, collate_fn, get_pretrained_statistics
 import glob
-from utils.augment import get_pretrained_statistics
 from PIL import Image
 import cv2
 class OurDataset(MemoryDataset):
@@ -261,7 +260,7 @@ class OurDataset(MemoryDataset):
                         + glob.glob(os.path.join(images_dir, "val2012", "*.jpg")) \
                         + glob.glob(os.path.join(images_dir, "val2007", "*.jpg"))
         else:
-            image_files = glob.glob(os.path.join(images_dir, "*.jpg"))
+            image_files = glob.glob(os.path.join(images_dir, "train", "*.jpg"))
 
         indices = np.random.choice(range(len(image_files)), size=self.memory_size, replace=False)
 

@@ -48,6 +48,10 @@ python -m preprocess_dataset.preprocess_bdd_rainy
 ```bash
 python -m preprocess_dataset.preprocess_bdd_cloudy
 ```
+- Subsample bdd100K validation set
+```bash
+python subsample_bdd_validation.py
+```
 
 ## Training
 

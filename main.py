@@ -127,9 +127,9 @@ def main():
     if args.mode == 'gdumb':
         eval_results = method.evaluate_all(args.memory_epoch, cls_dict, cls_addition)
 
-    np.save(f'results/{args.dataset}/{args.note}/seed_{args.rnd_seed}_eval.npy', eval_results['avg_mAP50'])
-    np.save(f'results/{args.dataset}/{args.note}/seed_{args.rnd_seed}_eval_classwise.npy', eval_results['classwise_mAP50'])
-    np.save(f'results/{args.dataset}/{args.note}/seed_{args.rnd_seed}_eval_time.npy', eval_results['data_cnt'])
+    # np.save(f'results/{args.dataset}/{args.note}/seed_{args.rnd_seed}_eval.npy', eval_results['avg_mAP50'])
+    # np.save(f'results/{args.dataset}/{args.note}/seed_{args.rnd_seed}_eval_classwise.npy', eval_results['classwise_mAP50'])
+    # np.save(f'results/{args.dataset}/{args.note}/seed_{args.rnd_seed}_eval_time.npy', eval_results['data_cnt'])
 
     # Accuracy (A)
     A_auc = np.mean(eval_results["avg_mAP50"])

@@ -524,23 +524,3 @@ class Solarize:
 
     def __call__(self, pil_img):
         return ImageOps.solarize(pil_img, self.v)
-
-
-def get_statistics(dataset: str):
-    """
-    Returns statistics of the dataset given a string of dataset name. To add new dataset, please add required statistics here
-    """
-    if dataset == 'VOC_10_10':
-        return 20, 'data/voc/images', 'data/voc/annotations' ## 경로 수정
-    else:
-        raise ValueError("Wrong dataset name")
-
-def get_pretrained_statistics(dataset: str):
-    if dataset == 'VOC_10_10':
-        return 10, 'data/voc_10/images', 'data/voc_10/annotations' ## 경로 수정
-    else:
-        raise ValueError("Wrong dataset name")
-    
-def get_exposed_classes(dataset: str):
-    if dataset == 'VOC_10_10':
-        return ['aeroplane', 'bicycle', 'bird', 'boat', 'bottle', 'bus', 'car', 'cat', 'chair', 'cow']
