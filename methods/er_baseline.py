@@ -133,6 +133,7 @@ class ER:
     def online_step(self, sample, sample_num, n_worker):
         self.temp_batchsize = self.batch_size
         if sample['klass'] not in self.exposed_classes:
+            self.online_after_task(sample_num)
             self.add_new_class(sample['klass'])
 
         self.temp_batch.append(sample)
