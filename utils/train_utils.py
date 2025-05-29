@@ -28,9 +28,9 @@ def select_model(cfg:Config,dataset):
     # Load pretrained weights
     if dataset=='VOC_10_10':
         model = create_model(cfg.model, class_num=10, weight_path="")
-        pretrained_path = "./yolov9_pretrain_voc.ckpt"
+        pretrained_path = "./yolov9_pretrain_voc.pth"
         if os.path.exists(pretrained_path):
-            state_dict = torch.load(pretrained_path, map_location='cpu')['state_dict']
+            state_dict = torch.load(pretrained_path, map_location='cpu')
             state_dict = {k.replace('ema.model.', 'model.'):v for k,v in state_dict.items() if 'ema.model' in k}
             model.load_state_dict(state_dict)
     else:
