@@ -1,0 +1,12 @@
+path: data/voc_10
+train:
+- train2007
+- val2007
+- train2012
+- val2007
+validation: test2007
+
+class_num: 10
+class_list: ['aeroplane', 'bicycle', 'bird', 'boat', 'bottle', 'bus', 'car', 'cat', 'chair', 'cow']
+
+auto_download:

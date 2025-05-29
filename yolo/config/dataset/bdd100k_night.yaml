@@ -1,0 +1,9 @@
+path: data/bdd100k_night
+train: 
+- train
+validation: val
+
+class_num: 13
+class_list: ['pedestrian', 'rider', 'car', 'bus', 'truck', 'bicycle', 'motorcycle', 'traffic light', 'traffic sign', 'train', 'trailer', 'other person', 'other vehicle']
+
+auto_download:
