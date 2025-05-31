@@ -16,6 +16,11 @@ pip install -r requirements.txt
 python -m preprocess_dataset.download_voc
 ```
 
+#### SHIFT
+```bash
+python -m preprocess_dataset.download_shift
+```
+
 #### BDD100K
 ```bash
 python -m preprocess_dataset.download_bdd
@@ -64,6 +69,12 @@ python yolo/lazy.py task=train name='pre_train' dataset=voc_10.yaml use_wandb=Fa
 ```bash
 python yolo/lazy.py task=train name='joint_train' dataset=voc.yaml use_wandb=False
 ```
+
+#### Joint-train SHIFT
+```bash
+python yolo/lazy.py task=train name='joint_train' dataset=shift.yaml use_wandb=False
+```
+
 
 #### Joint-train BDD100K
 ```bash

@@ -75,13 +75,9 @@ def zip_individual_json_files(folder_path, output_folder=None):
             
             zip_file_path = zip_output_dir / zip_filename
             
-            # Handle duplicate ZIP filenames
-            counter = 1
-            original_zip_path = zip_file_path
-            while zip_file_path.exists():
-                zip_filename = f"{json_name}_{counter}.zip"
-                zip_file_path = zip_output_dir / zip_filename
-                counter += 1
+            # Overwrite existing ZIP file if it exists
+            if zip_file_path.exists():
+                print(f"Overwriting existing: {zip_file_path}")
 
             # Create ZIP file containing the single JSON file
             with zipfile.ZipFile(zip_file_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
@@ -153,14 +149,9 @@ def zip_individual_json_files_flat(folder_path, output_folder=None):
             
             zip_file_path = output_path / zip_filename
             
-            # Handle duplicate ZIP filenames
-            counter = 1
-            original_zip_path = zip_file_path
-            while zip_file_path.exists():
-                base_name = original_zip_path.stem
-                zip_filename = f"{base_name}_{counter}.zip"
-                zip_file_path = output_path / zip_filename
-                counter += 1
+            # Overwrite existing ZIP file if it exists
+            if zip_file_path.exists():
+                print(f"Overwriting existing: {zip_file_path}")
             
             # Create ZIP file containing the single JSON file
             with zipfile.ZipFile(zip_file_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
