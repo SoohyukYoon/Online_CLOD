@@ -58,6 +58,42 @@ python -m preprocess_dataset.preprocess_bdd_cloudy
 python subsample_bdd_validation.py
 ```
 
+#### SHIFT source
+```bash
+python -m preprocess_dataset.preprocess_shift_source
+```
+
+#### SHIFT dawndusk
+```bash
+python -m preprocess_dataset.preprocess_shift_dawndusk
+```
+
+#### SHIFT night
+```bash
+python -m preprocess_dataset.preprocess_shift_night
+```
+
+#### SHIFT foggy
+```bash
+python -m preprocess_dataset.preprocess_shift_foggy
+```
+
+#### SHIFT cloudy
+```bash
+python -m preprocess_dataset.preprocess_shift_cloudy
+```
+
+#### SHIFT overcast
+```bash
+python -m preprocess_dataset.preprocess_shift_overcast
+```
+
+#### SHIFT rainy
+```bash
+python -m preprocess_dataset.preprocess_shift_rainy
+```
+
+
 ## Training
 
 #### Pretrain VOC_10
