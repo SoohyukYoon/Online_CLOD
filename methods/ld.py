@@ -69,7 +69,6 @@ class LD(ER):
 
         logger.info(f"Student model backbone frozen: {frozen_count}/{total_count} parameters frozen (up to layer {self.frozen_point}).")
         
-        # 3. Optimizer 재설정
         logger.info("Resetting optimizer for trainable parameters.")
         self.optimizer = select_optimizer(self.opt_name, self.model, lr=self.lr)
 
