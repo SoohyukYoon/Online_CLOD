@@ -16,9 +16,7 @@ from torch.utils.data import Dataset
 import torch.nn as nn
 import torch.multiprocessing as multiprocessing
 
-from utils.augment import get_statistics, get_pretrained_statistics
-
-from utils.data_worker import worker_loop
+# from utils.data_worker import worker_loop
 import glob
 
 logger = logging.getLogger()
@@ -33,6 +31,32 @@ from yolo.utils.dataset_utils import create_image_metadata, scale_segmentation
 
 from collections import defaultdict
 import cv2
+
+def get_statistics(dataset: str):
+    """
+    Returns statistics of the dataset given a string of dataset name. To add new dataset, please add required statistics here
+    """
+    if dataset == 'VOC_10_10':
+        return 20, 'data/voc/images', 'data/voc/annotations' ## 경로 수정
+    elif dataset == 'BDD_domain':
+        return 13, 'data/bdd100k/images', 'data/bdd100k/annotations'
+    else:
+        raise ValueError("Wrong dataset name")
+
+def get_pretrained_statistics(dataset: str):
+    if dataset == 'VOC_10_10':
+        return 10, 'data/voc_10/images', 'data/voc_10/annotations' ## 경로 수정
+    elif dataset == 'BDD_domain':
+        return 13, 'data/bdd100k_source/images', 'data/bdd100k_source/annotations'
+    else:
+        raise ValueError("Wrong dataset name")
+    
+def get_exposed_classes(dataset: str):
+    if dataset == 'VOC_10_10':
+        return ['aeroplane', 'bicycle', 'bird', 'boat', 'bottle', 'bus', 'car', 'cat', 'chair', 'cow']
+    elif dataset == 'BDD_domain':
+        return ['pedestrian', 'rider', 'car', 'bus', 'truck', 'bicycle', 'motorcycle', 'traffic light', 'traffic sign', 'train', 'trailer', 'other person', 'other vehicle']
+
 
 def collate_fn(batch: List[Tuple[Tensor, Tensor]]) -> Tuple[Tensor, List[Tensor]]:
     """
@@ -127,7 +151,7 @@ class MemoryDataset(Dataset):
                         + glob.glob(os.path.join(images_dir, "val2012", "*.jpg")) \
                         + glob.glob(os.path.join(images_dir, "val2007", "*.jpg"))
         else:
-            image_files = glob.glob(os.path.join(images_dir, "*.jpg"))
+            image_files = glob.glob(os.path.join(images_dir, "train","*.jpg"))
 
         indices = np.random.choice(range(len(image_files)), size=self.memory_size, replace=False)
 
@@ -192,7 +216,8 @@ class MemoryDataset(Dataset):
             elif 'test2007' in img_name:
                 json_file = os.path.join(label_path, 'instances_test2007.json')
             else:
-                raise ValueError(f"Cannot determine JSON file for {img_name}")
+                # raise ValueError(f"Cannot determine JSON file for {img_name}")
+                json_file = os.path.join(label_path, 'instances_train.json')
         else:
             json_file = label_path
 

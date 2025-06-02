@@ -17,9 +17,8 @@ from scipy.stats import chi2, norm
 #from ptflops import get_model_complexity_info
 from flops_counter.ptflops import get_model_complexity_info
 # from utils.cka import linear_CKA
-from utils.data_loader import ImageDataset, StreamDataset, MemoryDataset, cutmix_data, get_statistics
+from utils.data_loader import ImageDataset, MemoryDataset, get_exposed_classes
 from utils.train_utils import select_model, select_optimizer, select_scheduler, MeanAveragePrecisionCustomized
-from utils.augment import get_exposed_classes
 #### object detection
 import random
 
@@ -72,7 +71,7 @@ class ER:
         
         if 'VOC' in self.dataset:
             data_name = 'voc'
-        elif 'BDD100K' in self.dataset:
+        elif 'BDD' in self.dataset:
             data_name = 'bdd100k'
         with initialize(config_path="../yolo/config", version_base=None):
             self.args: Config = compose(config_name="config", overrides=["model=v9-s",f"dataset={data_name}"])
@@ -108,7 +107,6 @@ class ER:
         self.f_period = kwargs['f_period']
         self.f_next_time = 0
         self.start_time = time.time()
-        self.total_samples = {'VOC_10_10': 10000}[self.dataset]
 
         self.writer = SummaryWriter(f'tensorboard/{self.dataset}/{self.note}/seed_{self.rnd_seed}')
         self.save_path = f'results/{self.dataset}/{self.note}/seed_{self.rnd_seed}'
@@ -391,10 +389,7 @@ class ER:
     def update_schedule(self, reset=False):
         pass
 
-    def online_evaluate(self, sample_num, cls_dict, cls_addition, data_time):
-        torch.cuda.empty_cache()
-        self.model.eval()
-        print("evaluate")
+    def evaluate(self):
         for i, batch in enumerate(tqdm(self.val_loader)):
             batch_size, images, targets, rev_tensor, img_paths = batch
             H, W = images.shape[2:]
@@ -410,9 +405,31 @@ class ER:
             "avg_mAP50": sum(epoch_metrics['map50_per_class'].tolist()[:self.num_learned_class])/self.num_learned_class,
             "classwise_mAP50": epoch_metrics['map50_per_class'].tolist()[:self.num_learned_class]
         }
+        self.metric.reset()
+        
+        return eval_dict
+
+    def online_evaluate(self, sample_num, cls_dict, cls_addition, data_time):
+        torch.cuda.empty_cache()
+        self.model.eval()
+        print("evaluate")
+        
+        if self.dataset=='BDD_domain':
+            eval_dict = {"avg_mAP50":0, "classwise_mAP50":[]}
+            for data_name in ['bdd100k_source', 'bdd100k_cloudy', 'bdd100k_rainy', 'bdd100k_dawndusk', 'bdd100k_night']:
+                with initialize(config_path="../yolo/config", version_base=None):
+                    self.args: Config = compose(config_name="config", overrides=["model=v9-s",f"dataset={data_name}"])            
+                self.val_loader = create_dataloader(self.args.task.validation.data, self.args.dataset, self.args.task.validation.task)
+                eval_dict_sub = self.evaluate()
+                eval_dict['avg_mAP50'] += eval_dict_sub['avg_mAP50']/5
+                eval_dict["classwise_mAP50"].append(eval_dict_sub['avg_mAP50'])
+            with initialize(config_path="../yolo/config", version_base=None):
+                self.args: Config = compose(config_name="config", overrides=["model=v9-s",f"dataset=bdd100k"])
+        else:
+            eval_dict = self.evaluate()
+
         self.report_test(sample_num, eval_dict["avg_mAP50"], eval_dict["classwise_mAP50"])
         
-        self.metric.reset()
         return eval_dict
 
     def get_forgetting(self, sample_num, test_list, cls_dict, batch_size, n_worker):

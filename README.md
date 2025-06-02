@@ -16,6 +16,11 @@ pip install -r requirements.txt
 python -m preprocess_dataset.download_voc
 ```
 
+#### SHIFT
+```bash
+python -m preprocess_dataset.download_shift
+```
+
 #### BDD100K
 ```bash
 python -m preprocess_dataset.download_bdd
@@ -48,6 +53,46 @@ python -m preprocess_dataset.preprocess_bdd_rainy
 ```bash
 python -m preprocess_dataset.preprocess_bdd_cloudy
 ```
+- Subsample bdd100K validation set
+```bash
+python subsample_bdd_validation.py
+```
+
+#### SHIFT source
+```bash
+python -m preprocess_dataset.preprocess_shift_source
+```
+
+#### SHIFT dawndusk
+```bash
+python -m preprocess_dataset.preprocess_shift_dawndusk
+```
+
+#### SHIFT night
+```bash
+python -m preprocess_dataset.preprocess_shift_night
+```
+
+#### SHIFT foggy
+```bash
+python -m preprocess_dataset.preprocess_shift_foggy
+```
+
+#### SHIFT cloudy
+```bash
+python -m preprocess_dataset.preprocess_shift_cloudy
+```
+
+#### SHIFT overcast
+```bash
+python -m preprocess_dataset.preprocess_shift_overcast
+```
+
+#### SHIFT rainy
+```bash
+python -m preprocess_dataset.preprocess_shift_rainy
+```
+
 
 ## Training
 
@@ -60,6 +105,12 @@ python yolo/lazy.py task=train name='pre_train' dataset=voc_10.yaml use_wandb=Fa
 ```bash
 python yolo/lazy.py task=train name='joint_train' dataset=voc.yaml use_wandb=False
 ```
+
+#### Joint-train SHIFT
+```bash
+python yolo/lazy.py task=train name='joint_train' dataset=shift.yaml use_wandb=False
+```
+
 
 #### Joint-train BDD100K
 ```bash

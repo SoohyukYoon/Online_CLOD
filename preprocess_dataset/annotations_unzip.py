@@ -93,14 +93,9 @@ def extract_json_from_zip(zip_file_path, extract_to_same_folder=True):
                     
                     output_file_path = output_folder / json_filename
                     
-                    # Handle duplicate filenames
-                    counter = 1
-                    original_output_path = output_file_path
-                    while output_file_path.exists():
-                        stem = original_output_path.stem
-                        json_filename = f"{stem}_{counter}.json"
-                        output_file_path = output_folder / json_filename
-                        counter += 1
+                    # Overwrite existing file if it exists
+                    if output_file_path.exists():
+                        print(f"Overwriting existing: {output_file_path}")
                     
                     # Write JSON file
                     with open(output_file_path, 'w', encoding='utf-8') as f:
@@ -208,13 +203,9 @@ def extract_json_from_zips_by_name(folder_path, name_filter=None):
                         json_filename = f"{json_base_name}.json"
                         output_file_path = output_folder / json_filename
                         
-                        # Handle duplicate filenames
-                        counter = 1
-                        original_output_path = output_file_path
-                        while output_file_path.exists():
-                            json_filename = f"{json_base_name}_{counter}.json"
-                            output_file_path = output_folder / json_filename
-                            counter += 1
+                        # Overwrite existing file if it exists
+                        if output_file_path.exists():
+                            print(f"Overwriting existing: {output_file_path}")
                         
                         # Write JSON file with pretty formatting
                         with open(output_file_path, 'w', encoding='utf-8') as f:
@@ -247,14 +238,9 @@ def extract_json_from_zips_by_name(folder_path, name_filter=None):
                             
                             output_file_path = output_folder / json_filename
                             
-                            # Handle duplicate filenames
-                            counter = 1
-                            original_output_path = output_file_path
-                            while output_file_path.exists():
-                                stem = original_output_path.stem
-                                json_filename = f"{stem}_dup{counter}.json"
-                                output_file_path = output_folder / json_filename
-                                counter += 1
+                            # Overwrite existing file if it exists
+                            if output_file_path.exists():
+                                print(f"Overwriting existing: {output_file_path}")
                             
                             # Write JSON file
                             with open(output_file_path, 'w', encoding='utf-8') as f:
