@@ -67,9 +67,6 @@ class LD(ER):
                  logger.warning(f"Could not parse layer index from {name}, not freezing.")
                  param.requires_grad = True
 
-        logger.info(f"Student model backbone frozen: {frozen_count}/{total_count} parameters frozen (up to layer {self.frozen_point}).")
-        
-        logger.info("Resetting optimizer for trainable parameters.")
         self.optimizer = select_optimizer(self.opt_name, self.model, lr=self.lr)
 
     def model_forward(self, batch):
