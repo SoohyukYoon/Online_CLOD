@@ -42,7 +42,7 @@ def select_model(cfg:Config,dataset):
             model.load_state_dict(state_dict)
     elif dataset=='SHIFT_domain':
         model = create_model(cfg.model, class_num=6, weight_path="")
-        pretrained_path = "./yolov9_joint_shift.pth"
+        pretrained_path = "./yolov9_pretrain_shift.pth"
         if os.path.exists(pretrained_path):
             state_dict = torch.load(pretrained_path, map_location='cpu')
             state_dict = {k.replace('ema.model.', 'model.'):v for k,v in state_dict.items() if 'ema.model' in k}
