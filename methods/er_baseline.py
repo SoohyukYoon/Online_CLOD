@@ -73,9 +73,11 @@ class ER:
             data_name = 'voc'
         elif 'BDD' in self.dataset:
             data_name = 'bdd100k'
+        elif 'SHIFT' in self.dataset:
+            data_name = 'shift'
         with initialize(config_path="../yolo/config", version_base=None):
             self.args: Config = compose(config_name="config", overrides=["model=v9-s",f"dataset={data_name}"])
-
+        self.exposed_domains = [f'{data_name}_source']
         self.model = select_model(self.args,self.dataset)
 
         self.model.model.args = self.args.model
@@ -130,10 +132,11 @@ class ER:
         
     def online_step(self, sample, sample_num, n_worker):
         self.temp_batchsize = self.batch_size
-        if sample['klass'] not in self.exposed_classes:
+        if sample.get('klass',None) and sample['klass'] not in self.exposed_classes:
             self.online_after_task(sample_num)
             self.add_new_class(sample['klass'])
-
+        elif sample.get('domain',None) and sample['domain'] not in self.exposed_domains:
+            self.exposed_domains.append(sample['domain'])
         self.temp_batch.append(sample)
         self.num_updates += self.online_iter
 
@@ -409,7 +412,7 @@ class ER:
         
         return eval_dict
 
-    def online_evaluate(self, sample_num, cls_dict, cls_addition, data_time):
+    def online_evaluate(self, sample_num, data_time):
         torch.cuda.empty_cache()
         self.model.eval()
         print("evaluate")
@@ -425,6 +428,17 @@ class ER:
                 eval_dict["classwise_mAP50"].append(eval_dict_sub['avg_mAP50'])
             with initialize(config_path="../yolo/config", version_base=None):
                 self.args: Config = compose(config_name="config", overrides=["model=v9-s",f"dataset=bdd100k"])
+        elif self.dataset=='SHIFT_domain':
+            eval_dict = {"avg_mAP50":0, "classwise_mAP50":[]}
+            for data_name in self.exposed_domains:#['shift_source', 'shift_overcast', 'shift_cloudy', 'shift_rainy', 'shift_foggy', 'shift_dawndusk', 'shift_night']:
+                with initialize(config_path="../yolo/config", version_base=None):
+                    self.args: Config = compose(config_name="config", overrides=["model=v9-s",f"dataset={data_name}"])            
+                self.val_loader = create_dataloader(self.args.task.validation.data, self.args.dataset, self.args.task.validation.task)
+                eval_dict_sub = self.evaluate()
+                eval_dict['avg_mAP50'] += eval_dict_sub['avg_mAP50']/len(self.exposed_domains)
+                eval_dict["classwise_mAP50"].append(eval_dict_sub['avg_mAP50'])
+            with initialize(config_path="../yolo/config", version_base=None):
+                self.args: Config = compose(config_name="config", overrides=["model=v9-s",f"dataset=shift"])
         else:
             eval_dict = self.evaluate()
 

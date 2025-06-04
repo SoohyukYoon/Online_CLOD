@@ -40,6 +40,8 @@ def get_statistics(dataset: str):
         return 20, 'data/voc/images', 'data/voc/annotations' ## 경로 수정
     elif dataset == 'BDD_domain':
         return 13, 'data/bdd100k/images', 'data/bdd100k/annotations'
+    elif dataset == 'SHIFT_domain':
+        return 6, 'data/shift/images', 'data/shift/annotations'
     else:
         raise ValueError("Wrong dataset name")
 
@@ -48,6 +50,8 @@ def get_pretrained_statistics(dataset: str):
         return 10, 'data/voc_10/images', 'data/voc_10/annotations' ## 경로 수정
     elif dataset == 'BDD_domain':
         return 13, 'data/bdd100k_source/images', 'data/bdd100k_source/annotations'
+    elif dataset == 'SHIFT_domain':
+        return 6, 'data/shift_source/images', 'data/shift_source/annotations'
     else:
         raise ValueError("Wrong dataset name")
     
@@ -56,7 +60,8 @@ def get_exposed_classes(dataset: str):
         return ['aeroplane', 'bicycle', 'bird', 'boat', 'bottle', 'bus', 'car', 'cat', 'chair', 'cow']
     elif dataset == 'BDD_domain':
         return ['pedestrian', 'rider', 'car', 'bus', 'truck', 'bicycle', 'motorcycle', 'traffic light', 'traffic sign', 'train', 'trailer', 'other person', 'other vehicle']
-
+    elif dataset == 'SHIFT_domain':
+        return ['pedestrian', 'car', 'truck', 'bus', 'motorcycle', 'bicycle']
 
 def collate_fn(batch: List[Tuple[Tensor, Tensor]]) -> Tuple[Tensor, List[Tensor]]:
     """
@@ -118,14 +123,14 @@ class MemoryDataset(Dataset):
         self.usage_cnt = []
         self.sample_weight = []
         self.data = {}
+        
+        self.build_initial_buffer()
 
         n_classes, image_dir, label_path = get_statistics(dataset=self.dataset)
         self.image_dir = image_dir
         self.label_path = label_path
 
         self.augment = True
-
-        self.build_initial_buffer()
 
         transforms = {
             "Mosaic": 1,
@@ -138,6 +143,32 @@ class MemoryDataset(Dataset):
         self.base_size = mean(self.image_sizes)
         self.transform = AugmentationComposer(transforms, self.image_sizes, self.base_size)
         self.transform.get_more_data = self.get_more_data
+        
+        # Load all metadata once during initialization
+        self.metadata_cache = {}
+        self._load_all_metadata()
+    
+    def _load_all_metadata(self):
+        """Load metadata for all possible JSON files"""
+        if os.path.isdir(self.label_path):
+            json_files = [
+                'instances_train2012.json',
+                'instances_train2007.json', 
+                'instances_val2012.json',
+                'instances_val2007.json',
+                'instances_test2007.json',
+                'instances_train.json'  # fallback
+            ]
+            
+            for json_file in json_files:
+                full_path = os.path.join(self.label_path, json_file)
+                if os.path.exists(full_path):
+                    annotations_index, image_info_dict = create_image_metadata(full_path)
+                    self.metadata_cache[json_file] = (annotations_index, image_info_dict)
+        else:
+            # Single JSON file
+            annotations_index, image_info_dict = create_image_metadata(self.label_path)
+            self.metadata_cache[self.label_path] = (annotations_index, image_info_dict)
 
     def get_more_data(self, num: int = 1):
         indices = torch.randint(0, len(self), (num,))
@@ -145,6 +176,10 @@ class MemoryDataset(Dataset):
 
     def build_initial_buffer(self):
         n_classes, images_dir, label_path = get_pretrained_statistics(self.dataset)
+        self.image_dir = images_dir
+        self.label_path = label_path
+        self.metadata_cache = {}
+        self._load_all_metadata()
         if self.dataset == 'VOC_10_10':
             image_files = glob.glob(os.path.join(images_dir, "train2012", "*.jpg")) \
                         + glob.glob(os.path.join(images_dir, "train2007", "*.jpg")) \
@@ -200,28 +235,28 @@ class MemoryDataset(Dataset):
         return img, labels[valid_mask], img_path
 
 
-    def load_data(self, img_name, cls_label, image_dir, label_path):
+    def load_data(self, img_name, image_dir, label_path):
         image_path = os.path.join(image_dir, img_name)
         image_id = Path(image_path).stem
-
+        
         if os.path.isdir(label_path):
             if 'train2012' in img_name:
-                json_file = os.path.join(label_path, 'instances_train2012.json')
+                json_file = 'instances_train2012.json'
             elif 'train2007' in img_name:
-                json_file = os.path.join(label_path, 'instances_train2007.json')
+                json_file = 'instances_train2007.json'
             elif 'val2012' in img_name:
-                json_file = os.path.join(label_path, 'instances_val2012.json')
+                json_file = 'instances_val2012.json'
             elif 'val2007' in img_name:
-                json_file = os.path.join(label_path, 'instances_val2007.json')
+                json_file = 'instances_val2007.json'
             elif 'test2007' in img_name:
-                json_file = os.path.join(label_path, 'instances_test2007.json')
+                json_file = 'instances_test2007.json'
             else:
                 # raise ValueError(f"Cannot determine JSON file for {img_name}")
-                json_file = os.path.join(label_path, 'instances_train.json')
+                json_file = 'instances_train.json'
         else:
             json_file = label_path
 
-        annotations_index, image_info_dict = create_image_metadata(json_file)
+        annotations_index, image_info_dict = self.metadata_cache[json_file]
         image_info = image_info_dict.get(image_id, None)
         if image_info is None:
             raise ValueError(f"Image info not found for {image_id}")
@@ -260,11 +295,11 @@ class MemoryDataset(Dataset):
         self.stream_data = []
         for data in datalist:
             img_name = data.get('file_name', data.get('filepath'))
-            img, labels, image_path, ratio = self.load_data(img_name, cls_label=data['label'], image_dir=self.image_dir, label_path=self.label_path)
+            img, labels, image_path, ratio = self.load_data(img_name, image_dir=self.image_dir, label_path=self.label_path)
             self.stream_data.append((img, labels, image_path, ratio))
 
     def replace_sample(self, sample, idx=None, images_dir=None,label_path=None):
-        img, labels, image_path, ratio = self.load_data(sample['file_name'], cls_label=sample['label'], image_dir=images_dir or self.image_dir, label_path=label_path or self.label_path)
+        img, labels, image_path, ratio = self.load_data(sample['file_name'], image_dir=images_dir or self.image_dir, label_path=label_path or self.label_path)
         data = (img, labels, image_path, ratio)
         if idx is None:
             self.buffer.append(data)
@@ -436,9 +471,9 @@ class MemoryDataset(Dataset):
         return True
 
 def get_train_datalist(dataset, sigma, repeat, init_cls, rnd_seed):
-    with open(f"collections/{dataset}/{dataset}_sigma{sigma}_repeat{repeat}_init{init_cls}_seed{rnd_seed}.json") as fp:
+    with open(f"collections/{dataset}/{dataset}_sigma{sigma}_repeat{repeat}_seed{rnd_seed}.json") as fp:
         train_list = json.load(fp)
-    return train_list['stream'], train_list['cls_dict'], train_list['cls_addition']
+    return train_list['stream'] #, train_list['cls_dict'], train_list['cls_addition']
         
 
 def get_test_datalist(dataset) -> List:

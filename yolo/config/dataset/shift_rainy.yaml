@@ -1,0 +1,9 @@
+path: data/shift_rainy
+train: 
+- train
+validation: val
+
+class_num: 6
+class_list: ['pedestrian', 'car', 'truck', 'bus', 'motorcycle', 'bicycle']
+
+auto_download:

@@ -11,12 +11,16 @@ yolov9_s_block_list = [
     ['model.7'],
     ['model.8'],
     #neck
-    ['model.9', 'model.23'],
-    ['model.10', 'model.11', 'model.12', 'model.24', 'model.25', 'model.26'],
-    ['model.13', 'model.14', 'model.15', 'model.27', 'model.28', 'model.29'],
+    ['model.9'], #, 'model.23'
+    ['model.10', 'model.11', 'model.12'],#, 'model.24', 'model.25', 'model.26'],
+    ['model.13', 'model.14', 'model.15'],#, 'model.27', 'model.28', 'model.29'],
     ['model.16', 'model.17', 'model.18'],
     ['model.19', 'model.20', 'model.21'],
-    ['model.30', 'model.22'] # detection head
+    ['model.22'],
+    ['model.23'],
+    ['model.24', 'model.25', 'model.26'],
+    ['model.27', 'model.28', 'model.29'],
+    ['model.30'] # detection head 'model.22',
 ]
 
 

@@ -78,7 +78,7 @@ def main():
     task_id = 0
 
     # get datalist
-    train_datalist, cls_dict, cls_addition = get_train_datalist(args.dataset, args.sigma, args.repeat, args.init_cls, args.rnd_seed)
+    train_datalist = get_train_datalist(args.dataset, args.sigma, args.repeat, args.init_cls, args.rnd_seed)
 
     method.n_samples(len(train_datalist))
 
@@ -89,7 +89,6 @@ def main():
 
     #train_datalist = train_datalist[:5000] + train_datalist[10000:15000]
     print(f"total train stream: {len(train_datalist)}")
-    # eval_dict = method.online_evaluate(samples_cnt, cls_dict, cls_addition, 0)
     for i, data in enumerate(train_datalist):
         # explicit task boundary for twf
         if samples_cnt % args.samples_per_task == 0 and (args.mode == "bic" or args.mode == "ewc++"):
@@ -113,19 +112,19 @@ def main():
             method.online_validate(samples_cnt, 512, args.n_worker)
         ''' 
         if samples_cnt % args.eval_period == 0:
-            eval_dict = method.online_evaluate(samples_cnt, cls_dict, cls_addition, data["time"])
+            eval_dict = method.online_evaluate(samples_cnt, data["time"])
             eval_results["avg_mAP50"].append(eval_dict['avg_mAP50'])
             eval_results["classwise_mAP50"].append(eval_dict['classwise_mAP50'])
             eval_results["data_cnt"].append(samples_cnt)
             # if method.f_calculated:
             #     eval_results["forgetting_acc"].append(eval_dict['cls_acc'])
     if eval_results["data_cnt"][-1] != samples_cnt:
-        eval_dict = method.online_evaluate(samples_cnt, cls_dict, cls_addition, data["time"])
+        eval_dict = method.online_evaluate(samples_cnt, data["time"])
 
     A_last = eval_dict['avg_mAP50']
 
     if args.mode == 'gdumb':
-        eval_results = method.evaluate_all(args.memory_epoch, cls_dict, cls_addition)
+        eval_results = method.evaluate_all(args.memory_epoch)
 
     # np.save(f'results/{args.dataset}/{args.note}/seed_{args.rnd_seed}_eval.npy', eval_results['avg_mAP50'])
     # np.save(f'results/{args.dataset}/{args.note}/seed_{args.rnd_seed}_eval_classwise.npy', eval_results['classwise_mAP50'])

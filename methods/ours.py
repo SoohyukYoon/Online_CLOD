@@ -62,8 +62,11 @@ class Ours(ER):
                     param.requires_grad = False
     
     def online_step(self, sample, sample_num, n_worker):
-        if sample['klass'] not in self.exposed_classes:
+        if sample.get('klass',None) and sample['klass'] not in self.exposed_classes:
+            self.online_after_task(sample_num)
             self.add_new_class(sample['klass'])
+        elif sample.get('domain',None) and sample['domain'] not in self.exposed_domains:
+            self.exposed_domains.append(sample['domain'])
         self.update_memory(sample)
         self.num_updates += self.online_iter
         
@@ -254,6 +257,10 @@ class OurDataset(MemoryDataset):
     
     def build_initial_buffer(self):
         n_classes, images_dir, label_path = get_pretrained_statistics(self.dataset)
+        self.image_dir = images_dir
+        self.label_path = label_path
+        self.metadata_cache = {}
+        self._load_all_metadata()
         if self.dataset == 'VOC_10_10':
             image_files = glob.glob(os.path.join(images_dir, "train2012", "*.jpg")) \
                         + glob.glob(os.path.join(images_dir, "train2007", "*.jpg")) \
@@ -287,7 +294,7 @@ class OurDataset(MemoryDataset):
     def replace_sample(self, sample, idx=None, images_dir=None, label_path=None):
         img, labels, image_path, ratio = self.load_data(
             sample['file_name'],
-            cls_label=sample['label'],
+            # cls_label=sample['label'],
             image_dir=images_dir or self.image_dir,
             label_path=label_path or self.label_path
         )
