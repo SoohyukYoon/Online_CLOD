@@ -58,7 +58,8 @@ class Ours(ER):
         # print("freeze", group_name)
         for subblock_name in block_name:
             for name, param in self.model.named_parameters():
-                if subblock_name in name:
+                # if subblock_name in name:
+                if name.startswith(subblock_name + '.'):
                     param.requires_grad = False
     
     def online_step(self, sample, sample_num, n_worker):
@@ -114,6 +115,9 @@ class Ours(ER):
                     self.get_freeze_idx(loss)
                 if np.random.rand() > self.unfreeze_rate:
                     self.freeze_layers()
+            
+            if len(self.freeze_idx) == self.num_blocks:
+                continue
             
             if self.use_amp:
                 self.scaler.scale(loss).backward()
