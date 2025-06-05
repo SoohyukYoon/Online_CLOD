@@ -10,7 +10,7 @@ from methods.sdp import *
 from methods.lwf import *
 from methods.erd import *
 from methods.ours import Ours
-
+from methods.finetune import FINETUNE
 
 from methods.baseline import BASELINE
 
@@ -35,6 +35,13 @@ def select_method(args, criterion, n_classes, device):
         )
     elif args.mode == "ours":
         method = Ours(
+            criterion=criterion,
+            device=device,
+            n_classes=n_classes,
+            **kwargs,
+        )
+    elif args.mode == "finetune":
+        method = FINETUNE(
             criterion=criterion,
             device=device,
             n_classes=n_classes,
