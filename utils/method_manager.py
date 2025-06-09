@@ -10,7 +10,8 @@ from methods.sdp import *
 from methods.lwf import *
 from methods.erd import *
 from methods.ours import Ours
-from methods.finetune import FINETUNE
+from methods.ours_min import OursMin
+
 
 from methods.baseline import BASELINE
 
@@ -40,13 +41,14 @@ def select_method(args, criterion, n_classes, device):
             n_classes=n_classes,
             **kwargs,
         )
-    elif args.mode == "finetune":
-        method = FINETUNE(
+    elif args.mode == "ours_min":
+        method = OursMin(
             criterion=criterion,
             device=device,
             n_classes=n_classes,
             **kwargs,
-        )
+        )  
+    
     # elif args.mode == "twf":
     #     method = TWF(
     #         criterion=criterion,

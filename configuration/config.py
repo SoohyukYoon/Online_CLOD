@@ -222,6 +222,8 @@ def base_parser():
     parser.add_argument("--use_batch_cutmix", type=bool, default=False)
     parser.add_argument("--use_human_training", type=bool, default=False, help="disable kornia")
     parser.add_argument("--curriculum_option", type=str, default="class_loss", choices=['class_loss', 'class_acc'])
+    
+    parser.add_argument("--selection_method", type=str, default="loss")
 
     # ASER
     parser.add_argument('--k', dest='k', default=5,
