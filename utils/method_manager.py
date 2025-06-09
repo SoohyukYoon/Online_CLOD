@@ -13,6 +13,7 @@ from methods.ours import Ours
 from methods.finetune import FINETUNE
 
 from methods.baseline import BASELINE
+from methods.baseline2 import BASELINE2
 
 logger = logging.getLogger()
 
@@ -42,6 +43,13 @@ def select_method(args, criterion, n_classes, device):
         )
     elif args.mode == "finetune":
         method = FINETUNE(
+            criterion=criterion,
+            device=device,
+            n_classes=n_classes,
+            **kwargs,
+        )
+    elif args.mode == "baseline2":
+        method = BASELINE2(
             criterion=criterion,
             device=device,
             n_classes=n_classes,
