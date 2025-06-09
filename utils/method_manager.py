@@ -14,6 +14,7 @@ from methods.ours_min import OursMin
 
 
 from methods.baseline import BASELINE
+from methods.baseline2 import BASELINE2
 
 logger = logging.getLogger()
 
@@ -48,7 +49,13 @@ def select_method(args, criterion, n_classes, device):
             n_classes=n_classes,
             **kwargs,
         )  
-    
+    elif args.mode == "baseline2":
+        method = BASELINE2(
+            criterion=criterion,
+            device=device,
+            n_classes=n_classes,
+            **kwargs,
+        )
     # elif args.mode == "twf":
     #     method = TWF(
     #         criterion=criterion,

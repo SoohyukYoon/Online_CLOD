@@ -93,7 +93,8 @@ def collate_fn(batch: List[Tuple[Tensor, Tensor]]) -> Tuple[Tensor, List[Tensor]
     return batch_size, batch_images, batch_targets, batch_reverse, batch_path
 
 class MemoryDataset(Dataset):
-    def __init__(self, args, dataset, cls_list=None, device=None, data_dir=None, memory_size=None):
+    def __init__(self, args, dataset, cls_list=None, device=None, data_dir=None, memory_size=None, 
+                 init_buffer_size=None, mosaic_prob=1.0, mixup_prob=1.0):
         self.args = args
         self.image_sizes = args.image_size  # [640, 640]
         self.memory_size = memory_size
@@ -124,7 +125,7 @@ class MemoryDataset(Dataset):
         self.sample_weight = []
         self.data = {}
         
-        self.build_initial_buffer()
+        self.build_initial_buffer(init_buffer_size)
 
         n_classes, image_dir, label_path = get_statistics(dataset=self.dataset)
         self.image_dir = image_dir
@@ -133,8 +134,8 @@ class MemoryDataset(Dataset):
         self.augment = True
 
         transforms = {
-            "Mosaic": 1,
-            "MixUp": 1,
+            "Mosaic": mosaic_prob,
+            "MixUp": mixup_prob,
             "HorizontalFlip": 0.5,
             "RandomCrop": 1,
             "RemoveOutliers": 1e-8,
@@ -174,7 +175,7 @@ class MemoryDataset(Dataset):
         indices = torch.randint(0, len(self), (num,))
         return [self.get_data(idx)[:2] for idx in indices]
 
-    def build_initial_buffer(self):
+    def build_initial_buffer(self, buffer_size=None):
         n_classes, images_dir, label_path = get_pretrained_statistics(self.dataset)
         self.image_dir = images_dir
         self.label_path = label_path
@@ -188,7 +189,7 @@ class MemoryDataset(Dataset):
         else:
             image_files = glob.glob(os.path.join(images_dir, "train","*.jpg"))
 
-        indices = np.random.choice(range(len(image_files)), size=self.memory_size, replace=False)
+        indices = np.random.choice(range(len(image_files)), size=buffer_size or self.memory_size, replace=False)
 
         for idx in indices:
             image_path = image_files[idx]
