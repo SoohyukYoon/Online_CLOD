@@ -211,28 +211,6 @@ class MemoryDataset(Dataset):
         img, labels, img_path, _ = self.buffer[idx]
         valid_mask = labels[:, 0] != -1
 
-        if isinstance(img, Image.Image):
-            img = np.array(img)
-
-        h0, w0 = img.shape[:2]
-        r = self.image_sizes[0] / max(h0, w0)
-
-        if r != 1:
-            new_w = int(w0 * r)
-            new_h = int(h0 * r)
-            img = cv2.resize(img, (new_w, new_h), interpolation=cv2.INTER_LINEAR)
-            
-        pad_w = self.image_sizes[0] - new_w
-        pad_h = self.image_sizes[1] - new_h
-        top = pad_h // 2
-        bottom = pad_h - top
-        left = pad_w // 2
-        right = pad_w - left
-
-        img = cv2.copyMakeBorder(img, top, bottom, left, right, borderType=cv2.BORDER_CONSTANT, value=(114, 114, 114))
-
-        img = Image.fromarray(img)
-
         return img, labels[valid_mask], img_path
 
 

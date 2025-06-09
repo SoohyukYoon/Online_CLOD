@@ -134,6 +134,9 @@ class Mosaic:
 
         for (image, boxes), vector in zip(data, vectors):
             this_w, this_h = image.size
+            if this_w > img_sz or this_h > img_sz:
+                image, boxes, _ = self.parent.pad_resize(image, boxes)
+                this_w, this_h = image.size
             coord = tuple(center + vector * np.array([this_w, this_h]))
 
             mosaic_image.paste(image, coord)
@@ -171,6 +174,9 @@ class MixUp:
 
         # Retrieve another image and its boxes randomly from the dataset
         image2, boxes2 = self.parent.get_more_data()[0]
+        
+        image, boxes, _ = self.parent.pad_resize(image, boxes)
+        image2, boxes2, _ = self.parent.pad_resize(image2, boxes2)
 
         # Calculate the mixup lambda parameter
         lam = np.random.beta(self.alpha, self.alpha) if self.alpha > 0 else 0.5
