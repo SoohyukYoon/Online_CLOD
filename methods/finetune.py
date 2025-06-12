@@ -32,7 +32,10 @@ def cycle(iterable):
 class FINETUNE(ER):
     def __init__(self, criterion, n_classes, device, **kwargs):
         super().__init__(criterion=criterion, n_classes=n_classes, device=device, **kwargs)
-        self.memory = MemoryDataset(self.args, self.dataset, self.exposed_classes, device=self.device, memory_size=self.memory_size, init_buffer_size=3)
+        self.memory = MemoryDataset(self.args, self.dataset, self.exposed_classes, device=self.device, memory_size=self.memory_size, init_buffer_size=3,mosaic_prob=kwargs['mosaic_prob'],mixup_prob=kwargs['mixup_prob'])
+        
+        self.memory.transform.get_more_data = self.memory.ft_get_more_data
+        
         self.temp_batchsize = self.batch_size
     
     def online_step(self, sample, sample_num, n_worker):

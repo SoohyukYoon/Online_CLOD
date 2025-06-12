@@ -7,7 +7,6 @@ from methods.er_baseline import ER
 # from methods.gss import GSS
 # from methods.der import DER
 from methods.sdp import *
-from methods.lwf import *
 from methods.erd import *
 from methods.ours import Ours
 from methods.ours_min import OursMin
@@ -15,6 +14,11 @@ from methods.ours_min import OursMin
 
 from methods.baseline import BASELINE
 from methods.baseline2 import BASELINE2
+
+from methods.finetune import FINETUNE
+from methods.sdp import SDP
+from methods.lwf_logit import LWF2
+from methods.lwf_feature_extraction import LWF1
 
 logger = logging.getLogger()
 
@@ -30,6 +34,13 @@ def select_method(args, criterion, n_classes, device):
         )
     elif args.mode == "baseline":
         method = BASELINE(
+            criterion=criterion,
+            device=device,
+            n_classes=n_classes,
+            **kwargs,
+        )
+    elif args.mode == "finetune":
+        method = FINETUNE(
             criterion=criterion,
             device=device,
             n_classes=n_classes,
@@ -56,97 +67,22 @@ def select_method(args, criterion, n_classes, device):
             n_classes=n_classes,
             **kwargs,
         )
-    # elif args.mode == "twf":
-    #     method = TWF(
-    #         criterion=criterion,
-    #         device=device,
-    #         train_transform=train_transform,
-    #         test_transform=test_transform,
-    #         n_classes=n_classes,
-    #         **kwargs,
-    #     )
-    # elif args.mode == "gdumb":
-    #     from methods.gdumb import GDumb
-    #     method = GDumb(
-    #         criterion=criterion,
-    #         device=device,
-    #         train_transform=train_transform,
-    #         test_transform=test_transform,
-    #         n_classes=n_classes,
-    #         **kwargs,
-    #     )
-    # elif args.mode == "rm":
-    #     method = RM(
-    #         criterion=criterion,
-    #         device=device,
-    #         train_transform=train_transform,
-    #         test_transform=test_transform,
-    #         n_classes=n_classes,
-    #         **kwargs,
-    #     )
-    # elif args.mode == "bic":
-    #     method = BiasCorrection(
-    #         criterion=criterion,
-    #         device=device,
-    #         train_transform=train_transform,
-    #         test_transform=test_transform,
-    #         n_classes=n_classes,
-    #         **kwargs,
-    #     )
-    # elif args.mode == "ewc++":
-    #     method = EWCpp(
-    #         criterion=criterion,
-    #         device=device,
-    #         train_transform=train_transform,
-    #         test_transform=test_transform,
-    #         n_classes=n_classes,
-    #         **kwargs,
-    #     )
-    # elif args.mode == "mir":
-    #     method = MIR(
-    #         criterion=criterion,
-    #         device=device,
-    #         train_transform=train_transform,
-    #         test_transform=test_transform,
-    #         n_classes=n_classes,
-    #         **kwargs,
-    #     )
-    # elif args.mode == "clib":
-    #     method = CLIB(
-    #         criterion=criterion,
-    #         device=device,
-    #         train_transform=train_transform,
-    #         test_transform=test_transform,
-    #         n_classes=n_classes,
-    #         **kwargs,
-    #     )
-    # elif args.mode == "gss":
-    #     method = GSS(
-    #         criterion=criterion,
-    #         device=device,
-    #         train_transform=train_transform,
-    #         test_transform=test_transform,
-    #         n_classes=n_classes,
-    #         **kwargs,
-    #     )
-    # elif args.mode == "der":
-    #     method = DER(
-    #         criterion=criterion,
-    #         device=device,
-    #         train_transform=train_transform,
-    #         test_transform=test_transform,
-    #         n_classes=n_classes,
-    #         **kwargs,
-    #     )
-    elif args.mode == "SDP":
+    elif args.mode == "sdp":
         method = SDP(
             criterion=criterion,
             device=device,
             n_classes=n_classes,
             **kwargs,
         )
-    elif args.mode == "lwf":
-        method = LWF(
+    elif args.mode == "lwf_feature":
+        method = LWF1(
+            criterion=criterion,
+            device=device,
+            n_classes=n_classes,
+            **kwargs,
+        )
+    elif args.mode == "lwf_logit":
+        method = LWF2(
             criterion=criterion,
             device=device,
             n_classes=n_classes,

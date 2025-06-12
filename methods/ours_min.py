@@ -131,7 +131,7 @@ class OursMemoryDataset(MemoryDataset):
 class OursMin(ER):
     def __init__(self, criterion, n_classes, device, **kwargs):
         super().__init__(criterion, n_classes, device, **kwargs)
-        self.memory = OursMemoryDataset(self.args, self.dataset, self.exposed_classes, device=self.device, memory_size=self.memory_size)
+        self.memory = OursMemoryDataset(self.args, self.dataset, self.exposed_classes, device=self.device, memory_size=self.memory_size, mosaic_prob=kwargs['mosaic_prob'],mixup_prob=kwargs['mixup_prob'])
         self.selection_method = kwargs["selection_method"]
         
     def model_forward_samplewise(self, batch):

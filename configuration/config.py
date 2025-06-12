@@ -299,5 +299,8 @@ def base_parser():
     parser.add_argument('--feat_memsize', type=int, default=3000, help='memory size for features')
 
 
+    parser.add_argument('--mosaic_prob', type=float, default=1.0, help='probability of applying mosaic augmentation')
+    parser.add_argument('--mixup_prob', type=float, default=0.0, help='probability of applying mixup augmentation')
+
     args = parser.parse_args()
     return args

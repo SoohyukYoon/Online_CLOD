@@ -9,7 +9,7 @@ class Ours(ER):
     def __init__(self, criterion, n_classes, device, **kwargs):
         super().__init__(criterion=criterion, n_classes=n_classes, device=device, **kwargs)
         
-        self.memory = OurDataset(self.args, self.dataset, self.exposed_classes, device=self.device, memory_size=self.memory_size)
+        self.memory = OurDataset(self.args, self.dataset, self.exposed_classes, device=self.device, memory_size=self.memory_size, mosaic_prob=kwargs['mosaic_prob'],mixup_prob=kwargs['mixup_prob'])
         
         # Information based freezing
         self.unfreeze_rate = 0.5
@@ -68,15 +68,15 @@ class Ours(ER):
             self.add_new_class(sample['klass'])
         elif sample.get('domain',None) and sample['domain'] not in self.exposed_domains:
             self.exposed_domains.append(sample['domain'])
-        self.update_memory(sample)
+        
         self.num_updates += self.online_iter
         
         if self.num_updates >= 1:
-            train_loss = self.online_train([], self.batch_size, n_worker, iterations=int(self.num_updates), stream_batch_size=0)
+            train_loss = self.online_train([sample], self.batch_size, n_worker, iterations=int(self.num_updates), stream_batch_size=1)
             self.report_training(sample_num, train_loss)
             self.num_updates -= int(self.num_updates)
             self.update_schedule()
-
+        self.update_memory(sample)
     # -----------------------------------------------------------
     # def _apply_freeze_to_optimizer(self):
     #     # rebuild param_groups keeping hyper-params
@@ -254,12 +254,14 @@ import glob
 from PIL import Image
 import cv2
 class OurDataset(MemoryDataset):
-    def __init__(self, args, dataset, cls_list=None, device=None, data_dir=None, memory_size=None):
-        super().__init__(args, dataset, cls_list, device, data_dir, memory_size)
+    def __init__(self, args, dataset, cls_list=None, device=None, data_dir=None, memory_size=None,
+                 init_buffer_size=None, mosaic_prob=0.5, mixup_prob=0.0):
+        super().__init__(args, dataset, cls_list, device, data_dir, memory_size,
+                         init_buffer_size, mosaic_prob, mixup_prob)
         self.alpha = 1.0                  # smoothing constant in 1/(usage+α)
         self.betaa = 1.0
     
-    def build_initial_buffer(self):
+    def build_initial_buffer(self, buffer_size=None):
         n_classes, images_dir, label_path = get_pretrained_statistics(self.dataset)
         self.image_dir = images_dir
         self.label_path = label_path
@@ -323,28 +325,6 @@ class OurDataset(MemoryDataset):
         entry = self.buffer[idx]
         img, labels, img_path = entry["img"], entry["labels"], entry["img_path"]
         valid_mask = labels[:, 0] != -1
-
-        if isinstance(img, Image.Image):
-            img = np.array(img)
-
-        h0, w0 = img.shape[:2]
-        r = self.image_sizes[0] / max(h0, w0)
-
-        if r != 1:
-            new_w = int(w0 * r)
-            new_h = int(h0 * r)
-            img = cv2.resize(img, (new_w, new_h), interpolation=cv2.INTER_LINEAR)
-            
-        pad_w = self.image_sizes[0] - new_w
-        pad_h = self.image_sizes[1] - new_h
-        top = pad_h // 2
-        bottom = pad_h - top
-        left = pad_w // 2
-        right = pad_w - left
-
-        img = cv2.copyMakeBorder(img, top, bottom, left, right, borderType=cv2.BORDER_CONSTANT, value=(114, 114, 114))
-
-        img = Image.fromarray(img)
 
         return img, labels[valid_mask], img_path
 

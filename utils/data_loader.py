@@ -94,7 +94,7 @@ def collate_fn(batch: List[Tuple[Tensor, Tensor]]) -> Tuple[Tensor, List[Tensor]
 
 class MemoryDataset(Dataset):
     def __init__(self, args, dataset, cls_list=None, device=None, data_dir=None, memory_size=None, 
-                 init_buffer_size=None, mosaic_prob=1.0, mixup_prob=1.0):
+                 init_buffer_size=None, mosaic_prob=1.0, mixup_prob=0.0):
         self.args = args
         self.image_sizes = args.image_size  # [640, 640]
         self.memory_size = memory_size
@@ -145,6 +145,8 @@ class MemoryDataset(Dataset):
         self.transform = AugmentationComposer(transforms, self.image_sizes, self.base_size)
         self.transform.get_more_data = self.get_more_data
         
+        self.padResize = AugmentationComposer([], self.image_sizes, self.base_size)
+        
         # Load all metadata once during initialization
         self.metadata_cache = {}
         self._load_all_metadata()
@@ -170,6 +172,10 @@ class MemoryDataset(Dataset):
             # Single JSON file
             annotations_index, image_info_dict = create_image_metadata(self.label_path)
             self.metadata_cache[self.label_path] = (annotations_index, image_info_dict)
+
+    def ft_get_more_data(self, num: int = 1):
+        indices = torch.randint(0, len(self.stream_data), (num,))
+        return [self.stream_data[idx][:2] for idx in indices]
 
     def get_more_data(self, num: int = 1):
         indices = torch.randint(0, len(self), (num,))
@@ -214,7 +220,7 @@ class MemoryDataset(Dataset):
         return img, labels[valid_mask], img_path
 
 
-    def load_data(self, img_name, image_dir, label_path):
+    def load_data(self, img_name, image_dir, label_path, cls_type = None):
         image_path = os.path.join(image_dir, img_name)
         image_id = Path(image_path).stem
         
@@ -242,7 +248,7 @@ class MemoryDataset(Dataset):
 
         annotations = annotations_index.get(image_info["id"], [])
         image_seg_annotations = scale_segmentation(annotations, image_info)
-        labels = self.load_valid_labels(image_id, image_seg_annotations)
+        labels = self.load_valid_labels(image_id, image_seg_annotations, cls_type)
 
         if '.jpg' not in image_path:
             image_path += '.jpg'
@@ -252,11 +258,12 @@ class MemoryDataset(Dataset):
 
         return img, labels, image_path, w / h
 
-    def load_valid_labels(self, label_path: str, seg_data_one_img: list) -> Union[torch.Tensor, None]:
+    def load_valid_labels(self, label_path: str, seg_data_one_img: list, cls_type: str = None) -> Union[torch.Tensor, None]:
         bboxes = []
         for seg_data in seg_data_one_img:
             cls = seg_data[0]
-            if cls >= len(self.cls_list):
+            # if cls >= len(self.cls_list):
+            if cls_type is not None and cls != self.cls_list.index(cls_type): # only one class is allowed per image
                 continue
             
             points = np.array(seg_data[1:]).reshape(-1, 2)
@@ -274,17 +281,31 @@ class MemoryDataset(Dataset):
         self.stream_data = []
         for data in datalist:
             img_name = data.get('file_name', data.get('filepath'))
-            img, labels, image_path, ratio = self.load_data(img_name, image_dir=self.image_dir, label_path=self.label_path)
+            img, labels, image_path, ratio = self.load_data(img_name, image_dir=self.image_dir, label_path=self.label_path, cls_type = data.get('klass', None))
             self.stream_data.append((img, labels, image_path, ratio))
 
     def replace_sample(self, sample, idx=None, images_dir=None,label_path=None):
-        img, labels, image_path, ratio = self.load_data(sample['file_name'], image_dir=images_dir or self.image_dir, label_path=label_path or self.label_path)
+        img, labels, image_path, ratio = self.load_data(sample['file_name'], image_dir=images_dir or self.image_dir, label_path=label_path or self.label_path, cls_type = sample.get('klass', None))
         data = (img, labels, image_path, ratio)
         if idx is None:
             self.buffer.append(data)
         else:
             self.buffer[idx] = data
 
+    def get_stream_data(self, sample, transform=False):
+        batch = []
+        for data in sample:
+            img_name = data.get('file_name', data.get('filepath'))
+            img, labels, image_path, _ = self.load_data(img_name, image_dir=self.image_dir, label_path=self.label_path)
+            if transform:
+                img, labels, rev_tensor = self.transform(img, labels)
+            else:
+                img, labels, rev_tensor = self.padResize(img, labels)
+            labels[:, [1, 3]] *= self.image_sizes[0]
+            labels[:, [2, 4]] *= self.image_sizes[1]
+            batch.append((img, labels, rev_tensor, image_path))
+        return collate_fn(batch)
+    
     @torch.no_grad()
     def get_batch(self, batch_size, stream_batch_size=0, use_weight=None, transform=None, weight_method=None):
         assert batch_size >= stream_batch_size

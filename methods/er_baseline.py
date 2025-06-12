@@ -89,8 +89,7 @@ class ER:
             self.args.model.name, self.model, self.args.model.anchor, self.args.image_size, self.device
         )
         self.model.set_loss_function(self.args, self.vec2box, self.num_learned_class)
-
-        self.memory = MemoryDataset(self.args, self.dataset, self.exposed_classes, device=self.device, memory_size=self.memory_size)
+        self.memory = MemoryDataset(self.args, self.dataset, self.exposed_classes, device=self.device, memory_size=self.memory_size, mosaic_prob=kwargs['mosaic_prob'],mixup_prob=kwargs['mixup_prob'])
         self.temp_batch = []
         self.num_updates = 0
         self.train_count = 0
