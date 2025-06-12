@@ -262,7 +262,8 @@ class MemoryDataset(Dataset):
         bboxes = []
         for seg_data in seg_data_one_img:
             cls = seg_data[0]
-            # if cls >= len(self.cls_list):
+            if cls >= len(self.cls_list):
+                continue
             if cls_type is not None and cls != self.cls_list.index(cls_type): # only one class is allowed per image
                 continue
             
