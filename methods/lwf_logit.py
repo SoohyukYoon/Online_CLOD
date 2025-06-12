@@ -18,19 +18,16 @@ logger = logging.getLogger()
 # writer = SummaryWriter("tensorboard")
 
 
-class LWF2(ER):
+class LWF_Logit(ER):
     def __init__(self, criterion, n_classes, device, **kwargs):
         super().__init__(criterion, n_classes, device, **kwargs)
         self.old_model = None
-        self.lambda_old = kwargs.get("lambda_old", 1.0)
-        self.distill_type = kwargs.get("distill_type", "feature")
-        logger.info(f"[LWF INIT] lambda_old: {self.lambda_old}, distill_type: {self.distill_type}")
+        self.lambda_old = kwargs.get("lambda_old", 0.1)
+        logger.info(f"[LWF INIT] lambda_old: {self.lambda_old}")
 
     def model_forward_with_lwf(self, batch):
         with torch.cuda.amp.autocast(enabled=self.use_amp):
             outputs = self.model(batch["img"])
-            
-            pdb.set_trace()
             
             aux_raw, main_raw = outputs["AUX"], outputs["Main"]
             aux_preds = self.vec2box(aux_raw)
@@ -42,7 +39,7 @@ class LWF2(ER):
                 with torch.no_grad():
                     old_outputs = self.old_model(batch["img"])
 
-                    T = 2.0
+                    T = 3.0
                     loss_distill = 0.0
                     for new_out, old_out in zip(outputs["Main"], old_outputs["Main"]):
                         new_logits = new_out[0] if isinstance(new_out, tuple) else new_out
@@ -54,20 +51,20 @@ class LWF2(ER):
                         # old 모델의 클래스 수에 맞게 자르기
                         soft_new = soft_new[:, :soft_old.shape[1], ...]
 
-                        loss_distill += F.kl_div(soft_new, soft_old, reduction='batchmean') * (T * T)
-
+                        loss_distill += F.kl_div(soft_new, soft_old, reduction='batchmean')# * (T * T)
                     loss_distill /= len(outputs["Main"])
             else:
                 logger.info("[LWF DEBUG] No old model yet")
-
         total_loss = loss_new + self.lambda_old * loss_distill
         return total_loss
 
     def online_step(self, sample, sample_num, n_worker):
-        self.temp_batchsize = self.batch_size
-        if sample['klass'] not in self.exposed_classes:
-            self.online_after_task(sample_num)  # 이전 모델 저장
-            self.add_new_class(sample['klass'])  # 새로운 클래스 추가
+        if sample.get('klass',None) and sample['klass'] not in self.exposed_classes:
+            self.online_after_task(sample_num)
+            self.add_new_class(sample['klass'])
+        elif sample.get('domain',None) and sample['domain'] not in self.exposed_domains:
+            self.exposed_domains.append(sample['domain'])
+            self.online_after_task(sample_num)
 
         self.temp_batch.append(sample)
         self.num_updates += self.online_iter

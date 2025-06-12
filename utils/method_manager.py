@@ -17,8 +17,8 @@ from methods.baseline2 import BASELINE2
 
 from methods.finetune import FINETUNE
 from methods.sdp import SDP
-from methods.lwf_logit import LWF2
-from methods.lwf_feature_extraction import LWF1
+from methods.lwf_logit import LWF_Logit
+from methods.lwf_feature_extraction import LWF_Feature
 
 logger = logging.getLogger()
 
@@ -75,14 +75,14 @@ def select_method(args, criterion, n_classes, device):
             **kwargs,
         )
     elif args.mode == "lwf_feature":
-        method = LWF1(
+        method = LWF_Feature(
             criterion=criterion,
             device=device,
             n_classes=n_classes,
             **kwargs,
         )
     elif args.mode == "lwf_logit":
-        method = LWF2(
+        method = LWF_Logit(
             criterion=criterion,
             device=device,
             n_classes=n_classes,
