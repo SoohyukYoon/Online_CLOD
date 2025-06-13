@@ -302,7 +302,8 @@ class OurDataset(MemoryDataset):
             sample['file_name'],
             # cls_label=sample['label'],
             image_dir=images_dir or self.image_dir,
-            label_path=label_path or self.label_path
+            label_path=label_path or self.label_path,
+            cls_type = sample.get('klass', None)
         )
 
         ### BEGIN USAGE

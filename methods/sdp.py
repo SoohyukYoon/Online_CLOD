@@ -81,6 +81,7 @@ class SDP(ER):
             
             self.memory.cls_count[cls_to_replace] -= 1
             self.memory.cls_idx[cls_to_replace].remove(idx_to_replace)
+            self.memory.cls_idx[self.new_exposed_classes.index(sample_category)].append(idx_to_replace)
         else:
             self.memory.replace_sample(sample)
 
@@ -415,4 +416,6 @@ class OurDataset(MemoryDataset):
         # self.cls_count[self.new_exposed_classes.index(sample.get('klass', 'pretrained'))] += 1
         if idx is None:
             self.cls_idx[self.new_exposed_classes.index(sample_category)].append(len(self.buffer))
-        self.buffer.append(data)
+            self.buffer.append(data)
+        else:
+            self.buffer[idx] = data
