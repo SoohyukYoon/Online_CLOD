@@ -10,13 +10,16 @@ from methods.sdp import *
 from methods.erd import *
 from methods.ours import Ours
 from methods.ours_min import OursMin
-
+from methods.adaptive_freeze import AdaptiveFreeze
 
 from methods.baseline import BASELINE
 from methods.baseline2 import BASELINE2
+from methods.baseline2_balanced import BASELINE2Balanced
+from methods.baseline2_frequency import BASELINE2Frequency
 
 from methods.finetune import FINETUNE
 from methods.sdp import SDP
+from methods.sdp_only import SDPOnly
 from methods.lwf_logit import LWF_Logit
 from methods.lwf_feature_extraction import LWF_Feature
 
@@ -60,6 +63,13 @@ def select_method(args, criterion, n_classes, device):
             n_classes=n_classes,
             **kwargs,
         )  
+    elif args.mode == "adaptive_freeze":
+        method = AdaptiveFreeze(
+            criterion=criterion,
+            device=device,
+            n_classes=n_classes,
+            **kwargs,
+        )
     elif args.mode == "baseline2":
         method = BASELINE2(
             criterion=criterion,
@@ -67,8 +77,29 @@ def select_method(args, criterion, n_classes, device):
             n_classes=n_classes,
             **kwargs,
         )
+    elif args.mode == "baseline2_balanced":
+        method = BASELINE2Balanced(
+            criterion=criterion,
+            device=device,
+            n_classes=n_classes,
+            **kwargs,
+        )
+    elif args.mode == "baseline2_frequency":
+        method = BASELINE2Frequency(
+            criterion=criterion,
+            device=device,
+            n_classes=n_classes,
+            **kwargs,
+        )
     elif args.mode == "sdp":
         method = SDP(
+            criterion=criterion,
+            device=device,
+            n_classes=n_classes,
+            **kwargs,
+        )
+    elif args.mode == "sdp_only":
+        method = SDPOnly(
             criterion=criterion,
             device=device,
             n_classes=n_classes,

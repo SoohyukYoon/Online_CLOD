@@ -4,13 +4,13 @@ from torch import nn
 import numpy as np
 from utils import autograd_hacks
 from operator import attrgetter
-from utils.data_loader import FreqDataset
+from utils.data_loader import MemoryDataset
 
-class Ours(ER):
+class AdaptiveFreeze(ER):
     def __init__(self, criterion, n_classes, device, **kwargs):
         super().__init__(criterion=criterion, n_classes=n_classes, device=device, **kwargs)
         
-        self.memory = FreqDataset(self.args, self.dataset, self.exposed_classes, device=self.device, memory_size=self.memory_size, mosaic_prob=kwargs['mosaic_prob'],mixup_prob=kwargs['mixup_prob'])
+        self.memory = MemoryDataset(self.args, self.dataset, self.exposed_classes, device=self.device, memory_size=self.memory_size, mosaic_prob=kwargs['mosaic_prob'],mixup_prob=kwargs['mixup_prob'])
         
         # Information based freezing
         self.unfreeze_rate = 0.5

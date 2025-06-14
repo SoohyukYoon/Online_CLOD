@@ -485,6 +485,265 @@ def get_test_datalist(dataset) -> List:
         print("test name", f"collections/{dataset}/{dataset}_val2.json")
         return pd.read_json(f"collections/{dataset}/{dataset}_val2.json").to_dict(orient="records")
 
+###############################################################################################
+# Frequency-based Dataset
+class FreqDataset(MemoryDataset):
+    def __init__(self, args, dataset, cls_list=None, device=None, data_dir=None, memory_size=None,
+                 init_buffer_size=None, mosaic_prob=0.5, mixup_prob=0.0):
+        super().__init__(args, dataset, cls_list, device, data_dir, memory_size,
+                         init_buffer_size, mosaic_prob, mixup_prob)
+        self.alpha = 1.0                  # smoothing constant in 1/(usage+α)
+        self.betaa = 1.0
+    
+    def build_initial_buffer(self, buffer_size=None):
+        n_classes, images_dir, label_path = get_pretrained_statistics(self.dataset)
+        self.image_dir = images_dir
+        self.label_path = label_path
+        self.metadata_cache = {}
+        self._load_all_metadata()
+        if self.dataset == 'VOC_10_10':
+            image_files = glob.glob(os.path.join(images_dir, "train2012", "*.jpg")) \
+                        + glob.glob(os.path.join(images_dir, "train2007", "*.jpg")) \
+                        + glob.glob(os.path.join(images_dir, "val2012", "*.jpg")) \
+                        + glob.glob(os.path.join(images_dir, "val2007", "*.jpg"))
+        else:
+            image_files = glob.glob(os.path.join(images_dir, "train", "*.jpg"))
+
+        indices = np.random.choice(range(len(image_files)), size=self.memory_size, replace=False)
+
+        for idx in indices:
+            image_path = image_files[idx]
+            split_name = image_path.split('/')[-2]
+            base_name = image_path.split('/')[-1]
+            self.replace_sample({'file_name': split_name + '/' + base_name, 'label': None}, images_dir=images_dir,label_path=label_path)
+
+        for idx in indices:
+            image_path = image_files[idx]
+            split_name = image_path.split('/')[-2]
+            base_name = image_path.split('/')[-1]
+            self.replace_sample(
+                {
+                    'file_name': split_name + '/' + base_name,
+                    'label': None,
+                    'usage': 0,
+                    'classes': [],   # we fill it in replace_sample() after we know labels
+                },
+                images_dir=images_dir, label_path=label_path
+            )
+    
+    def replace_sample(self, sample, idx=None, images_dir=None, label_path=None):
+        img, labels, image_path, ratio = self.load_data(
+            sample['file_name'],
+            # cls_label=sample['label'],
+            image_dir=images_dir or self.image_dir,
+            label_path=label_path or self.label_path,
+            cls_type = sample.get('klass', None)
+        )
+
+        ### BEGIN USAGE
+        entry = {
+            "img": img,
+            "labels": labels,
+            "img_path": image_path,
+            "ratio": ratio,
+            "usage": sample.get("usage", 0),
+            "classes": torch.unique(labels[:, 0]).tolist() if len(labels) else []
+        }
+        ### END USAGE
+
+        if idx is None:
+            self.buffer.append(entry)
+        else:
+            self.buffer[idx] = entry
+    
+    def get_data(self, idx):
+        entry = self.buffer[idx]
+        img, labels, img_path = entry["img"], entry["labels"], entry["img_path"]
+        valid_mask = labels[:, 0] != -1
+
+        return img, labels[valid_mask], img_path
+
+    @torch.no_grad()
+    def get_batch(self, batch_size, stream_batch_size=0, use_weight=None,
+                  transform=None, weight_method=None):
+        assert batch_size >= stream_batch_size
+        stream_batch_size = min(stream_batch_size, len(self.stream_data))
+        batch_size = min(batch_size, stream_batch_size + len(self.buffer))
+        memory_batch_size = batch_size - stream_batch_size
+
+        data = []
+        if stream_batch_size > 0:
+            stream_indices = np.random.choice(range(len(self.stream_data)), size=stream_batch_size, replace=False)
+            for i in stream_indices:
+                img, bboxes, img_path, _ = self.stream_data[i]
+                img, bboxes, rev_tensor = self.transform(img, bboxes)
+                bboxes[:, [1, 3]] *= self.image_sizes[0]
+                bboxes[:, [2, 4]] *= self.image_sizes[1]
+                data.append((img, bboxes, rev_tensor, img_path))
+
+        # ───── Memory part ──────────────────────────────────────────────
+        if memory_batch_size > 0 and len(self.buffer):
+
+            ### HYBRID WEIGHT BEGIN
+            if weight_method == "cls_usage":          # new option
+                # 1 / (usage+α)  ×  1 / (mean cls_trained + β)
+                alpha = getattr(self, "alpha", 1.0)
+                beta  = getattr(self, "beta", 1.0)       # you may set self.beta in __init__
+                weights = []
+                for entry in self.buffer:
+                    u = entry["usage"]
+                    # gather per-image class-trained counts
+                    if entry["classes"]:
+                        t = [self.cls_train_cnt[self.cls_dict[c]]    # safe: cls_dict maps real IDs
+                            for c in entry["classes"]               # (skip if not yet in dict)
+                            if c in self.cls_dict and
+                                self.cls_dict[c] < len(self.cls_train_cnt)]
+                        mean_t = np.mean(t) if t else 0.0
+                    else:
+                        mean_t = 0.0        # no GT boxes → neutral
+                    weights.append(1.0 / (u + alpha) * 1.0 / (mean_t + beta))
+                w = np.asarray(weights, dtype=np.float64)
+                w /= w.sum()
+            else:
+                # old: purely usage-based
+                w = np.array([1.0 / (e["usage"] + self.alpha) for e in self.buffer],
+                            dtype=np.float64)
+                w /= w.sum()
+            ### HYBRID WEIGHT END
+
+            indices = np.random.choice(
+                len(self.buffer),
+                size=memory_batch_size,
+                replace=len(self.buffer) < memory_batch_size,
+                p=w,
+            )
+
+            for i in indices:
+                # update usage counter *and* class-train counts
+                self.buffer[i]["usage"] += 1
+                for cls in self.buffer[i]["classes"]:
+                    idx_cls = self.cls_dict.get(cls, None)
+                    if idx_cls is not None and idx_cls < len(self.cls_train_cnt):
+                        self.cls_train_cnt[idx_cls] += 1
+
+                img, bboxes, img_path = self.get_data(i)
+                img, bboxes, rev_tensor = self.transform(img, bboxes)
+                bboxes[:, [1, 3]] *= self.image_sizes[0]
+                bboxes[:, [2, 4]] *= self.image_sizes[1]
+                data.append((img, bboxes, rev_tensor, img_path))
+
+        return collate_fn(data)
+
+################################################################################################
+# Class Balanced Dataset
+class ClassBalancedDataset(MemoryDataset):
+    def __init__(self, args, dataset, cls_list=None, device=None, data_dir=None, memory_size=None, 
+                 init_buffer_size=None, mosaic_prob=1.0, mixup_prob=0.0):
+        self.args = args
+        self.image_sizes = args.image_size  # [640, 640]
+        self.memory_size = memory_size
+
+        self.buffer = []
+        self.stream_data = []
+        self.logits = []
+
+        self.dataset = dataset
+        self.device = device
+        self.data_dir = data_dir
+
+        self.counts = []
+        self.class_usage_cnt = []
+        self.tasks = []
+        
+        # FIXME: fix for object detection class counting
+        self.cls_list = cls_list if cls_list else []
+        self.cls_used_times = []
+        self.cls_dict = {}
+        self.cls_count = [0]
+        self.cls_idx = [[]]
+        
+        self.new_exposed_classes = ['pretrained']
+        self.cls_train_cnt = np.array([])
+        self.score = []
+        self.others_loss_decrease = np.array([])
+        self.previous_idx = np.array([], dtype=int)
+        self.usage_cnt = []
+        self.sample_weight = []
+        self.data = {}
+        
+        self.build_initial_buffer(init_buffer_size)
+
+        n_classes, image_dir, label_path = get_statistics(dataset=self.dataset)
+        self.image_dir = image_dir
+        self.label_path = label_path
+
+        self.augment = True
+
+        transforms = {
+            "Mosaic": mosaic_prob,
+            "MixUp": mixup_prob,
+            "HorizontalFlip": 0.5,
+            "RandomCrop": 1,
+            "RemoveOutliers": 1e-8,
+        }
+        transforms = [eval(k)(v) for k, v in transforms.items()]
+        self.base_size = mean(self.image_sizes)
+        self.transform = AugmentationComposer(transforms, self.image_sizes, self.base_size)
+        self.transform.get_more_data = self.get_more_data
+        
+        self.padResize = AugmentationComposer([], self.image_sizes, self.base_size)
+        
+        # Load all metadata once during initialization
+        self.metadata_cache = {}
+        self._load_all_metadata()
+        
+    
+    def build_initial_buffer(self, buffer_size=None):
+        n_classes, images_dir, label_path = get_pretrained_statistics(self.dataset)
+        self.image_dir = images_dir
+        self.label_path = label_path
+        self.metadata_cache = {}
+        self._load_all_metadata()
+        if self.dataset == 'VOC_10_10':
+            image_files = glob.glob(os.path.join(images_dir, "train2012", "*.jpg")) \
+                        + glob.glob(os.path.join(images_dir, "train2007", "*.jpg")) \
+                        + glob.glob(os.path.join(images_dir, "val2012", "*.jpg")) \
+                        + glob.glob(os.path.join(images_dir, "val2007", "*.jpg"))
+        else:
+            image_files = glob.glob(os.path.join(images_dir, "train","*.jpg"))
+
+        indices = np.random.choice(range(len(image_files)), size=buffer_size or self.memory_size, replace=False)
+
+        for idx in indices:
+            image_path = image_files[idx]
+            split_name = image_path.split('/')[-2]
+            base_name = image_path.split('/')[-1]
+            self.replace_sample({'file_name': split_name + '/' + base_name, 'label': None}, images_dir=images_dir,label_path=label_path)
+    
+    def add_new_class(self, cls_list, sample=None):
+        self.cls_list = cls_list
+        self.cls_count.append(0)
+        self.cls_idx.append([])
+    
+    def replace_sample(self, sample, idx=None, images_dir=None, label_path=None):
+        img, labels, image_path, ratio = self.load_data(sample['file_name'], image_dir=images_dir or self.image_dir, label_path=label_path or self.label_path, cls_type = sample.get('klass', None))
+        data = (img, labels, image_path, ratio)
+        if sample.get('klass', None):
+            self.cls_count[self.new_exposed_classes.index(sample['klass'])] += 1
+            sample_category = sample['klass']
+        elif sample.get('domain', None):
+            self.cls_count[self.new_exposed_classes.index(sample['domain'])] += 1
+            sample_category = sample['domain']
+        else:
+            self.cls_count[self.new_exposed_classes.index('pretrained')] += 1
+            sample_category = 'pretrained'
+        # self.cls_count[self.new_exposed_classes.index(sample.get('klass', 'pretrained'))] += 1
+        if idx is None:
+            self.cls_idx[self.new_exposed_classes.index(sample_category)].append(len(self.buffer))
+            self.buffer.append(data)
+        else:
+            self.buffer[idx] = data
+
 
 
 #################################################################################################
