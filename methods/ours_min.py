@@ -22,6 +22,8 @@ from typing import Generator, List, Tuple, Union
 from torch import Tensor
 import torch.nn.functional as F
 
+from yolo.tools.data_loader import create_dataloader
+
 logger = logging.getLogger()
 #writer = SummaryWriter("tensorboard")
 
@@ -62,10 +64,11 @@ def collate_fn(batch: List[Tuple[Tensor, Tensor]]) -> Tuple[Tensor, List[Tensor]
     return batch_size, batch_images, batch_targets, batch_reverse, batch_path
 
 class OursMemoryDataset(MemoryDataset):
-    def __init__(self, args, dataset, cls_list=None, device=None, data_dir=None, memory_size=None):
+    def __init__(self, args, dataset, cls_list=None, device=None, data_dir=None, memory_size=None, selection_method=None, mosaic_prob=1.0, mixup_prob=1.0):
         self.buffer_info = []
         self.softmax_retrieval = 1
-        print("initialize buffer")
+        self.selection_method = selection_method
+        self.memory_indices = None
         super().__init__(args, dataset, cls_list=cls_list, device=device, data_dir=data_dir, memory_size=memory_size)
     
     def replace_sample(self, sample, idx=None, images_dir=None,label_path=None, info=None):
@@ -77,9 +80,16 @@ class OursMemoryDataset(MemoryDataset):
         else:
             self.buffer[idx] = data
             self.buffer_info[idx] = info
+            
+    def update_info(self, infos):
+        if self.memory_indices is not None:
+            for idx, ind in enumerate(self.memory_indices):
+                self.buffer_info[ind] = infos[idx]
+                
+
      
     @torch.no_grad()
-    def get_batch(self, batch_size, stream_batch_size=0, use_weight=None, transform=None, weight_method=None):
+    def get_batch(self, batch_size, stream_batch_size=0, use_weight=None, transform=None, weight_method=None, initialize_info=False):
         assert batch_size >= stream_batch_size
         stream_batch_size = min(stream_batch_size, len(self.stream_data))
         batch_size = min(batch_size, stream_batch_size + len(self.buffer))
@@ -97,6 +107,7 @@ class OursMemoryDataset(MemoryDataset):
                 data.append((img, bboxes, rev_tensor, img_path))
 
         if memory_batch_size > 0:
+            
             # indices = np.random.choice(range(len(self.buffer)), size=memory_batch_size, replace=False)
             # indices = np.argsort(self.buffer_info)[-memory_batch_size:][::-1]
             
@@ -107,16 +118,18 @@ class OursMemoryDataset(MemoryDataset):
             non_none_item = [val for val in self.buffer_info if val is not None]
             
             if len(non_none_item) < memory_batch_size:
-                print("not enough")
                 indices = np.random.choice(range(len(self.buffer)), size=memory_batch_size, replace=False)
             else:
-                print("enough")
                 print(non_none_item)
-                # softmax_probs = [info/sum(non_none_item) for info in non_none_item]
-                # memory_indices = np.random.choice(len(non_none_item), memory_batch_size, p=softmax_probs, replace=False)
+                if "low" in self.selection_method:
+                    memory_indices = np.argsort(non_none_item)[:memory_batch_size][::-1]
+                elif "high" in self.selection_method:
+                    memory_indices = np.argsort(non_none_item)[-memory_batch_size:][::-1]
+                elif "prob" in self.selection_method: 
+                    softmax_probs = [info/sum(non_none_item) for info in non_none_item]
+                    memory_indices = np.random.choice(len(non_none_item), memory_batch_size, p=softmax_probs, replace=False)
                 
-                memory_indices = np.argsort(non_none_item)[-memory_batch_size:][::-1]
-                
+                self.memory_indices = memory_indices
                 indices = [non_none_item_ind[ind] for ind in memory_indices]
                       
                 for i in indices:
@@ -131,8 +144,93 @@ class OursMemoryDataset(MemoryDataset):
 class OursMin(ER):
     def __init__(self, criterion, n_classes, device, **kwargs):
         super().__init__(criterion, n_classes, device, **kwargs)
-        self.memory = OursMemoryDataset(self.args, self.dataset, self.exposed_classes, device=self.device, memory_size=self.memory_size, mosaic_prob=kwargs['mosaic_prob'],mixup_prob=kwargs['mixup_prob'])
         self.selection_method = kwargs["selection_method"]
+        self.memory = OursMemoryDataset(self.args, self.dataset, self.exposed_classes, device=self.device, memory_size=self.memory_size, selection_method=self.selection_method,  mosaic_prob=0.5, mixup_prob=0)
+        buffer_initial_info = self.cal_initial_info()
+        assert len(self.memory.buffer) == len(buffer_initial_info), "Buffer size and initial info size mismatch."
+        self.memory.buffer_info = buffer_initial_info
+
+    def cal_initial_info(self):
+        """
+        Calculate the initial information for each sample in the buffer.
+        This is a placeholder function that should be implemented based on the selection method.
+        """
+        buffer_initial_info = []
+        buffer_initial_data = self.memory.buffer
+        buffer_initial_data2 = []
+        for img, labels, img_path, _ in buffer_initial_data:
+            valid_mask = labels[:, 0] != -1
+            bboxes = labels[valid_mask]
+            img, bboxes, rev_tensor = self.memory.transform(img, bboxes)
+            bboxes[:, [1, 3]] *= self.memory.image_sizes[0]
+            bboxes[:, [2, 4]] *= self.memory.image_sizes[1]
+            buffer_initial_data2.append((img, bboxes, rev_tensor, img_path))
+        
+        self.model.eval()
+        with torch.no_grad():
+            for i in range(0,len(buffer_initial_data2), self.batch_size):
+                batch = buffer_initial_data2[i:i+self.batch_size]
+                data = collate_fn(batch)
+                batch = {
+                    "img": data[1],         # images
+                    "cls": data[2],         # labels
+                    "reverse": data[3],     # reverse tensors
+                    "img_path": data[4],    # image paths
+                }
+                self.optimizer.zero_grad()
+                batch = self.preprocess_batch(batch)
+                with torch.cuda.amp.autocast(enabled=self.use_amp):
+                    # 모델 실행: output = {"AUX": ..., "Main": ...}
+                    # for input_s in batch["img"]:
+                    outputs = self.model(batch["img"])
+                    aux_raw = outputs["AUX"]
+                    main_raw = outputs["Main"]
+
+                    # Vec2Box 변환: [B, A, C], [B, A, R], [B, A, 4]
+                    aux_predicts = self.vec2box(aux_raw)
+                    main_predicts = self.vec2box(main_raw)
+                    
+                
+                    infos = []
+                    if "loss" in self.selection_method:
+                        loss = None
+                        for ind in range(len(batch["img"])):
+                            aux_predict = [predict[ind].unsqueeze(dim=0) for predict in aux_predicts]
+                            main_predict = [predict[ind].unsqueeze(dim=0) for predict in main_predicts]
+                            sample_loss, loss_item = self.model.loss_fn(aux_predict, main_predict, batch['cls'][ind].unsqueeze(dim=0))
+                            infos.append(sample_loss.detach().cpu().item())
+                            if loss == None:
+                                loss = sample_loss
+                            else:
+                                loss += sample_loss
+                                
+                        loss /= len(batch["img"])
+            
+                    elif "entropy" in self.selection_method:
+                        loss, loss_item = self.model.loss_fn(aux_predicts, main_predicts, batch['cls'])
+                        for ind in range(len(batch["img"])):
+                            info = 0
+                            for main_raw_i in main_raw:
+                                sample_logit = main_raw_i[0][ind] if isinstance(main_raw_i, tuple) else main_raw_i[ind]
+                                probs = F.softmax(sample_logit, dim=0)
+                                info += -torch.sum(probs * torch.log(probs + 1e-8)).item()
+                            infos.append(info)
+                    
+                    elif "gradnorm" in self.selection_method:
+                        loss, loss_item = self.model.loss_fn(aux_predicts, main_predicts, batch['cls'])
+                        for ind in range(len(batch["img"])):
+                            info = 0
+                            for main_raw_i in main_raw:
+                                sample_logit = main_raw_i[0][ind] if isinstance(main_raw_i, tuple) else main_raw_i[ind]
+                                for n, p in self.model.base_model.model.model.layers[-1].named_parameters():
+                                    if p.requires_grad == True:
+                                        grad = torch.autograd.grad(sample_logit, p, retain_graph=True)[0].clone().detach().clamp(-1, 1)
+                                info += (grad**2).sum().cpu()
+                            infos.append(info)
+                    
+                    
+                buffer_initial_info.extend(infos)          
+        return buffer_initial_info
         
     def model_forward_samplewise(self, batch):
         batch = self.preprocess_batch(batch)
@@ -140,7 +238,6 @@ class OursMin(ER):
         with torch.cuda.amp.autocast(enabled=self.use_amp):
             # 모델 실행: output = {"AUX": ..., "Main": ...}
             # for input_s in batch["img"]:
-            print("batchsize", len(batch["img"]))
             outputs = self.model(batch["img"])
             aux_raw = outputs["AUX"]
             main_raw = outputs["Main"]
@@ -175,7 +272,7 @@ class OursMin(ER):
 
             # 손실 계산
             infos = []
-            if self.selection_method == "loss":
+            if "loss" in self.selection_method:
                 loss = None
                 for ind in range(len(batch["img"])):
                     aux_predict = [predict[ind].unsqueeze(dim=0) for predict in aux_predicts]
@@ -193,7 +290,7 @@ class OursMin(ER):
       
                 # infos= torch.tensor(infos).mean(dim=0)        
                     
-            elif self.selection_method == "entropy":
+            elif "entropy" in self.selection_method:
                 loss, loss_item = self.model.loss_fn(aux_predicts, main_predicts, batch['cls'])
                 for ind in range(len(batch["img"])):
                     info = 0
@@ -273,6 +370,8 @@ class OursMin(ER):
 
             total_loss += loss.item()
             stream_info = infos[:len(self.temp_batch)]
+            memory_info = infos[len(self.temp_batch):]
+            self.memory.update_info(memory_info)
                 # self.total_flops += (batch_size * (self.forward_flops + self.backward_flops))
                 # print("self.total_flops", self.total_flops)
         return total_loss / iterations, stream_info
