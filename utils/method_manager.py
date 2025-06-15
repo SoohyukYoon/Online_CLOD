@@ -16,6 +16,7 @@ from methods.baseline import BASELINE
 from methods.baseline2 import BASELINE2
 from methods.baseline2_balanced import BASELINE2Balanced
 from methods.baseline2_frequency import BASELINE2Frequency
+from methods.baseline2_freq_balanced import BASELINE2FreqBalanced
 
 from methods.finetune import FINETUNE
 from methods.sdp import SDP
@@ -86,6 +87,13 @@ def select_method(args, criterion, n_classes, device):
         )
     elif args.mode == "baseline2_frequency":
         method = BASELINE2Frequency(
+            criterion=criterion,
+            device=device,
+            n_classes=n_classes,
+            **kwargs,
+        )
+    elif args.mode == "baseline2_freq_balanced":
+        method = BASELINE2FreqBalanced(
             criterion=criterion,
             device=device,
             n_classes=n_classes,
