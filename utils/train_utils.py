@@ -35,7 +35,7 @@ def select_model(cfg:Config,dataset):
             model.load_state_dict(state_dict)
     elif dataset=='BDD_domain':
         model = create_model(cfg.model, class_num=13, weight_path="")
-        pretrained_path = "./yolov9_pretrain_bdd.pth"
+        pretrained_path = "./yolov9_pretrain_bdd100k.pth"
         if os.path.exists(pretrained_path):
             state_dict = torch.load(pretrained_path, map_location='cpu')
             state_dict = {k.replace('ema.model.', 'model.'):v for k,v in state_dict.items() if 'ema.model' in k}

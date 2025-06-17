@@ -57,3 +57,44 @@ class FINETUNE(ER):
 
                 self.temp_batch = []
                 self.num_updates -= int(self.num_updates)
+    
+    def online_train(self, sample, batch_size, n_worker, iterations=1, stream_batch_size=1):
+        total_loss = 0.0
+        if len(sample) > 0:
+            self.memory.register_stream(sample)
+        for i in range(iterations):
+            self.model.train()
+            data = self.memory.get_stream_data(sample, transform=True)
+
+            batch = {
+                "img": data[1],         # images
+                "cls": data[2],         # labels
+                "reverse": data[3],     # reverse tensors
+                "img_path": data[4],    # image paths
+            }
+            
+            # print(f"[DEBUG] batch images: {batch['img_path']}")
+            # print(f"[DEBUG] batch labels shape: {batch['cls'].shape}")
+
+            self.optimizer.zero_grad()
+
+            loss, loss_item = self.model_forward(batch)
+            # print(f"[DEBUG] individual losses: {loss_item}")
+
+            if self.use_amp:
+                self.scaler.scale(loss).backward()
+                self.scaler.step(self.optimizer)
+                self.scaler.update()
+            else:
+                loss.backward()
+                self.optimizer.step()
+            
+            self.total_flops += (len(data[1]) * self.backward_flops)
+            
+            self.update_schedule()
+
+            total_loss += loss.item()
+            
+            # self.total_flops += (batch_size * (self.forward_flops + self.backward_flops))
+            # print("self.total_flops", self.total_flops)
+        return total_loss / iterations

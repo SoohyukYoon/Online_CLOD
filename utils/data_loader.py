@@ -297,7 +297,7 @@ class MemoryDataset(Dataset):
         batch = []
         for data in sample:
             img_name = data.get('file_name', data.get('filepath'))
-            img, labels, image_path, _ = self.load_data(img_name, image_dir=self.image_dir, label_path=self.label_path)
+            img, labels, image_path, _ = self.load_data(img_name, image_dir=self.image_dir, label_path=self.label_path, cls_type = data.get('klass', None))
             if transform:
                 img, labels, rev_tensor = self.transform(img, labels)
             else:
