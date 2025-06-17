@@ -30,6 +30,10 @@ def cycle(iterable):
 
 
 class BASELINE(ER):
+    def __init__(self, criterion, n_classes, device, **kwargs):
+        super().__init__(criterion=criterion, n_classes=n_classes, device=device, **kwargs)
+        self.memory_size = kwargs["memory_size"]
+        self.memory = MemoryDataset(self.args, self.dataset, self.exposed_classes, device=self.device, memory_size=self.memory_size, mosaic_prob=kwargs['mosaic_prob'], mixup_prob=kwargs['mixup_prob'])
     def online_step(self, sample, sample_num, n_worker):
         if sample.get('klass',None) and sample['klass'] not in self.exposed_classes:
             self.online_after_task(sample_num)

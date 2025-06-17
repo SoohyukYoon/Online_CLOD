@@ -15,6 +15,7 @@ from scipy.stats import chi2, norm
 #from ptflops import get_model_complexity_info
 from flops_counter.ptflops import get_model_complexity_info
 from methods.er_baseline import ER
+from methods.baseline2 import BASELINE2
 from utils.data_loader import ClassBalancedDataset
 from utils.train_utils import select_model, select_optimizer, select_scheduler
 
@@ -29,7 +30,7 @@ def cycle(iterable):
             yield i
 
 
-class BASELINE2Balanced(ER):
+class BASELINE2Balanced(BASELINE2):
     def __init__(self, criterion, n_classes, device, **kwargs):
         super().__init__(criterion=criterion, n_classes=n_classes, device=device, **kwargs)
         self.memory = ClassBalancedDataset(self.args, self.dataset, self.exposed_classes, device=self.device, memory_size=self.memory_size, mosaic_prob=kwargs['mosaic_prob'],mixup_prob=kwargs['mixup_prob'])

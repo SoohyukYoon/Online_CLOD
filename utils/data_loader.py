@@ -518,20 +518,6 @@ class FreqDataset(MemoryDataset):
             base_name = image_path.split('/')[-1]
             self.replace_sample({'file_name': split_name + '/' + base_name, 'label': None}, images_dir=images_dir,label_path=label_path)
 
-        for idx in indices:
-            image_path = image_files[idx]
-            split_name = image_path.split('/')[-2]
-            base_name = image_path.split('/')[-1]
-            self.replace_sample(
-                {
-                    'file_name': split_name + '/' + base_name,
-                    'label': None,
-                    'usage': 0,
-                    'classes': [],   # we fill it in replace_sample() after we know labels
-                },
-                images_dir=images_dir, label_path=label_path
-            )
-    
     def replace_sample(self, sample, idx=None, images_dir=None, label_path=None):
         img, labels, image_path, ratio = self.load_data(
             sample['file_name'],
@@ -837,20 +823,6 @@ class FreqClsBalancedDataset(MemoryDataset):
             base_name = image_path.split('/')[-1]
             self.replace_sample({'file_name': split_name + '/' + base_name, 'label': None}, images_dir=images_dir,label_path=label_path)
 
-        for idx in indices:
-            image_path = image_files[idx]
-            split_name = image_path.split('/')[-2]
-            base_name = image_path.split('/')[-1]
-            self.replace_sample(
-                {
-                    'file_name': split_name + '/' + base_name,
-                    'label': None,
-                    'usage': 0,
-                    'classes': [],   # we fill it in replace_sample() after we know labels
-                },
-                images_dir=images_dir, label_path=label_path
-            )
-    
     def replace_sample(self, sample, idx=None, images_dir=None, label_path=None):
         img, labels, image_path, ratio = self.load_data(
             sample['file_name'],
