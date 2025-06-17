@@ -494,7 +494,7 @@ class FreqDataset(MemoryDataset):
                          init_buffer_size, mosaic_prob, mixup_prob)
         self.alpha = 1.0                  # smoothing constant in 1/(usage+α)
         self.beta = 1.0
-        self.usage_decay = 0.95
+        self.usage_decay = 0.9
 
     def build_initial_buffer(self, buffer_size=None):
         n_classes, images_dir, label_path = get_pretrained_statistics(self.dataset)
@@ -566,7 +566,7 @@ class FreqDataset(MemoryDataset):
 
     @torch.no_grad()
     def get_batch(self, batch_size, stream_batch_size=0, use_weight=None,
-                  transform=None, weight_method=None):
+                  transform=None, weight_method="cls_usage"):
         assert batch_size >= stream_batch_size
         stream_batch_size = min(stream_batch_size, len(self.stream_data))
         batch_size = min(batch_size, stream_batch_size + len(self.buffer))
@@ -584,6 +584,10 @@ class FreqDataset(MemoryDataset):
 
         # ───── Memory part ──────────────────────────────────────────────
         if memory_batch_size > 0 and len(self.buffer):
+            for e in self.buffer:
+                e['usage'] *= self.usage_decay
+            for cls_idx in range(len(self.cls_train_cnt)):
+                self.cls_train_cnt[cls_idx] *= self.usage_decay
 
             ### HYBRID WEIGHT BEGIN
             if weight_method == "cls_usage":          # new option
@@ -605,9 +609,6 @@ class FreqDataset(MemoryDataset):
                 w = np.asarray(weights, dtype=np.float64)
                 w /= w.sum()
             else:
-                # for e in self.buffer:
-                #     e['usage'] *= self.usage_decay
-                
                 w = np.array([1.0 / (e["usage"] + self.alpha) for e in self.buffer],
                             dtype=np.float64)
                 w /= w.sum()
@@ -812,7 +813,7 @@ class FreqClsBalancedDataset(MemoryDataset):
         
         self.alpha = 1.0                  # smoothing constant in 1/(usage+α)
         self.beta = 1.0
-        self.usage_decay = 0.95
+        self.usage_decay = 0.9
     
     def build_initial_buffer(self, buffer_size=None):
         n_classes, images_dir, label_path = get_pretrained_statistics(self.dataset)
@@ -895,7 +896,7 @@ class FreqClsBalancedDataset(MemoryDataset):
 
     @torch.no_grad()
     def get_batch(self, batch_size, stream_batch_size=0, use_weight=None,
-                  transform=None, weight_method=None):
+                  transform=None, weight_method="cls_usage"):
         assert batch_size >= stream_batch_size
         stream_batch_size = min(stream_batch_size, len(self.stream_data))
         batch_size = min(batch_size, stream_batch_size + len(self.buffer))
@@ -913,7 +914,10 @@ class FreqClsBalancedDataset(MemoryDataset):
 
         # ───── Memory part ──────────────────────────────────────────────
         if memory_batch_size > 0 and len(self.buffer):
-
+            for e in self.buffer:
+                e['usage'] *= self.usage_decay
+            for cls_idx in range(len(self.cls_train_cnt)):
+                self.cls_train_cnt[cls_idx] *= self.usage_decay
             ### HYBRID WEIGHT BEGIN
             if weight_method == "cls_usage":          # new option
                 # 1 / (usage+α)  ×  1 / (mean cls_trained + β)
@@ -934,9 +938,6 @@ class FreqClsBalancedDataset(MemoryDataset):
                 w = np.asarray(weights, dtype=np.float64)
                 w /= w.sum()
             else:
-                # for e in self.buffer:
-                #     e['usage'] *= self.usage_decay
-                
                 w = np.array([1.0 / (e["usage"] + self.alpha) for e in self.buffer],
                             dtype=np.float64)
                 w /= w.sum()
