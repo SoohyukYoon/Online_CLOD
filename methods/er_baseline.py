@@ -422,8 +422,10 @@ class ER:
                     self.args: Config = compose(config_name="config", overrides=["model=v9-s",f"dataset={data_name}"])            
                 self.val_loader = create_dataloader(self.args.task.validation.data, self.args.dataset, self.args.task.validation.task)
                 eval_dict_sub = self.evaluate()
-                eval_dict['avg_mAP50'] += eval_dict_sub['avg_mAP50']/5
-                eval_dict["classwise_mAP50"].append(eval_dict_sub['avg_mAP50'])
+                clean = [v for v in eval_dict_sub['classwise_mAP50'] if v != -1]
+                average = sum(clean) / len(clean)
+                eval_dict['avg_mAP50'] += average/5
+                eval_dict["classwise_mAP50"].append(average)
             with initialize(config_path="../yolo/config", version_base=None):
                 self.args: Config = compose(config_name="config", overrides=["model=v9-s",f"dataset=bdd100k"])
         elif self.dataset=='SHIFT_domain':
@@ -433,8 +435,10 @@ class ER:
                     self.args: Config = compose(config_name="config", overrides=["model=v9-s",f"dataset={data_name}"])            
                 self.val_loader = create_dataloader(self.args.task.validation.data, self.args.dataset, self.args.task.validation.task)
                 eval_dict_sub = self.evaluate()
-                eval_dict['avg_mAP50'] += eval_dict_sub['avg_mAP50']/len(self.exposed_domains)
-                eval_dict["classwise_mAP50"].append(eval_dict_sub['avg_mAP50'])
+                clean = [v for v in eval_dict_sub['classwise_mAP50'] if v != -1]
+                average = sum(clean) / len(clean)
+                eval_dict['avg_mAP50'] += average/len(self.exposed_domains)
+                eval_dict["classwise_mAP50"].append(average)
             with initialize(config_path="../yolo/config", version_base=None):
                 self.args: Config = compose(config_name="config", overrides=["model=v9-s",f"dataset=shift"])
         else:
