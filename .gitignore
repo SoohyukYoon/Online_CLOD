@@ -302,3 +302,5 @@ jhp
 # # Not ignore image for demo
 # !demo/images/*/*.png*.out
 weight.py
+data/coco/annotations/*.zip
+data/coco_40/annotations/*.zip
