@@ -5,6 +5,92 @@ validation: val2017
 class_num: 80
 class_list: ['Person', 'Bicycle', 'Car', 'Motorcycle', 'Airplane', 'Bus', 'Train', 'Truck', 'Boat', 'Traffic light', 'Fire hydrant', 'Stop sign', 'Parking meter', 'Bench', 'Bird', 'Cat', 'Dog', 'Horse', 'Sheep', 'Cow', 'Elephant', 'Bear', 'Zebra', 'Giraffe', 'Backpack', 'Umbrella', 'Handbag', 'Tie', 'Suitcase', 'Frisbee', 'Skis', 'Snowboard', 'Sports ball', 'Kite', 'Baseball bat', 'Baseball glove', 'Skateboard', 'Surfboard', 'Tennis racket', 'Bottle', 'Wine glass', 'Cup', 'Fork', 'Knife', 'Spoon', 'Bowl', 'Banana', 'Apple', 'Sandwich', 'Orange', 'Broccoli', 'Carrot', 'Hot dog', 'Pizza', 'Donut', 'Cake', 'Chair', 'Couch', 'Potted plant', 'Bed', 'Dining table', 'Toilet', 'Tv', 'Laptop', 'Mouse', 'Remote', 'Keyboard', 'Cell phone', 'Microwave', 'Oven', 'Toaster', 'Sink', 'Refrigerator', 'Book', 'Clock', 'Vase', 'Scissors', 'Teddy bear', 'Hair drier', 'Toothbrush']
 
+
+# class_list: [
+#   "person", # 0
+#   "bicycle", # 1
+#   "car", # 2
+#   "motorcycle", # 3
+#   "airplane", # 4
+#   "bus", # 5
+#   "train", # 6
+#   "truck", # 7
+#   "boat", # 8
+#   "traffic", light # 9
+#   "fire", hydrant # 10
+#   "stop", sign # 11
+#   "parking", meter # 12
+#   "bench", # 13
+#   "bird", # 14
+#   "cat", # 15
+#   "dog", # 16
+#   "horse", # 17
+#   "sheep", # 18
+#   "cow", # 19
+#   "elephant", # 20
+#   "bear", # 21
+#   "zebra", # 22
+#   "giraffe", # 23
+#   "backpack", # 24
+#   "umbrella", # 25
+#   "handbag", # 26
+#   "tie", # 27
+#   "suitcase", # 28
+#   "frisbee", # 29
+#   "skis", # 30
+#   "snowboard", # 31
+#   "sports", ball # 32
+#   "kite", # 33
+#   "baseball", bat # 34
+#   "baseball", glove # 35
+#   "skateboard", # 36
+#   "surfboard", # 37
+#   "tennis", racket # 38
+#   "bottle", # 39
+#   "wine", glass # 40
+#   "cup", # 41
+#   "fork", # 42
+#   "knife", # 43
+#   "spoon", # 44
+#   "bowl", # 45
+#   "banana", # 46
+#   "apple", # 47
+#   "sandwich", # 48
+#   "orange", # 49
+#   "broccoli", # 50
+#   "carrot", # 51
+#   "hot", dog # 52
+#   "pizza", # 53
+#   "donut", # 54
+#   "cake", # 55
+#   "chair", # 56
+#   "couch", # 57
+#   "potted", plant # 58
+#   "bed", # 59
+#   "dining", table # 60
+#   "toilet", # 61
+#   "tv", # 62
+#   "laptop", # 63
+#   "mouse", # 64
+#   "remote", # 65
+#   "keyboard", # 66
+#   "cell", phone # 67
+#   "microwave", # 68
+#   "oven", # 69
+#   "toaster", # 70
+#   "sink", # 71
+#   "refrigerator", # 72
+#   "book", # 73
+#   "clock", # 74
+#   "vase", # 75
+#   "scissors", # 76
+#   "teddy", bear # 77
+#   "hair", drier # 78
+#   "toothbrush", # 79
+# ]
+
+
+
 auto_download:
   images:
     base_url: http://images.cocodataset.org/zips/
@@ -14,9 +100,9 @@ auto_download:
     val2017:
       file_name: val2017
       file_num: 5000
-    test2017:
-      file_name: test2017
-      file_num: 40670
+    # test2017:
+    #   file_name: test2017
+    #   file_num: 40670
   annotations:
     base_url: http://images.cocodataset.org/annotations/
     annotations:

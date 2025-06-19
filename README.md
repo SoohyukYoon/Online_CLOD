@@ -16,6 +16,11 @@ pip install -r requirements.txt
 python -m preprocess_dataset.download_voc
 ```
 
+#### COCO
+```bash
+python -m preprocess_dataset.download_coco
+```
+
 #### SHIFT
 ```bash
 python -m preprocess_dataset.download_shift
@@ -31,6 +36,11 @@ python -m preprocess_dataset.download_bdd
 #### VOC_10
 ```bash
 python -m preprocess_dataset.preprocess_voc10
+```
+
+#### COCO_40
+```bash
+python -m preprocess_dataset.preprocess_coco40
 ```
 
 #### BDD100K source
@@ -101,9 +111,19 @@ python -m preprocess_dataset.preprocess_shift_rainy
 python yolo/lazy.py task=train name='pre_train' dataset=voc_10.yaml use_wandb=False
 ```
 
+#### Pretrain COCO_40
+```bash
+python yolo/lazy.py task=train name='pre_train' dataset=coco_40.yaml use_wandb=False
+```
+
 #### Joint-train VOC
 ```bash
 python yolo/lazy.py task=train name='joint_train' dataset=voc.yaml use_wandb=False
+```
+
+#### Joint-train VOC
+```bash
+python yolo/lazy.py task=train name='joint_train' dataset=coco.yaml use_wandb=False
 ```
 
 #### Joint-train SHIFT
