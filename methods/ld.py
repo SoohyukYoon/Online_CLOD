@@ -15,7 +15,7 @@ class LD(ER):
     def __init__(self, criterion, n_classes, device, **kwargs):
         super().__init__(criterion, n_classes, device, **kwargs)
 
-        self.alpha = kwargs.get("alpha", 0.1)
+        self.alpha = kwargs.get("alpha", 1.0)
         self.frozen_point = kwargs.get("frozen_point", 22)
         self.teacher_model = None
 
