@@ -23,11 +23,13 @@ class LD(ER):
 
 
     def online_step(self, sample, sample_num, n_worker):
-        self.temp_batchsize = self.batch_size # LD는 전체 배치를 사용
+        # self.temp_batchsize = self.batch_size # LD는 전체 배치를 사용
     
-        if sample['klass'] not in self.exposed_classes:
+        if sample.get('klass',None) and sample['klass'] not in self.exposed_classes:
             self.online_after_task(sample_num)
             self.add_new_class(sample['klass'])
+        elif sample.get('domain',None) and sample['domain'] not in self.exposed_domains:
+            self.exposed_domains.append(sample['domain'])
 
         self.temp_batch.append(sample)
         self.num_updates += self.online_iter
@@ -60,14 +62,14 @@ class LD(ER):
             # '.model.' 다음의 숫자 인덱스를 기준으로 동결
             try:
                 layer_index = int(name.split('.')[1])
-                if layer_index < self.frozen_point:
+                if layer_index != self.frozen_point:
                     param.requires_grad = False
                     frozen_count += 1
             except (IndexError, ValueError):
                  logger.warning(f"Could not parse layer index from {name}, not freezing.")
                  param.requires_grad = True
 
-        self.optimizer = select_optimizer(self.opt_name, self.model, lr=self.lr)
+        # self.optimizer = select_optimizer(self.opt_name, self.model, lr=self.lr)
 
     def model_forward(self, batch):
         batch = self.preprocess_batch(batch)

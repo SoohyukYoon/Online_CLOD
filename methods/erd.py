@@ -113,10 +113,12 @@ class ERD(ER):
         return total_loss / iterations
 
     def online_step(self, sample, sample_num, n_worker):
-        self.temp_batchsize = self.batch_size
-        if sample['klass'] not in self.exposed_classes:
+        # self.temp_batchsize = self.batch_size
+        if sample.get('klass',None) and sample['klass'] not in self.exposed_classes:
             self.online_after_task(sample_num)
             self.add_new_class(sample['klass'])
+        elif sample.get('domain',None) and sample['domain'] not in self.exposed_domains:
+            self.exposed_domains.append(sample['domain'])
 
         self.temp_batch.append(sample)
         self.num_updates += self.online_iter
