@@ -20,6 +20,8 @@ class LD(ER):
         self.teacher_model = None
 
         logger.info(f"[LD INIT] α: {self.alpha}, frozen_point: {self.frozen_point}")
+        
+        self.backward_flops = self.blockwise_backward_flops[-1]
 
 
     def online_step(self, sample, sample_num, n_worker):
@@ -100,25 +102,27 @@ class LD(ER):
 
             if num_old_cls > 0:
                 # Vec2Box 출력에서 클래스 예측 부분 추출 [B, A, C]
-                student_aux_cls = student_aux_predicts[0]
+                # student_aux_cls = student_aux_predicts[0]
                 student_main_cls = student_main_predicts[0]
-                teacher_aux_cls = teacher_aux_predicts[0]
+                # teacher_aux_cls = teacher_aux_predicts[0]
                 teacher_main_cls = teacher_main_predicts[0]
 
                 # 이전 클래스에 해당하는 부분만 슬라이싱
-                student_aux_old = student_aux_cls[..., :num_old_cls]
+                # student_aux_old = student_aux_cls[..., :num_old_cls]
                 student_main_old = student_main_cls[..., :num_old_cls]
-                teacher_aux_old = teacher_aux_cls[..., :num_old_cls]
+                # teacher_aux_old = teacher_aux_cls[..., :num_old_cls]
                 teacher_main_old = teacher_main_cls[..., :num_old_cls]
 
                 # MSE 손실 계산
-                dist_loss += F.mse_loss(student_aux_old, teacher_aux_old)
+                # dist_loss += F.mse_loss(student_aux_old, teacher_aux_old)
                 dist_loss += F.mse_loss(student_main_old, teacher_main_old)
             
             print(f"loss: {loss}, dist_loss: {dist_loss}")
             
             # 3. 최종 손실 = 모델 손실 + alpha * 증류 손실
             total_loss = loss + self.alpha * dist_loss
+        
+            self.total_flops += (len(batch["img"]) * self.forward_flops * 2)
             
         return total_loss, loss_item
 

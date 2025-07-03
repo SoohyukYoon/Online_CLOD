@@ -38,7 +38,8 @@ class SDPOnly(ER):
         self.det_loss_ema = 0.0
         self.det_loss_decay = 0.99   
         
-        self.feature_layers = kwargs.get("feature_layers", [15,18,21])
+        # self.feature_layers = kwargs.get("feature_layers", [15,18,21])
+        self.feature_layers = kwargs.get("feature_layers", [0,1,2])
         # put hook
         self.put_hook()
         self.new_exposed_classes = ['pretrained']
@@ -53,9 +54,13 @@ class SDPOnly(ER):
             self.sdp_features_per_layer[layer] = []
         self.hooks = []
         for layer in self.feature_layers:
-            hook = self.model.model[layer].register_forward_hook(
+            # hook = self.model.model[layer].register_forward_hook(
+            #     lambda m, x, y, layer=layer: self.features_per_layer[layer].append(y))
+            # hook2 = self.sdp_model.model[layer].register_forward_hook(
+            #     lambda m, x, y, layer=layer: self.sdp_features_per_layer[layer].append(y))
+            hook = self.model.model[22].heads[layer].class_conv[1].register_forward_hook(
                 lambda m, x, y, layer=layer: self.features_per_layer[layer].append(y))
-            hook2 = self.sdp_model.model[layer].register_forward_hook(
+            hook2 = self.sdp_model.model[22].heads[layer].class_conv[1].register_forward_hook(
                 lambda m, x, y, layer=layer: self.sdp_features_per_layer[layer].append(y))
             self.hooks.append(hook)
             self.hooks.append(hook2)
@@ -169,8 +174,9 @@ class SDPOnly(ER):
         print(f"Reweight ratio: {self.reweight_ratio:.4f}, Det loss: {cur_det_loss:.4f}, Det loss EMA: {self.det_loss_ema:.4f}, Confidence: {conf:.4f}")
         
     def update_schedule(self, reset=False):
-        for param_group in self.optimizer.param_groups:
-            param_group["lr"] = self.lr * (1 - self.reweight_ratio)
+        # for param_group in self.optimizer.param_groups:
+        #     param_group["lr"] = self.lr * (1 - self.reweight_ratio)
+        return
 
     @torch.no_grad()
     def update_sdp_model(self, num_updates=1.0):
@@ -263,15 +269,17 @@ class SDPOnly(ER):
                 feature = self.features_per_layer[layer][0]
                 sdp_feature = self.sdp_features_per_layer[layer][0]
                 distill_loss += ((feature - sdp_feature.detach())**2).mean(dim=-1).mean(dim=-1).sum(dim=1) / len(self.feature_layers)
-            sample_weight = self.reweight_ratio
-            grad = self.get_grad(loss, 
-                                 [p for p in self.model.model[22].heads[0].class_conv[2].parameters()]
-                                 +[p for p in self.model.model[22].heads[1].class_conv[2].parameters()]
-                                 +[p for p in self.model.model[22].heads[2].class_conv[2].parameters()])
+            sample_weight = 0.1#self.reweight_ratio
+            # grad = self.get_grad(loss, 
+            #                      [p for p in self.model.model[22].heads[0].class_conv[2].parameters()]
+            #                      +[p for p in self.model.model[22].heads[1].class_conv[2].parameters()]
+            #                      +[p for p in self.model.model[22].heads[2].class_conv[2].parameters()])
             
-            beta = torch.sqrt((grad.detach() ** 2).mean() / (distill_loss.detach() * 4 + 1e-8)).mean()
-            print(f"Beta: {beta:.4f}, Grad norm: {torch.norm(grad):.4f}, Distill loss: {distill_loss.mean():.4f}")
-            loss = (1 - sample_weight) * loss + beta * sample_weight * distill_loss.mean()
+            beta = 10#torch.sqrt((grad.detach() ** 2).mean() / (distill_loss.detach() * 4 + 1e-8)).mean()
+            # print(f"Beta: {beta:.4f}, Grad norm: {torch.norm(grad):.4f}, Distill loss: {distill_loss.mean():.4f}")
+            print(f"Distill loss: {distill_loss.mean():.4f}")
+            # loss = (1 - sample_weight) * loss + (1/beta) * sample_weight * distill_loss.mean()
+            loss = loss + (1/beta) * sample_weight * distill_loss.mean()
             
             self.total_flops += (len(batch["img"]) * self.forward_flops)
 

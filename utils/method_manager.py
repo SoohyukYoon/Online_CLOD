@@ -9,7 +9,6 @@ from methods.er_baseline import ER
 from methods.sdp import *
 from methods.erd import *
 from methods.ld import LD
-from methods.ours import Ours
 from methods.ours_min import OursMin
 from methods.adaptive_freeze import AdaptiveFreeze
 
@@ -46,13 +45,6 @@ def select_method(args, criterion, n_classes, device):
         )
     elif args.mode == "finetune":
         method = FINETUNE(
-            criterion=criterion,
-            device=device,
-            n_classes=n_classes,
-            **kwargs,
-        )
-    elif args.mode == "ours":
-        method = Ours(
             criterion=criterion,
             device=device,
             n_classes=n_classes,

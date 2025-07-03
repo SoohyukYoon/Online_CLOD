@@ -1,22 +1,22 @@
 #/bin/bash
 
 # CIL CONFIG
-NOTE="er" # Short description of the experiment. (WARNING: logs/results with the same note will be overwritten!)
-MODE="er"
+NOTE="adaptive_freeze" # Short description of the experiment. (WARNING: logs/results with the same note will be overwritten!)
+MODE="adaptive_freeze"
 DATASET="VOC_10_10" # VOC_10_10 BDD_domain SHIFT_domain
 SIGMA=10
 REPEAT=1
 INIT_CLS=100
 GPU_TRANSFORM="--gpu_transform"
 USE_AMP="--use_amp"
-MOSAIC=1.0
+MOSAIC=0.5
 MIXUP=0.0
 SEEDS="1"
 
 if [ "$DATASET" == "VOC_10_10" ]; then
     MEM_SIZE=500 ONLINE_ITER=1
     MODEL_NAME="yolov9-s" EVAL_PERIOD=1000
-    BATCHSIZE=16; LR=2e-3 OPT_NAME="SGD" SCHED_NAME="default" IMP_UPDATE_PERIOD=1
+    BATCHSIZE=16; LR=3e-4 OPT_NAME="SGD" SCHED_NAME="default" IMP_UPDATE_PERIOD=1
 elif [ "$DATASET" == "BDD_domain" ]; then
     MEM_SIZE=10 ONLINE_ITER=1
     MODEL_NAME="yolov9-s" EVAL_PERIOD=1000
@@ -25,7 +25,7 @@ elif [ "$DATASET" == "BDD_domain" ]; then
 elif [ "$DATASET" == "SHIFT_domain" ]; then
     MEM_SIZE=500 ONLINE_ITER=1
     MODEL_NAME="yolov9-s" EVAL_PERIOD=4000
-    BATCHSIZE=16; LR=1e-4 OPT_NAME="SGD" SCHED_NAME="default" IMP_UPDATE_PERIOD=1
+    BATCHSIZE=16; LR=3e-4 OPT_NAME="SGD" SCHED_NAME="default" IMP_UPDATE_PERIOD=1
 
 
 else
@@ -35,7 +35,7 @@ fi
 
 for RND_SEED in $SEEDS
 do
-    CUDA_VISIBLE_DEVICES=$1 nohup python main.py --mode $MODE --n_worker 8 \
+    CUDA_VISIBLE_DEVICES=$1 python main.py --mode $MODE --n_worker 8 \
     --dataset $DATASET \
     --sigma $SIGMA --repeat $REPEAT --init_cls $INIT_CLS\
     --rnd_seed $RND_SEED \
@@ -43,5 +43,5 @@ do
     --lr $LR --batchsize $BATCHSIZE \
     --memory_size $MEM_SIZE $GPU_TRANSFORM --online_iter $ONLINE_ITER \
     --mosaic_prob $MOSAIC --mixup_prob $MIXUP \
-    --note $NOTE --eval_period $EVAL_PERIOD --imp_update_period $IMP_UPDATE_PERIOD $USE_AMP > ${MODE}_${DATASET}_mem${MEM_SIZE}_lr${LR}_online_iter${ONLINE_ITER}_seed${RND_SEED}_mosaic${MOSAIC}_mixup${MIXUP}.out 2>&1 &
+    --note $NOTE --eval_period $EVAL_PERIOD --imp_update_period $IMP_UPDATE_PERIOD $USE_AMP > Harsh_${MODE}2_Correct_FLOPS_fisherema0.01_uf0.0_${DATASET}_mem${MEM_SIZE}_lr${LR}_online_iter${ONLINE_ITER}_seed${RND_SEED}_mosaic${MOSAIC}_mixup${MIXUP}.out 2>&1 &
 done

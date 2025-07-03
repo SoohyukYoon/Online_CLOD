@@ -43,9 +43,31 @@ yolov9_s_block_list = [
     ['model.22', 'model.30'],
 ]
 
+yolov9_s_noaux_block_list = [
+    #backbone
+    ['model.0'],
+    ['model.1'],
+    ['model.2'],
+    ['model.3'],
+    ['model.4'],
+    ['model.5'],
+    ['model.6'],
+    ['model.7'],
+    ['model.8'],
+    #neck
+    ['model.9'],
+    ['model.10', 'model.11', 'model.12'],
+    ['model.13', 'model.14', 'model.15'],
+    ['model.16', 'model.17', 'model.18'],
+    ['model.19', 'model.20', 'model.21'],
+    ['model.22'],
+]
+
+
 
 MODEL_BLOCK_DICT = {
     'yolov9-s':yolov9_s_block_list,
+    'yolov9-s_noaux':yolov9_s_noaux_block_list,
 }
 
 def get_blockwise_flops(flops_dict, model_name, method=None):

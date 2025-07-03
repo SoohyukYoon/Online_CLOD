@@ -4,17 +4,18 @@ from torch import nn
 import numpy as np
 from utils import autograd_hacks
 from operator import attrgetter
-from utils.data_loader import MemoryDataset
+from utils.data_loader import MemoryDataset, FreqClsBalancedDataset
+import copy
 
 class AdaptiveFreeze(ER):
     def __init__(self, criterion, n_classes, device, **kwargs):
         super().__init__(criterion=criterion, n_classes=n_classes, device=device, **kwargs)
-        
-        self.memory = MemoryDataset(self.args, self.dataset, self.exposed_classes, device=self.device, memory_size=self.memory_size, mosaic_prob=kwargs['mosaic_prob'],mixup_prob=kwargs['mixup_prob'])
-        
+        self.memory_size = kwargs["memory_size"] - 1
+        self.memory = FreqClsBalancedDataset(self.args, self.dataset, self.exposed_classes, device=self.device, memory_size=self.memory_size, mosaic_prob=kwargs['mosaic_prob'],mixup_prob=kwargs['mixup_prob'])
+        self.new_exposed_classes = ['pretrained']
         # Information based freezing
-        self.unfreeze_rate = 0.5
-        self.fisher_ema_ratio = 0.001
+        self.unfreeze_rate = 0.0
+        self.fisher_ema_ratio = 0.01
         self.fisher = [0.0 for _ in range(self.num_blocks)]
         self.last_grad_mean = 0.0
         # autograd_hacks.add_hooks(self.model)  # install once – cheap
@@ -24,13 +25,46 @@ class AdaptiveFreeze(ER):
         self.frozen = False
 
         self.cls_weight_decay = kwargs["cls_weight_decay"]
-    
+        
+        # not use auxiliary head
+        # self.auxiliary_layers = ['model.23', 'model.24', 'model.25', 'model.26', 'model.27', 'model.28', 'model.29', 'model.30']
+        # for block_name in self.auxiliary_layers:
+        #     for name, param in self.model.named_parameters():
+        #         # if subblock_name in name:
+        #         if name.startswith(block_name + '.'):
+        #             param.requires_grad = False
     # def add_new_class(self, class_name):
         # super().add_new_class(class_name)
         
         # autograd_hacks.remove_hooks(self.model)
         # autograd_hacks.add_hooks(self.model)
-    
+    def update_memory(self, sample):
+        self.balanced_replace_memory(sample)
+    def add_new_class(self, class_name):
+        super().add_new_class(class_name)
+        self.new_exposed_classes.append(class_name)
+        self.memory.new_exposed_classes = self.new_exposed_classes
+    def balanced_replace_memory(self, sample):
+        if len(self.memory) >= self.memory_size:
+            label_frequency = copy.deepcopy(self.memory.cls_count)
+            if sample.get('klass', None):
+                sample_category = sample['klass']
+            elif sample.get('domain', None):
+                sample_category = sample['domain']
+            else:
+                sample_category = 'pretrained'
+            
+            label_frequency[self.new_exposed_classes.index(sample_category)] += 1
+            cls_to_replace = np.random.choice(
+                np.flatnonzero(np.array(label_frequency) == np.array(label_frequency).max()))
+            idx_to_replace = np.random.choice(self.memory.cls_idx[cls_to_replace])
+            self.memory.replace_sample(sample, idx_to_replace)
+            
+            self.memory.cls_count[cls_to_replace] -= 1
+            self.memory.cls_idx[cls_to_replace].remove(idx_to_replace)
+            self.memory.cls_idx[self.new_exposed_classes.index(sample_category)].append(idx_to_replace)
+        else:
+            self.memory.replace_sample(sample)
     def _layer_type(self, layer: nn.Module) -> str:
         return layer.__class__.__name__
 
@@ -45,6 +79,13 @@ class AdaptiveFreeze(ER):
     def unfreeze_layers(self):
         self.frozen = False
         for name, param in self.model.named_parameters():
+            # unfreeze = True
+            # for aux_block_name in self.auxiliary_layers:
+            #     if name.startswith(aux_block_name + '.'):
+            #         param.requires_grad = False
+            #         unfreeze = False
+            #         break
+            # if unfreeze:
             param.requires_grad = True
 
     def freeze_layers(self):
@@ -144,9 +185,9 @@ class AdaptiveFreeze(ER):
             
             if len(self.freeze_idx) == 0:    
                 # forward와 backward가 full로 일어날 때
-                self.total_flops += (len(data[1]) * (self.forward_flops + self.backward_flops))
+                self.total_flops += (len(data[1]) * (self.backward_flops))
             else:
-                self.total_flops += (len(data[1]) * (self.forward_flops + self.get_backward_flops()))
+                self.total_flops += (len(data[1]) * (self.get_backward_flops()))
             
             self.unfreeze_layers()
             self.freeze_idx = []
@@ -165,6 +206,7 @@ class AdaptiveFreeze(ER):
     @torch.no_grad()
     def calculate_fisher(self):
         block_fisher = [0.0 for _ in range(self.num_blocks)]
+        # print('before fisher tflops', self.total_flops)
         for i, block_name in enumerate(self.block_names[:-1]):
             for subblock_name in block_name:
                 get_attr = attrgetter(subblock_name)
@@ -177,7 +219,7 @@ class AdaptiveFreeze(ER):
                             block_fisher[i] += (p.grad.clone().detach().clamp(-1, 1) ** 2).sum().item()
                             if self.unfreeze_rate < 1:
                                 self.total_flops += len(p.grad.clone().detach().flatten())*2 / 10e9
-        
+        # print('after fisher tflops', self.total_flops)
         for i in range(self.num_blocks):
             if i not in self.freeze_idx or not self.frozen:
                 self.fisher[i] += self.fisher_ema_ratio * (block_fisher[i] - self.fisher[i])
@@ -195,10 +237,15 @@ class AdaptiveFreeze(ER):
     @torch.no_grad()
     def get_freeze_idx(self, loss):
         ## FIXME: set param list
-        grad = self.get_grad(loss, [p for p in self.model.model[22].parameters()] + [p for p in self.model.model[30].parameters()])
+        # grad = self.get_grad(loss, [p for p in self.model.model[22].parameters()] + [p for p in self.model.model[30].parameters()])
+        grad = self.get_grad(loss, [p for p in self.model.model[22].heads[0].class_conv[1].parameters()]
+                                 + [p for p in self.model.model[22].heads[1].class_conv[1].parameters()]
+                                 + [p for p in self.model.model[22].heads[2].class_conv[1].parameters()])
         last_grad = (grad ** 2 ).sum().item()
+        # print('before grad tflops', self.total_flops)
         if self.unfreeze_rate < 1:
-            self.total_flops += len(grad.clone().detach().flatten())/10e9
+            self.total_flops += len(grad.clone().detach().flatten())*2/10e9
+        # print('after grad tflops', self.total_flops)
         batch_freeze_score = last_grad/(self.last_grad_mean+1e-10)
         self.last_grad_mean += self.fisher_ema_ratio * (last_grad - self.last_grad_mean)
         freeze_score = []

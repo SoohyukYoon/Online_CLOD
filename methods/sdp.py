@@ -11,7 +11,7 @@ from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 
 from methods.er_baseline import ER
-from utils.data_loader import MemoryDataset
+from utils.data_loader import MemoryDataset, ClassBalancedDataset, FreqClsBalancedDataset
 
 logger = logging.getLogger()
 writer = SummaryWriter("tensorboard")
@@ -21,7 +21,7 @@ class SDP(ER):
     def __init__(self, criterion, n_classes, device, **kwargs):
         super().__init__(criterion=criterion, n_classes=n_classes, device=device, **kwargs)
         self.memory_size = kwargs["memory_size"] - 32*3 # yolov9-s 모델 하나당 이미지 32장과 동일
-        self.memory = OurDataset(self.args, self.dataset, self.exposed_classes, device=self.device, memory_size=self.memory_size, mosaic_prob=kwargs['mosaic_prob'],mixup_prob=kwargs['mixup_prob'])
+        self.memory = ClassBalancedDataset(self.args, self.dataset, self.exposed_classes, device=self.device, memory_size=self.memory_size, mosaic_prob=kwargs['mosaic_prob'],mixup_prob=kwargs['mixup_prob'])
         self.sdp_mean = 10000 #kwargs['sdp_mean']
         self.sdp_varcoeff = 0.75 #kwargs['sdp_var']
         assert 0.5 - 1 / self.sdp_mean < self.sdp_varcoeff < 1 - 1 / self.sdp_mean
@@ -36,9 +36,10 @@ class SDP(ER):
         self.num_steps = 0
         self.reweight_ratio = 0.0
         self.det_loss_ema = 0.0
-        self.det_loss_decay = 0.99   
+        self.det_loss_decay = 0.5
         
-        self.feature_layers = kwargs.get("feature_layers", [15,18,21])
+        # self.feature_layers = kwargs.get("feature_layers", [15,18,21])
+        self.feature_layers = kwargs.get("feature_layers", [0,1,2])
         # put hook
         self.put_hook()
         self.new_exposed_classes = ['pretrained']
@@ -53,9 +54,13 @@ class SDP(ER):
             self.sdp_features_per_layer[layer] = []
         self.hooks = []
         for layer in self.feature_layers:
-            hook = self.model.model[layer].register_forward_hook(
+            # hook = self.model.model[layer].register_forward_hook(
+            #     lambda m, x, y, layer=layer: self.features_per_layer[layer].append(y))
+            # hook2 = self.sdp_model.model[layer].register_forward_hook(
+            #     lambda m, x, y, layer=layer: self.sdp_features_per_layer[layer].append(y))
+            hook = self.model.model[22].heads[layer].class_conv[1].register_forward_hook(
                 lambda m, x, y, layer=layer: self.features_per_layer[layer].append(y))
-            hook2 = self.sdp_model.model[layer].register_forward_hook(
+            hook2 = self.sdp_model.model[22].heads[layer].class_conv[1].register_forward_hook(
                 lambda m, x, y, layer=layer: self.sdp_features_per_layer[layer].append(y))
             self.hooks.append(hook)
             self.hooks.append(hook2)
@@ -171,6 +176,7 @@ class SDP(ER):
     def update_schedule(self, reset=False):
         for param_group in self.optimizer.param_groups:
             param_group["lr"] = self.lr * (1 - self.reweight_ratio)
+        # return
 
     @torch.no_grad()
     def update_sdp_model(self, num_updates=1.0):
@@ -271,7 +277,13 @@ class SDP(ER):
             
             beta = torch.sqrt((grad.detach() ** 2).mean() / (distill_loss.detach() * 4 + 1e-8)).mean()
             print(f"Beta: {beta:.4f}, Grad norm: {torch.norm(grad):.4f}, Distill loss: {distill_loss.mean():.4f}")
-            loss = (1 - sample_weight) * loss + beta * sample_weight * distill_loss.mean()
+            print(f"Distill loss: {distill_loss.mean():.4f}")
+            loss = (1 - sample_weight) * loss + (beta) * sample_weight * distill_loss.mean()
+            
+            # sample_weight = 0.1
+            # beta = 1
+            
+            # loss = loss + (beta) * sample_weight * distill_loss.mean()
             
             self.total_flops += (len(batch["img"]) * self.forward_flops)
 
@@ -307,116 +319,3 @@ class SDP(ER):
         grad_vec = torch.cat(flat)
         torch.cuda.empty_cache()
         return grad_vec
-
-# customized MemoryDataset
-import os
-from utils.data_loader import MemoryDataset, get_pretrained_statistics, get_statistics, mean, AugmentationComposer
-from yolo.tools.data_augmentation import *
-import glob
-class OurDataset(MemoryDataset):
-    def __init__(self, args, dataset, cls_list=None, device=None, data_dir=None, memory_size=None, 
-                 init_buffer_size=None, mosaic_prob=1.0, mixup_prob=0.0):
-        self.args = args
-        self.image_sizes = args.image_size  # [640, 640]
-        self.memory_size = memory_size
-
-        self.buffer = []
-        self.stream_data = []
-        self.logits = []
-
-        self.dataset = dataset
-        self.device = device
-        self.data_dir = data_dir
-
-        self.counts = []
-        self.class_usage_cnt = []
-        self.tasks = []
-        
-        # FIXME: fix for object detection class counting
-        self.cls_list = cls_list if cls_list else []
-        self.cls_used_times = []
-        self.cls_dict = {}
-        self.cls_count = [0]
-        self.cls_idx = [[]]
-        
-        self.new_exposed_classes = ['pretrained']
-        self.cls_train_cnt = np.array([])
-        self.score = []
-        self.others_loss_decrease = np.array([])
-        self.previous_idx = np.array([], dtype=int)
-        self.usage_cnt = []
-        self.sample_weight = []
-        self.data = {}
-        
-        self.build_initial_buffer(init_buffer_size)
-
-        n_classes, image_dir, label_path = get_statistics(dataset=self.dataset)
-        self.image_dir = image_dir
-        self.label_path = label_path
-
-        self.augment = True
-
-        transforms = {
-            "Mosaic": mosaic_prob,
-            "MixUp": mixup_prob,
-            "HorizontalFlip": 0.5,
-            "RandomCrop": 1,
-            "RemoveOutliers": 1e-8,
-        }
-        transforms = [eval(k)(v) for k, v in transforms.items()]
-        self.base_size = mean(self.image_sizes)
-        self.transform = AugmentationComposer(transforms, self.image_sizes, self.base_size)
-        self.transform.get_more_data = self.get_more_data
-        
-        self.padResize = AugmentationComposer([], self.image_sizes, self.base_size)
-        
-        # Load all metadata once during initialization
-        self.metadata_cache = {}
-        self._load_all_metadata()
-        
-    
-    def build_initial_buffer(self, buffer_size=None):
-        n_classes, images_dir, label_path = get_pretrained_statistics(self.dataset)
-        self.image_dir = images_dir
-        self.label_path = label_path
-        self.metadata_cache = {}
-        self._load_all_metadata()
-        if self.dataset == 'VOC_10_10':
-            image_files = glob.glob(os.path.join(images_dir, "train2012", "*.jpg")) \
-                        + glob.glob(os.path.join(images_dir, "train2007", "*.jpg")) \
-                        + glob.glob(os.path.join(images_dir, "val2012", "*.jpg")) \
-                        + glob.glob(os.path.join(images_dir, "val2007", "*.jpg"))
-        else:
-            image_files = glob.glob(os.path.join(images_dir, "train","*.jpg"))
-
-        indices = np.random.choice(range(len(image_files)), size=buffer_size or self.memory_size, replace=False)
-
-        for idx in indices:
-            image_path = image_files[idx]
-            split_name = image_path.split('/')[-2]
-            base_name = image_path.split('/')[-1]
-            self.replace_sample({'file_name': split_name + '/' + base_name, 'label': None}, images_dir=images_dir,label_path=label_path)
-    
-    def add_new_class(self, cls_list, sample=None):
-        self.cls_list = cls_list
-        self.cls_count.append(0)
-        self.cls_idx.append([])
-    
-    def replace_sample(self, sample, idx=None, images_dir=None, label_path=None):
-        img, labels, image_path, ratio = self.load_data(sample['file_name'], image_dir=images_dir or self.image_dir, label_path=label_path or self.label_path, cls_type = sample.get('klass', None))
-        data = (img, labels, image_path, ratio)
-        if sample.get('klass', None):
-            self.cls_count[self.new_exposed_classes.index(sample['klass'])] += 1
-            sample_category = sample['klass']
-        elif sample.get('domain', None):
-            self.cls_count[self.new_exposed_classes.index(sample['domain'])] += 1
-            sample_category = sample['domain']
-        else:
-            self.cls_count[self.new_exposed_classes.index('pretrained')] += 1
-            sample_category = 'pretrained'
-        # self.cls_count[self.new_exposed_classes.index(sample.get('klass', 'pretrained'))] += 1
-        if idx is None:
-            self.cls_idx[self.new_exposed_classes.index(sample_category)].append(len(self.buffer))
-            self.buffer.append(data)
-        else:
-            self.buffer[idx] = data
