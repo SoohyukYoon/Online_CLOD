@@ -1,0 +1,9 @@
+path: data/military_synthetic_domain_source
+train: 
+- train
+validation: val
+
+class_num: 9
+class_list: ['fishing vessel', 'warship', 'merchant vessel', 'fixed-wing aircraft', 'rotary-wing aircraft', 'Unmanned Aerial Vehicle', 'bird', 'leaflet', 'waste bomb']
+
+auto_download:

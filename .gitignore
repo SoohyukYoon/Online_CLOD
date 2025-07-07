@@ -1,5 +1,8 @@
 tensorboard/
 
+aihub_military_data/
+aihub_military_synthetic/
+
 temp_checkpoint
 
 data/**
