@@ -75,6 +75,8 @@ class ER:
             data_name = 'bdd100k'
         elif 'SHIFT' in self.dataset:
             data_name = 'shift'
+        elif 'MILITARY_SYNTHETIC' in self.dataset:
+            data_name = 'military_synthetic'
         with initialize(config_path="../yolo/config", version_base=None):
             self.args: Config = compose(config_name="config", overrides=["model=v9-s",f"dataset={data_name}"])
         self.exposed_domains = [f'{data_name}_source']
@@ -441,6 +443,19 @@ class ER:
                 eval_dict["classwise_mAP50"].append(average)
             with initialize(config_path="../yolo/config", version_base=None):
                 self.args: Config = compose(config_name="config", overrides=["model=v9-s",f"dataset=shift"])
+        elif self.dataset=='MILITARY_SYNTHETIC_domain_1' or self.dataset=='MILITARY_SYNTHETIC_domain_2' or self.dataset=='MILITARY_SYNTHETIC_domain_3':
+            eval_dict = {"avg_mAP50":0, "classwise_mAP50":[]}
+            for data_name in ['military_synthetic_domain_source', 'military_synthetic_domain_night', 'military_synthetic_domain_winter', 'military_synthetic_domain_infrared']:
+                with initialize(config_path="../yolo/config", version_base=None):
+                    self.args: Config = compose(config_name="config", overrides=["model=v9-s",f"dataset={data_name}"])            
+                self.val_loader = create_dataloader(self.args.task.validation.data, self.args.dataset, self.args.task.validation.task)
+                eval_dict_sub = self.evaluate()
+                clean = [v for v in eval_dict_sub['classwise_mAP50'] if v != -1]
+                average = sum(clean) / len(clean)
+                eval_dict['avg_mAP50'] += average/len(self.exposed_domains)
+                eval_dict["classwise_mAP50"].append(average)
+            with initialize(config_path="../yolo/config", version_base=None):
+                self.args: Config = compose(config_name="config", overrides=["model=v9-s",f"dataset=military_synthetic"])
         else:
             eval_dict = self.evaluate()
 

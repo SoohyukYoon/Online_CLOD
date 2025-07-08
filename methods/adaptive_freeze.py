@@ -110,6 +110,10 @@ class AdaptiveFreeze(ER):
             self.add_new_class(sample['klass'])
         elif sample.get('domain',None) and sample['domain'] not in self.exposed_domains:
             self.exposed_domains.append(sample['domain'])
+            self.new_exposed_classes.append(sample['domain'])
+            self.memory.new_exposed_classes.append(sample['domain'])
+            self.memory.cls_count.append(0)
+            self.memory.cls_idx.append([])
         
         self.num_updates += self.online_iter
         

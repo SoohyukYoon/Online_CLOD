@@ -6,7 +6,7 @@ import scipy.stats as stats
 import glob
 
 dataset = 'military_synthetic'
-output_dataset = 'military_synthetic_domain_3'
+output_dataset = 'MILITARY_SYNTHETIC_domain_1'
 dataset_dir = f'data'
 
 repeats = [1]
@@ -14,12 +14,12 @@ sigmas = [0.1]
 seeds = [1, 2, 3]
 
 # Domain order for incremental sampling
-# output_dataset = 'military_synthetic_domain_1'
-# dataset_dirs = ['military_synthetic_domain_night', 'military_synthetic_domain_winter', 'military_synthetic_domain_infrared']
-# output_dataset = 'military_synthetic_domain_2'
+output_dataset = 'MILITARY_SYNTHETIC_domain_1'
+dataset_dirs = ['military_synthetic_domain_night', 'military_synthetic_domain_winter', 'military_synthetic_domain_infrared']
+# output_dataset = 'MILITARY_SYNTHETIC_domain_2'
 # dataset_dirs = ['military_synthetic_domain_winter', 'military_synthetic_domain_night', 'military_synthetic_domain_infrared']
-output_dataset = 'military_synthetic_domain_3'
-dataset_dirs = ['military_synthetic_domain_night', 'military_synthetic_domain_infrared', 'military_synthetic_domain_winter']
+# output_dataset = 'MILITARY_SYNTHETIC_domain_3'
+# dataset_dirs = ['military_synthetic_domain_night', 'military_synthetic_domain_infrared', 'military_synthetic_domain_winter']
 domain_dict = {i: domain for i, domain in enumerate(dataset_dirs)}
 
 # Initialize domain data list
