@@ -42,6 +42,8 @@ def get_statistics(dataset: str):
         return 13, 'data/bdd100k/images', 'data/bdd100k/annotations'
     elif dataset == 'SHIFT_domain':
         return 6, 'data/shift/images', 'data/shift/annotations'
+    elif 'MILITARY_SYNTHETIC_domain' in dataset:
+        return 9, 'data/military_synthetic/images', 'data/military_synthetic/annotations'
     else:
         raise ValueError("Wrong dataset name")
 
@@ -52,6 +54,8 @@ def get_pretrained_statistics(dataset: str):
         return 13, 'data/bdd100k_source/images', 'data/bdd100k_source/annotations'
     elif dataset == 'SHIFT_domain':
         return 6, 'data/shift_source/images', 'data/shift_source/annotations'
+    elif 'MILITARY_SYNTHETIC_domain' in dataset:
+        return 9, 'data/military_synthetic_domain_source/images', 'data/military_synthetic_domain_source/annotations'
     else:
         raise ValueError("Wrong dataset name")
     
@@ -62,6 +66,8 @@ def get_exposed_classes(dataset: str):
         return ['pedestrian', 'rider', 'car', 'bus', 'truck', 'bicycle', 'motorcycle', 'traffic light', 'traffic sign', 'train', 'trailer', 'other person', 'other vehicle']
     elif dataset == 'SHIFT_domain':
         return ['pedestrian', 'car', 'truck', 'bus', 'motorcycle', 'bicycle']
+    elif 'MILITARY_SYNTHETIC_domain' in dataset:
+        return ['fishing vessel', 'warship', 'merchant vessel', 'fixed-wing aircraft', 'rotary-wing aircraft', 'Unmanned Aerial Vehicle', 'bird', 'leaflet', 'waste bomb']
 
 def collate_fn(batch: List[Tuple[Tensor, Tensor]]) -> Tuple[Tensor, List[Tensor]]:
     """
