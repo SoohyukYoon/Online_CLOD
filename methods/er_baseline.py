@@ -419,14 +419,14 @@ class ER:
         
         if self.dataset=='BDD_domain':
             eval_dict = {"avg_mAP50":0, "classwise_mAP50":[]}
-            for data_name in ['bdd100k_source', 'bdd100k_cloudy', 'bdd100k_rainy', 'bdd100k_dawndusk', 'bdd100k_night']:
+            for data_name in self.exposed_domains:#['bdd100k_source', 'bdd100k_cloudy', 'bdd100k_rainy', 'bdd100k_dawndusk', 'bdd100k_night']:
                 with initialize(config_path="../yolo/config", version_base=None):
                     self.args: Config = compose(config_name="config", overrides=["model=v9-s",f"dataset={data_name}"])            
                 self.val_loader = create_dataloader(self.args.task.validation.data, self.args.dataset, self.args.task.validation.task)
                 eval_dict_sub = self.evaluate()
                 clean = [v for v in eval_dict_sub['classwise_mAP50'] if v != -1]
                 average = sum(clean) / len(clean)
-                eval_dict['avg_mAP50'] += average/5
+                eval_dict['avg_mAP50'] += average/len(self.exposed_domains) #/5
                 eval_dict["classwise_mAP50"].append(average)
             with initialize(config_path="../yolo/config", version_base=None):
                 self.args: Config = compose(config_name="config", overrides=["model=v9-s",f"dataset=bdd100k"])
@@ -627,4 +627,16 @@ class ER:
         self.F_forward_flops, self.F_backward_flops = sum(F_forward_flops), sum(F_backward_flops)
         self.G_blockwise_forward_flops, self.G_blockwise_backward_flops = G_forward_flops, G_backward_flops
         self.F_blockwise_forward_flops, self.F_blockwise_backward_flops = F_forward_flops, F_backward_flops
+
+    def save(self, sample_num, save_path=None):
+        if save_path is None:
+            return
+        if not os.path.exists(save_path):
+            os.makedirs(save_path)
+        model_path = f'model_{self.dataset}_{self.mode}_mem{self.memory_size}_lr{self.lr}_online_iter{self.online_iter}_seed{self.rnd_seed}.pth'
+        torch.save(self.model.state_dict(), os.path.join(save_path, model_path))
+        # with open(os.path.join(save_path, f'args.pkl'), 'wb') as f:
+        #     pickle.dump(self.args, f)
+        # self.save_std_pickle()
         
+        logger.info(f"Sample {sample_num} | Model saved at {save_path}/{model_path}")

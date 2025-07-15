@@ -89,6 +89,9 @@ def main():
 
     #train_datalist = train_datalist[:5000] + train_datalist[10000:15000]
     print(f"total train stream: {len(train_datalist)}")
+    # eval_dict = method.online_evaluate(samples_cnt, 0)
+    # breakpoint()
+    method.save(samples_cnt, args.output_dir)
     for i, data in enumerate(train_datalist):
         # explicit task boundary for twf
         if samples_cnt % args.samples_per_task == 0 and (args.mode == "bic" or args.mode == "ewc++"):
@@ -111,6 +114,10 @@ def main():
         if samples_cnt % args.val_period == 0:
             method.online_validate(samples_cnt, 512, args.n_worker)
         ''' 
+        
+        if samples_cnt % args.save_period == 0:
+            method.save(samples_cnt, args.output_dir)
+        
         if samples_cnt % args.eval_period == 0:
             eval_dict = method.online_evaluate(samples_cnt, data["time"])
             eval_results["avg_mAP50"].append(eval_dict['avg_mAP50'])

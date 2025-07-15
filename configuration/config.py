@@ -86,7 +86,8 @@ def base_parser():
     parser.add_argument('--remove-n', type=int, default=0, help='number of sorted examples to remove from training')
     parser.add_argument('--remove-data-epoch', type=int, default=200, help='the epoch to remove partial training dataset')
     parser.add_argument('--output-name', type=str)
-    parser.add_argument('--output-dir', help='directory where to save results')
+    parser.add_argument('--output-dir', type=str, default='online_CL_snapshot', help='directory where to save results')
+    parser.add_argument('--save-period', type=int, default=20, help='period to save model')
     parser.add_argument('--keep-lowest-n', type=int, default=0, help='number of sorted examples to keep that have the lowest score, equivalent to start index of removal, if a negative number given, remove random draw of examples')
 
     # for baseline
