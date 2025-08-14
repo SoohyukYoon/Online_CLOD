@@ -279,14 +279,14 @@ jhp
 # *.trt
 # *.onnx
 
-# # Image files
-# *.png
-# *.jpg
-# *.jpeg
-# *.gif
-# *.bmp
-# *.tiff
-# *.ico
+# Image files
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.bmp
+*.tiff
+*.ico
 
 # # Video files
 # *.mp4
@@ -307,3 +307,13 @@ jhp
 weight.py
 data/coco/annotations/*.zip
 data/coco_40/annotations/*.zip
+
+# Log and output files
+*.out
+
+# Model weight files
+*.pth
+
+# Specific result folders
+online_CL_snapshot/
+pseudo_vis/

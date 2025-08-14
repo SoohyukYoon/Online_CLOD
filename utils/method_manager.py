@@ -23,6 +23,7 @@ from methods.sdp import SDP
 from methods.sdp_only import SDPOnly
 from methods.lwf_logit import LWF_Logit
 from methods.lwf_feature_extraction import LWF_Feature
+from methods.abr import ABR
 
 logger = logging.getLogger()
 
@@ -129,6 +130,13 @@ def select_method(args, criterion, n_classes, device):
         )
     elif args.mode == "erd":
         method = ERD(
+            criterion=criterion,
+            device=device,
+            n_classes=n_classes,
+            **kwargs,
+        )
+    elif args.mode == "abr":
+        method = ABR(
             criterion=criterion,
             device=device,
             n_classes=n_classes,

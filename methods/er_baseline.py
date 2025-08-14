@@ -24,11 +24,10 @@ import random
 
 from utils.block_utils import get_blockwise_flops, MODEL_BLOCK_DICT
 
-from yolo.tools.data_loader import create_dataloader
-from yolo.utils.bounding_box_utils import create_converter, to_metrics_format
-from yolo.utils.model_utils import PostProcess
+from damo.dataset.build import build_dataloader
+from damo.utils.boxes import postprocess
+from damo.config.base import parse_config
 from hydra import compose, initialize
-from yolo.config.config import Config
 
 from tqdm import tqdm
 
@@ -71,16 +70,20 @@ class ER:
         
         if 'VOC' in self.dataset:
             data_name = 'voc'
+            config_file = 'configs/damoyolo_tinynasL25_S_VOC_10_10.py'
         elif 'BDD' in self.dataset:
             data_name = 'bdd100k'
+            config_file = 'configs/damoyolo_tinynasL25_S_BDD100K.py'
         elif 'SHIFT' in self.dataset:
             data_name = 'shift'
+            config_file = 'configs/damoyolo_tinynasL25_S_SHIFT.py'
         elif 'MILITARY_SYNTHETIC' in self.dataset:
             data_name = 'military_synthetic'
+            config_file = 'configs/damoyolo_tinynasL25_S_MILItARY_SYNtHETIC.py'
         with initialize(config_path="../yolo/config", version_base=None):
             self.args: Config = compose(config_name="config", overrides=["model=v9-s",f"dataset={data_name}"])
         self.exposed_domains = [f'{data_name}_source']
-        self.model = select_model(self.args,self.dataset)
+        self.model = select_model(self.dataset)
 
         self.model.model.args = self.args.model
         self.stride = max(int(self.model.model.stride.max() if hasattr(self.model.model, "stride") else 32), 32)

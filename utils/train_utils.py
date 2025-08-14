@@ -12,9 +12,9 @@ from torch import Tensor
 # from utils.my_augment import Kornia_Randaugment
 from torchvision import transforms
 from tqdm import tqdm
-
-from yolo.model.yolo import create_model
-from yolo.config.config import Config
+    
+from damo.detectors.detector import build_local_model
+from damo.config.base import parse_config
 import os
 
 from torchmetrics.detection import MeanAveragePrecision
@@ -24,39 +24,47 @@ from typing import Any, Dict, List, Literal, Optional, Tuple, Union
 from torchmetrics.detection.helpers import CocoBackend, _get_classes
 from lightning_utilities import apply_to_collection
 
-def select_model(cfg:Config,dataset):
+def select_model(dataset):
+    print("Building DAMO-YOLO model")
+
     # Load pretrained weights
     if dataset=='VOC_10_10':
-        model = create_model(cfg.model, class_num=10, weight_path="")
-        pretrained_path = "./yolov9_pretrain_voc.pth"
+        damo_config_file = f'./configs/damoyolo_tinynasL25_S_VOC_10_10.py'
+        damo_cfg = parse_config(damo_config_file)
+        model = build_local_model(damo_cfg, device='cuda')
+        pretrained_path = "./damo_pretrain_voc.pth"
         if os.path.exists(pretrained_path):
             state_dict = torch.load(pretrained_path, map_location='cpu')
-            state_dict = {k.replace('ema.model.', 'model.'):v for k,v in state_dict.items() if 'ema.model' in k}
             model.load_state_dict(state_dict)
     elif dataset=='BDD_domain':
-        model = create_model(cfg.model, class_num=13, weight_path="")
-        pretrained_path = "./yolov9_pretrain_bdd100k.pth"
+        damo_config_file = f'./configs/damoyolo_tinynasL25_S_BDD_domain.py'
+        damo_cfg = parse_config(damo_config_file)
+        model = build_local_model(damo_cfg, device='cuda')
+        pretrained_path = "./damo_pretrain_bdd100k.pth"
         if os.path.exists(pretrained_path):
             state_dict = torch.load(pretrained_path, map_location='cpu')
-            state_dict = {k.replace('ema.model.', 'model.'):v for k,v in state_dict.items() if 'ema.model' in k}
             model.load_state_dict(state_dict)
     elif dataset=='SHIFT_domain':
-        model = create_model(cfg.model, class_num=6, weight_path="")
-        pretrained_path = "./yolov9_pretrain_shift.pth"
+        damo_config_file = f'./configs/damoyolo_tinynasL25_S_SHIFT_domain.py'
+        damo_cfg = parse_config(damo_config_file)
+        model = build_local_model(damo_cfg, device='cuda')
+        pretrained_path = "./damo_pretrain_shift.pth"
         if os.path.exists(pretrained_path):
             state_dict = torch.load(pretrained_path, map_location='cpu')
-            state_dict = {k.replace('ema.model.', 'model.'):v for k,v in state_dict.items() if 'ema.model' in k}
             model.load_state_dict(state_dict)
     elif dataset=='MILITARY_SYNTHETIC_domain_1' or dataset=='MILITARY_SYNTHETIC_domain_2' or dataset=='MILITARY_SYNTHETIC_domain_3':
-        model = create_model(cfg.model, class_num=9, weight_path="")
-        pretrained_path = "./yolov9_pretrain_military_synthetic.pth"
+        damo_config_file = f'./configs/damoyolo_tinynasL25_S_MILITARY_SYNTHETIC.py'
+        damo_cfg = parse_config(damo_config_file)
+        model = build_local_model(damo_cfg, device='cuda')
+        pretrained_path = "./damo_pretrain_military_synthetic.pth"
         if os.path.exists(pretrained_path):
             state_dict = torch.load(pretrained_path, map_location='cpu')
-            state_dict = {k.replace('ema.model.', 'model.'):v for k,v in state_dict.items() if 'ema.model' in k}
             model.load_state_dict(state_dict)
     else:
         print("Pretrained model not found")
 
+    print(model)
+    
     return model
 
 def select_optimizer(name, model, lr=0.01, momentum=0.937, decay=1e-5,):
@@ -67,12 +75,9 @@ def select_optimizer(name, model, lr=0.01, momentum=0.937, decay=1e-5,):
     
     # exclude classification head weight
     excluded_substrings = [
-        'model.22.heads.0.class_conv.2',
-        'model.22.heads.1.class_conv.2',
-        'model.22.heads.2.class_conv.2',
-        'model.30.heads.0.class_conv.2',
-        'model.30.heads.1.class_conv.2',
-        'model.30.heads.2.class_conv.2',
+        'head.gfl_cls.0',
+        'head.gfl_cls.1',
+        'head.gfl_cls.2',
     ]
     
     g = [], [], []  # optimizer parameter groups
@@ -105,19 +110,9 @@ def select_optimizer(name, model, lr=0.01, momentum=0.937, decay=1e-5,):
     optimizer.add_param_group({"params": g[0], "weight_decay": decay})  # add g0 with weight_decay
     optimizer.add_param_group({"params": g[1], "weight_decay": 0.0})  # add g1 (BatchNorm2d weights)
     
-    optimizer.add_param_group({'params': [model.model[22].heads[0].class_conv[2].weight,
-                                        model.model[22].heads[1].class_conv[2].weight,
-                                        model.model[22].heads[2].class_conv[2].weight,
-                                        model.model[30].heads[0].class_conv[2].weight,
-                                        model.model[30].heads[1].class_conv[2].weight,
-                                        model.model[30].heads[2].class_conv[2].weight,
+    optimizer.add_param_group({'params': [p.weight for p in model.head.gfl_cls
                                         ], "momentum": momentum,})
-    optimizer.add_param_group({'params': [model.model[22].heads[0].class_conv[2].bias,
-                                        model.model[22].heads[1].class_conv[2].bias,
-                                        model.model[22].heads[2].class_conv[2].bias,
-                                        model.model[30].heads[0].class_conv[2].bias,
-                                        model.model[30].heads[1].class_conv[2].bias,
-                                        model.model[30].heads[2].class_conv[2].bias,
+    optimizer.add_param_group({'params': [p.bias for p in model.head.gfl_cls
                                         ], "momentum": momentum, "weight_decay": 0})
 
     return optimizer
@@ -795,3 +790,7 @@ def copy_paste_fc(new_fc, prev_fc):
             new_fc.weight[:new_fc.out_features - 1] = prev_weight
             new_fc.bias[:new_fc.out_features - 1] = prev_bias
     return new_fc
+
+if __name__ == '__main__':
+    print("TEST select_model")
+    select_model('VOC_10_10')
