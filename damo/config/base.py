@@ -32,7 +32,7 @@ train = easydict({
     'warmup_start_lr': 0,          # warmup start learning rate
     # scheduler
     'min_lr_ratio': 0.05,          # min lr ratio after closing augmentation
-    'batch_size': 64,              # training batch size
+    'batch_size': 16,              # training batch size
     'total_epochs': 300,           # training total epochs
     'warmup_epochs': 5,            # warmup epochs
     'no_aug_epochs': 16,           # training epochs after closing augmentation
@@ -51,7 +51,7 @@ train = easydict({
 
 test = easydict({
     'augment': test_aug,           # augmentation config for testing
-    'batch_size': 128,             # testing batch size
+    'batch_size': 16,             # testing batch size
 })
 
 dataset = easydict({
@@ -74,7 +74,7 @@ class Config(metaclass=ABCMeta):
         self.miscs = miscs
 
     def get_data(self, name):
-        if 'coco' in name:
+        if any(keyword in name for keyword in ['coco', 'voc', 'bdd', 'shift']):
             data_dir = DatasetCatalog.DATA_DIR
             attrs = DatasetCatalog.DATASETS[name]
             args = dict(
@@ -86,7 +86,7 @@ class Config(metaclass=ABCMeta):
                 args=args,
             )
         else:
-            raise RuntimeError('Only support coco format dataset now!')
+            raise RuntimeError('Only support coco, voc, bdd, shift format dataset now!')
 
     def __repr__(self):
         table_header = ['keys', 'values']

@@ -24,7 +24,7 @@ import random
 
 from utils.block_utils import get_blockwise_flops, MODEL_BLOCK_DICT
 
-from damo.dataset.build import build_dataloader
+from damo.dataset.build import build_dataset, build_dataloader
 from damo.utils.boxes import postprocess
 from damo.config.base import parse_config
 from hydra import compose, initialize
@@ -79,9 +79,10 @@ class ER:
             config_file = 'configs/damoyolo_tinynasL25_S_SHIFT.py'
         elif 'MILITARY_SYNTHETIC' in self.dataset:
             data_name = 'military_synthetic'
-            config_file = 'configs/damoyolo_tinynasL25_S_MILItARY_SYNtHETIC.py'
-        with initialize(config_path="../yolo/config", version_base=None):
-            self.args: Config = compose(config_name="config", overrides=["model=v9-s",f"dataset={data_name}"])
+            config_file = 'configs/damoyolo_tinynasL25_S_MILITARY_SYNTHETIC.py'
+        
+        self.damo_cfg = parse_config(config_file)
+        
         self.exposed_domains = [f'{data_name}_source']
         self.model = select_model(self.dataset)
 
@@ -121,11 +122,21 @@ class ER:
         self.metric = MeanAveragePrecisionCustomized(iou_type="bbox", box_format="xyxy",class_metrics=True)#, backend="faster_coco_eval")
         self.metric.warn_on_many_detections = False
         
-        self.val_loader = create_dataloader(self.args.task.validation.data, self.args.dataset, self.args.task.validation.task)
-        self.post_process = PostProcess(self.vec2box, self.args.task.validation.nms)
+        val_dataset_names = self.damo_cfg.dataset.val_ann
+        val_datasets = [build_dataset(self.damo_cfg, d_name, is_train=False) for d_name in val_dataset_names]
+        
+        val_augment_config = self.damo_cfg.test.augment
+        
+        val_dataloaders = build_dataloader(
+            datasets=val_datasets,
+            augment=val_augment_config,
+            batch_size=self.damo_cfg.test.batch_size,
+            is_train=False
+        )
+        
+        self.post_process = postprocess(self.vec2box, self.args.task.validation.nms)
         
         self.model = self.model.to(device)
-        
         
         self.block_names = MODEL_BLOCK_DICT[self.model_name]
         self.num_blocks = len(self.block_names) - 1

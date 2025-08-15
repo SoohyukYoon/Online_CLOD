@@ -228,6 +228,9 @@ def evaluate_predictions_on_coco(coco_gt,
     from pycocotools.coco import COCO
     from pycocotools.cocoeval import COCOeval
 
+    coco_gt.dataset.setdefault("info", {})
+    coco_gt.dataset.setdefault("licenses", [])
+    
     coco_dt = coco_gt.loadRes(
         str(json_result_file)) if coco_results else COCO()
 

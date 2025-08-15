@@ -5,7 +5,7 @@ import os
 
 
 class DatasetCatalog(object):
-    DATA_DIR = '../../../data'
+    DATA_DIR = 'data'
     DATASETS = {
         # --- 기존 COCO 데이터셋 ---
         'coco_2017_train': {
@@ -22,44 +22,20 @@ class DatasetCatalog(object):
         },
         
         # --- VOC 데이터셋 ---
-        'voc_10_train2007': {
-            'img_dir': 'voc_10/iamges/train2007',
-            'ann_file': 'voc_10/annotations/instances_train2007.json'
+        'voc_10_train': {
+            'img_dir': 'voc_10/images/train_merged',
+            'ann_file': 'voc_10/annotations/instances_train.json'
         },
-        'voc_10_train2012': {
-            'img_dir': 'voc_10/images/train2012',
-            'ann_file': 'voc_10/annotations/instances_train2012.json'
-        },
-        'voc_10_val2007': {
-            'img_dir': 'voc_10/iamges/val2007',
-            'ann_file': 'voc_10/annotations/instances_val2007.json'
-        },
-        'voc_10_val2012': {
-            'img_dir': 'voc_10/images/val2012',
-            'ann_file': 'voc_10/annotations/instances_val2012.json'
-        },
-        'voc_10_test2007': {
+        'voc_10_val': {
             'img_dir': 'voc_10/images/test2007',
             'ann_file': 'voc_10/annotations/instances_test2007.json'
         },
         
-        'voc_train2007': {
-            'img_dir': 'voc/iamges/train2007',
-            'ann_file': 'voc/annotations/instances_train2007.json'
+        'voc_train': {
+            'img_dir': 'voc/images/train_merged',
+            'ann_file': 'voc/annotations/instances_train.json'
         },
-        'voc_train2012': {
-            'img_dir': 'voc/images/train2012',
-            'ann_file': 'voc/annotations/instances_train2012.json'
-        },
-        'voc_val2007': {
-            'img_dir': 'voc/iamges/val2007',
-            'ann_file': 'voc/annotations/instances_val2007.json'
-        },
-        'voc_val2012': {
-            'img_dir': 'voc/images/val2012',
-            'ann_file': 'voc/annotations/instances_val2012.json'
-        },
-        'vo0_test2007': {
+        'voc_val': {
             'img_dir': 'voc/images/test2007',
             'ann_file': 'voc/annotations/instances_test2007.json'
         },

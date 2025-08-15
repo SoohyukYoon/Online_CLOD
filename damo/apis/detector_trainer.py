@@ -115,6 +115,10 @@ class Trainer:
         logger.info('cfg value:\n{}'.format(self.cfg))
 
         # build model
+        self.local_rank = int(os.environ.get("LOCAL_RANK", getattr(args, "local_rank", 0)))
+        torch.cuda.set_device(self.local_rank)
+        self.device = torch.device(f"cuda:{self.local_rank}")
+        
         self.model = build_local_model(self.cfg, self.device)
         self.model = nn.SyncBatchNorm.convert_sync_batchnorm(self.model)
         logger.info('model:', self.model)
