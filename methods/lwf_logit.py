@@ -13,6 +13,7 @@ from torch.utils.tensorboard import SummaryWriter
 from methods.er_baseline import ER
 from utils.data_loader import ImageDataset, StreamDataset, cutmix_data
 import pdb
+import types
 
 logger = logging.getLogger()
 # writer = SummaryWriter("tensorboard")
@@ -26,40 +27,74 @@ class LWF_Logit(ER):
         logger.info(f"[LWF INIT] lambda_old: {self.lambda_old}")
 
     def model_forward_with_lwf(self, batch):
+        images = batch.get("img").to(self.device, non_blocking=True)
+        cls_targets = batch.get("cls")
+        
+        batch_size = images.shape[0]
+        formatted_targets = []
+        for i in range(batch_size):
+            img_targets = cls_targets[i]
+            valid_targets = img_targets[img_targets[:, 0] != -1]
+
+            tgt = types.SimpleNamespace()
+            if valid_targets.numel() > 0:
+                tgt.bbox = valid_targets[:, 1:]
+                cls_tensor = valid_targets[:, 0].long()
+                tgt._cls_tensor = cls_tensor
+            else:
+                tgt.bbox = torch.empty(0, 4, device=self.device)
+                tgt._cls_tensor = torch.empty(0, dtype=torch.long, device=self.device)
+
+            tgt.get_field = (lambda field_name, t=tgt: t._cls_tensor
+                            if field_name == 'labels' else None)
+            formatted_targets.append(tgt)
+
         with torch.cuda.amp.autocast(enabled=self.use_amp):
-            outputs = self.model(batch["img"])
+            loss_item = self.model(images, targets=formatted_targets)
+            loss_new = loss_item["total_loss"]
+
+            loss_distill = images.new_tensor(0.0)
+
+            # pdb.set_trace()
             
-            aux_raw, main_raw = outputs["AUX"], outputs["Main"]
-            aux_preds = self.vec2box(aux_raw)
-            main_preds = self.vec2box(main_raw)
-            loss_new, _ = self.model.loss_fn(aux_preds, main_preds, batch['cls'])
-
-            loss_distill = 0.0
-            if self.old_model is not None:
+            if getattr(self, "old_model", None) is not None:
                 with torch.no_grad():
-                    old_outputs = self.old_model(batch["img"])
+                    old_feats_b = self.old_model.backbone(images)
+                    old_feats_n = self.old_model.neck(old_feats_b)
+                    # [3, 16, 10, 80, 80]
+                    old_levels = self.old_model.head.forward_cls_logits_levels(
+                        old_feats_n, apply_sigmoid=False, drop_bg=True
+                    )
 
-                    T = 3.0
-                    loss_distill = 0.0
+                # [3, 16, 11, 80, 80]
+                new_feats_b = self.model.backbone(images)
+                new_feats_n = self.model.neck(new_feats_b)
+                new_levels = self.model.head.forward_cls_logits_levels(
+                    new_feats_n, apply_sigmoid=False, drop_bg=True
+                )
+
+                L = len(old_levels)  # 3
+                T = 3.0
+                kl_sum = images.new_tensor(0.0)
+                for l in range(L):
+                    new_l = new_levels[l]
+                    old_l = old_levels[l]
+                    C_old = old_l.shape[1]
+                    soft_new = F.log_softmax(new_l / T, dim=1)
+                    soft_old = F.softmax(old_l / T, dim=1)
                     
-                    pdb.set_trace()
+                    soft_new = soft_new[:, :C_old, :, :]
                     
-                    for new_out, old_out in zip(outputs["Main"], old_outputs["Main"]):
-                        new_logits = new_out[0] if isinstance(new_out, tuple) else new_out
-                        old_logits = old_out[0] if isinstance(old_out, tuple) else old_out
+                    kl = F.kl_div(soft_new, soft_old, reduction="batchmean")
+                    kl_sum = kl_sum + kl
 
-                        soft_new = F.log_softmax(new_logits / T, dim=1)
-                        soft_old = F.softmax(old_logits / T, dim=1)
-
-                        # old 모델의 클래스 수에 맞게 자르기
-                        soft_new = soft_new[:, :soft_old.shape[1], ...]
-
-                        loss_distill += F.kl_div(soft_new, soft_old, reduction='batchmean')# * (T * T)
-                    loss_distill /= len(outputs["Main"])
+                loss_distill = kl_sum / L
+                
             else:
                 logger.info("[LWF DEBUG] No old model yet")
-        total_loss = loss_new + self.lambda_old * loss_distill
-        return total_loss
+
+            total_loss = loss_new + self.lambda_old * loss_distill
+            return total_loss
 
     def online_step(self, sample, sample_num, n_worker):
         if sample.get('klass',None) and sample['klass'] not in self.exposed_classes:

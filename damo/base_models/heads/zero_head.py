@@ -546,3 +546,17 @@ class ZeroHead(nn.Module):
             pos_gt_bboxes = gt_bboxes[pos_assigned_gt_inds, :]
 
         return pos_inds, neg_inds, pos_gt_bboxes, pos_assigned_gt_inds
+    
+    def forward_cls_logits_levels(self, xin, apply_sigmoid=False, drop_bg=True):
+        cls_levels = []
+        for i, x in enumerate(xin):
+            cls_feat = x
+            for cls_conv in self.cls_convs[i]:
+                cls_feat = cls_conv(cls_feat)
+            logits = self.gfl_cls[i](cls_feat)
+            if apply_sigmoid:
+                logits = logits.sigmoid()
+            if drop_bg and logits.size(1) == self.num_classes + 1:
+                logits = logits[:, :self.num_classes, :, :]
+            cls_levels.append(logits)
+        return cls_levels

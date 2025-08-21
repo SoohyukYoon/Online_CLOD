@@ -243,61 +243,65 @@ class ER:
 
     def add_new_class(self, class_name):
         self.exposed_classes.append(class_name)
+        print('self.exposed_classes', self.exposed_classes)
         self.num_learned_class = len(self.exposed_classes)
-        print(f"Adding new class: {class_name}. Total classes: {self.num_learned_class}")
-
+        
+        self.model.head.num_classes = self.num_learned_class
+        
         prev_weights = [
-            copy.deepcopy(self.model.head.gfl_cls[i].weight) for i in range(len(self.model.head.gfl_cls))
+            copy.deepcopy(self.model.head.gfl_cls[0].weight),
+            copy.deepcopy(self.model.head.gfl_cls[1].weight),
+            copy.deepcopy(self.model.head.gfl_cls[2].weight),
         ]
         prev_biases = [
-            copy.deepcopy(self.model.head.gfl_cls[i].bias) for i in range(len(self.model.head.gfl_cls))
+            copy.deepcopy(self.model.head.gfl_cls[0].bias),
+            copy.deepcopy(self.model.head.gfl_cls[1].bias),
+            copy.deepcopy(self.model.head.gfl_cls[2].bias),
         ]
-        
-        old_param_ids = set()
-        for head_layer in self.model.head.gfl_cls:
-            old_param_ids.add(id(head_layer.weight))
-            old_param_ids.add(id(head_layer.bias))
-
-        for i in range(len(self.model.head.gfl_cls)):
-            old_layer = self.model.head.gfl_cls[i]
-            new_layer = nn.Conv2d(
-                in_channels=old_layer.in_channels,
-                out_channels=self.num_learned_class,
-                kernel_size=old_layer.kernel_size,
-                stride=old_layer.stride,
-                padding=old_layer.padding
-            ).to(self.device)
-            self.model.head.gfl_cls[i] = new_layer
-
+    
+        self.model.head.gfl_cls[0] = nn.Conv2d(self.model.head.gfl_cls[0].in_channels, self.num_learned_class, self.model.head.gfl_cls[0].kernel_size, self.model.head.gfl_cls[0].stride, self.model.head.gfl_cls[0].padding, bias=True).to(self.device)
+        self.model.head.gfl_cls[1] = nn.Conv2d(self.model.head.gfl_cls[1].in_channels, self.num_learned_class, self.model.head.gfl_cls[1].kernel_size, self.model.head.gfl_cls[1].stride, self.model.head.gfl_cls[1].padding, bias=True).to(self.device)
+        self.model.head.gfl_cls[2] = nn.Conv2d(self.model.head.gfl_cls[2].in_channels, self.num_learned_class, self.model.head.gfl_cls[2].kernel_size, self.model.head.gfl_cls[2].stride, self.model.head.gfl_cls[2].padding, bias=True).to(self.device)
+    
         with torch.no_grad():
             if self.num_learned_class > 1:
-                for i in range(len(self.model.head.gfl_cls)):
-                    self.model.head.gfl_cls[i].weight[:self.num_learned_class - 1] = prev_weights[i]
-                    self.model.head.gfl_cls[i].bias[:self.num_learned_class - 1] = prev_biases[i]
-                    
-                    self.model.head.gfl_cls[i].weight[self.num_learned_class - 1] = prev_weights[i].mean(dim=0)
-                    self.model.head.gfl_cls[i].bias[self.num_learned_class - 1] = prev_biases[i].mean(dim=0)
-
-        new_param_groups = []
-        for group in self.optimizer.param_groups:
-            new_params = [p for p in group['params'] if id(p) not in old_param_ids]
-            if new_params:
-                group['params'] = new_params
-                new_param_groups.append(group)
-        self.optimizer.param_groups = new_param_groups
+                self.model.head.gfl_cls[0].weight[:self.num_learned_class - 1] = prev_weights[0]
+                self.model.head.gfl_cls[0].bias[:self.num_learned_class - 1] = prev_biases[0]
+                self.model.head.gfl_cls[1].weight[:self.num_learned_class - 1] = prev_weights[1]
+                self.model.head.gfl_cls[1].bias[:self.num_learned_class - 1] = prev_biases[1]
+                self.model.head.gfl_cls[2].weight[:self.num_learned_class - 1] = prev_weights[2]
+                self.model.head.gfl_cls[2].bias[:self.num_learned_class - 1] = prev_biases[2]
+                
+                self.model.head.gfl_cls[0].weight[self.num_learned_class - 1] = prev_weights[0].mean(dim=0)
+                self.model.head.gfl_cls[0].bias[self.num_learned_class - 1] = prev_biases[0].mean(dim=0)
+                self.model.head.gfl_cls[1].weight[self.num_learned_class - 1] = prev_weights[1].mean(dim=0)
+                self.model.head.gfl_cls[1].bias[self.num_learned_class - 1] = prev_biases[1].mean(dim=0)
+                self.model.head.gfl_cls[2].weight[self.num_learned_class - 1] = prev_weights[2].mean(dim=0)
+                self.model.head.gfl_cls[2].bias[self.num_learned_class - 1] = prev_biases[2].mean(dim=0)
+                
         
-        for param_id in old_param_ids:
-            for state in self.optimizer.state.values():
-                if param_id in state:
-                    del state[param_id]
-
-        self.optimizer.add_param_group({
-            'params': [p.weight for p in self.model.head.gfl_cls],
-        })
-        self.optimizer.add_param_group({
-            'params': [p.bias for p in self.model.head.gfl_cls],
-        })
+        for param in self.optimizer.param_groups[3]['params']:
+            if param in self.optimizer.state.keys():
+                del self.optimizer.state[param]
+        for param in self.optimizer.param_groups[4]['params']:
+            if param in self.optimizer.state.keys():
+                del self.optimizer.state[param]
         
+        del self.optimizer.param_groups[4], self.optimizer.param_groups[3]
+        self.optimizer.add_param_group({'params': [
+                                        self.model.head.gfl_cls[0].weight,
+                                        self.model.head.gfl_cls[1].weight,
+                                        self.model.head.gfl_cls[2].weight,
+                                        ], "momentum": 0.937,})
+        self.optimizer.add_param_group({'params': [
+                                        self.model.head.gfl_cls[0].bias,
+                                        self.model.head.gfl_cls[1].bias,
+                                        self.model.head.gfl_cls[2].bias,
+                                        ], "momentum": 0.937, "weight_decay": 0})
+        self.memory.add_new_class(cls_list=self.exposed_classes)
+        
+        
+
         print("Successfully added new class and updated model/optimizer.")
 
         # if 'reset' in self.sched_name:
@@ -348,7 +352,7 @@ class ER:
     def model_forward(self, batch):
         batch = self.preprocess_batch(batch)
         
-        pdb.set_trace()
+        # pdb.set_trace()
         
         images = batch.get("img").to(self.device, non_blocking=True)
         cls_targets = batch.get("cls")
