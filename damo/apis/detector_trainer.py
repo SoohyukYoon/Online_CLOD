@@ -340,7 +340,7 @@ class Trainer:
                     logger.info('--->turn OFF mosaic aug now!')
                     self.train_loader.batch_sampler.set_mosaic(False)
                     self.eval_interval_iters = self.iters_per_epoch
-                    self.ckpt_interval_iters = self.iters_per_epoch
+                    # self.ckpt_interval_iters = self.iters_per_epoch
                     self.mosaic_mixup = False
 
             # log needed information
@@ -376,9 +376,11 @@ class Trainer:
                     inps.tensors.shape[2], inps.tensors.shape[3], eta_str)))
                 self.meter.clear_meters()
 
-            if (cur_iter + 1) % self.ckpt_interval_iters == 0:
-                self.save_ckpt('epoch_%d' % (self.epoch + 1),
-                               local_rank=local_rank)
+            is_last_iter = (cur_iter + 1) == self.total_iters
+            if ((cur_iter + 1) % self.ckpt_interval_iters == 0) or is_last_iter:
+                ckpt_name = (f'epoch_{self.total_epochs}' if is_last_iter
+                            else f'epoch_{self.epoch + 1}')
+                self.save_ckpt(ckpt_name, local_rank=local_rank)
 
             if (cur_iter + 1) % self.eval_interval_iters == 0:
                 time.sleep(0.003)

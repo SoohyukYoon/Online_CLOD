@@ -4,6 +4,8 @@ import copy
 import math
 
 import torch.utils.data
+from torch.utils.data import RandomSampler, SequentialSampler
+import torch.distributed as dist
 
 from damo.utils import get_world_size
 
@@ -49,9 +51,15 @@ def build_dataset(cfg, ann_files, is_train=True, mosaic_mixup=None):
     return datasets
 
 
+## 단일 GPU에서도 작동하도록 수정
 def make_data_sampler(dataset, shuffle):
-
-    return DistributedSampler(dataset, shuffle=shuffle)
+    if dist.is_available() and dist.is_initialized():
+        return DistributedSampler(dataset, shuffle=shuffle)
+    else:
+        if shuffle:
+            return RandomSampler(dataset)
+        else:
+            return SequentialSampler(dataset)
 
 
 def _quantize(x, bins):

@@ -32,10 +32,10 @@ def select_model(dataset):
         damo_config_file = f'./configs/damoyolo_tinynasL25_S_VOC_10_10.py'
         damo_cfg = parse_config(damo_config_file)
         model = build_local_model(damo_cfg, device='cuda')
-        pretrained_path = "./damo_pretrain_voc.pth"
+        pretrained_path = "./damo_pretrain_outputs_w/voc_10/pretrain_voc_10/damo_pretrain_voc_w.pth"
         if os.path.exists(pretrained_path):
             state_dict = torch.load(pretrained_path, map_location='cpu')
-            model.load_state_dict(state_dict)
+            model.load_state_dict(state_dict['model'])
     elif dataset=='BDD_domain':
         damo_config_file = f'./configs/damoyolo_tinynasL25_S_BDD_domain.py'
         damo_cfg = parse_config(damo_config_file)
@@ -43,7 +43,7 @@ def select_model(dataset):
         pretrained_path = "./damo_pretrain_bdd100k.pth"
         if os.path.exists(pretrained_path):
             state_dict = torch.load(pretrained_path, map_location='cpu')
-            model.load_state_dict(state_dict)
+            model.load_state_dict(state_dict['model'])
     elif dataset=='SHIFT_domain':
         damo_config_file = f'./configs/damoyolo_tinynasL25_S_SHIFT_domain.py'
         damo_cfg = parse_config(damo_config_file)
@@ -51,7 +51,7 @@ def select_model(dataset):
         pretrained_path = "./damo_pretrain_shift.pth"
         if os.path.exists(pretrained_path):
             state_dict = torch.load(pretrained_path, map_location='cpu')
-            model.load_state_dict(state_dict)
+            model.load_state_dict(state_dict['model'])
     elif dataset=='MILITARY_SYNTHETIC_domain_1' or dataset=='MILITARY_SYNTHETIC_domain_2' or dataset=='MILITARY_SYNTHETIC_domain_3':
         damo_config_file = f'./configs/damoyolo_tinynasL25_S_MILITARY_SYNTHETIC.py'
         damo_cfg = parse_config(damo_config_file)
@@ -59,7 +59,7 @@ def select_model(dataset):
         pretrained_path = "./damo_pretrain_military_synthetic.pth"
         if os.path.exists(pretrained_path):
             state_dict = torch.load(pretrained_path, map_location='cpu')
-            model.load_state_dict(state_dict)
+            model.load_state_dict(state_dict['model'])
     else:
         print("Pretrained model not found")
 

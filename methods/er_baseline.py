@@ -9,6 +9,7 @@ import pandas as pd
 import os
 import torch
 import math
+import types
 import torch.nn as nn
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
@@ -25,11 +26,13 @@ import random
 from utils.block_utils import get_blockwise_flops, MODEL_BLOCK_DICT
 
 from damo.dataset.build import build_dataset, build_dataloader
-from damo.utils.boxes import postprocess
+# from damo.utils.boxes import postprocess
 from damo.config.base import parse_config
 from hydra import compose, initialize
 
 from tqdm import tqdm
+
+import pdb
 
 logger = logging.getLogger()
 
@@ -86,16 +89,30 @@ class ER:
         self.exposed_domains = [f'{data_name}_source']
         self.model = select_model(self.dataset)
 
-        self.model.model.args = self.args.model
-        self.stride = max(int(self.model.model.stride.max() if hasattr(self.model.model, "stride") else 32), 32)
+        # self.model.model.args = self.args.model
+        self.stride = max(int(self.model.stride.max() if hasattr(self.model, "stride") else 32), 32)
         self.optimizer = select_optimizer(self.opt_name, self.model, lr=self.lr)
         self.scheduler = None  # optional
 
-        self.vec2box = create_converter(
-            self.args.model.name, self.model, self.args.model.anchor, self.args.image_size, self.device
+        val_dataset_names = self.damo_cfg.dataset.val_ann
+        val_datasets = build_dataset(self.damo_cfg, val_dataset_names, is_train=False)
+        
+        val_augment_config = self.damo_cfg.test.augment
+        val_dataloaders = build_dataloader(
+            datasets=val_datasets,
+            augment=val_augment_config,
+            batch_size=self.damo_cfg.test.batch_size,
+            is_train=False
         )
-        self.model.set_loss_function(self.args, self.vec2box, self.num_learned_class)
-        self.memory = MemoryDataset(self.args, self.dataset, self.exposed_classes, device=self.device, memory_size=self.memory_size, mosaic_prob=kwargs['mosaic_prob'],mixup_prob=kwargs['mixup_prob'])
+        self.val_loader = val_dataloaders[0]
+        
+        # self.vec2box = create_converter(
+        #     self.args.model.name, self.model, self.args.model.anchor, self.args.image_size, self.device
+        # )
+        # self.model.set_loss_function(self.args, self.vec2box, self.num_learned_class)
+        self.img_size = self._resolve_image_size(self.damo_cfg, self.model, val_dataloaders)
+        self.memory = MemoryDataset(dataset=self.dataset, cls_list=self.exposed_classes, device=self.device, memory_size=self.memory_size, mosaic_prob=kwargs['mosaic_prob'], mixup_prob=kwargs['mixup_prob'], image_size=self.img_size)
+        
         self.temp_batch = []
         self.num_updates = 0
         self.train_count = 0
@@ -122,25 +139,63 @@ class ER:
         self.metric = MeanAveragePrecisionCustomized(iou_type="bbox", box_format="xyxy",class_metrics=True)#, backend="faster_coco_eval")
         self.metric.warn_on_many_detections = False
         
-        val_dataset_names = self.damo_cfg.dataset.val_ann
-        val_datasets = [build_dataset(self.damo_cfg, d_name, is_train=False) for d_name in val_dataset_names]
+        N = 5  # 예측 박스 개수
+        self.cls_scores = torch.rand(self.batch_size, N, self.num_learned_class, device=self.device)
+        self.bbox_preds = torch.rand(self.batch_size, N, 4, device=self.device) * 100
+        # self.post_process = lambda cls_scores, bbox_preds, num_classes, imgs=None: postprocess(
+        #     cls_scores=cls_scores,
+        #     bbox_preds=bbox_preds,
+        #     num_classes=num_classes,
+        #     imgs=imgs,
+        # )
         
-        val_augment_config = self.damo_cfg.test.augment
-        
-        val_dataloaders = build_dataloader(
-            datasets=val_datasets,
-            augment=val_augment_config,
-            batch_size=self.damo_cfg.test.batch_size,
-            is_train=False
-        )
-        
-        self.post_process = postprocess(self.vec2box, self.args.task.validation.nms)
-        
-        self.model = self.model.to(device)
+        self.model = self.model.to(self.device)
         
         self.block_names = MODEL_BLOCK_DICT[self.model_name]
         self.num_blocks = len(self.block_names) - 1
-        self.get_flops_parameter()
+        # self.get_flops_parameter()
+    
+    def _resolve_image_size(self, damo_cfg, model, val_dataloaders):
+        loader = val_dataloaders[0] if isinstance(val_dataloaders, (list, tuple)) else val_dataloaders
+        try:
+            batch = next(iter(loader))
+        except StopIteration:
+            batch = None
+        except Exception:
+            batch = None
+
+        if isinstance(batch, dict):
+            if 'images' in batch:
+                imgs = batch['images']
+            elif 'img' in batch:
+                imgs = batch['img']
+            else:
+                imgs = None
+        elif isinstance(batch, (list, tuple)) and len(batch) > 0:
+            imgs = batch[0]
+        else:
+            imgs = None
+
+        if imgs is not None:
+            # Detectron 스타일 ImageList: .tensors가 [B,C,H,W]
+            if hasattr(imgs, 'tensors') and hasattr(imgs.tensors, 'shape'):
+                h, w = imgs.tensors.shape[-2], imgs.tensors.shape[-1]
+                return [int(h), int(w)]
+            # 그냥 Tensor [B,C,H,W]
+            if hasattr(imgs, 'shape') and getattr(imgs, 'ndim', 0) >= 4:
+                h, w = imgs.shape[-2], imgs.shape[-1]
+                return [int(h), int(w)]
+
+        # default
+        stride = 32
+        try:
+            if hasattr(self.model, "model") and hasattr(self.model, "stride"):
+                stride = int(self.model.stride.max())
+        except Exception:
+            pass
+        base = 640
+        s = ((base + stride - 1) // stride) * stride
+        return [s, s]
         
     def get_total_flops(self):
         return self.total_flops
@@ -188,90 +243,66 @@ class ER:
 
     def add_new_class(self, class_name):
         self.exposed_classes.append(class_name)
-        print('self.exposed_classes', self.exposed_classes)
         self.num_learned_class = len(self.exposed_classes)
-        # classification head for yolov9-s
+        print(f"Adding new class: {class_name}. Total classes: {self.num_learned_class}")
+
         prev_weights = [
-            copy.deepcopy(self.model.model[22].heads[0].class_conv[2].weight),
-            copy.deepcopy(self.model.model[22].heads[1].class_conv[2].weight),
-            copy.deepcopy(self.model.model[22].heads[2].class_conv[2].weight),
-            copy.deepcopy(self.model.model[30].heads[0].class_conv[2].weight),
-            copy.deepcopy(self.model.model[30].heads[1].class_conv[2].weight),
-            copy.deepcopy(self.model.model[30].heads[2].class_conv[2].weight),
+            copy.deepcopy(self.model.head.gfl_cls[i].weight) for i in range(len(self.model.head.gfl_cls))
         ]
         prev_biases = [
-            copy.deepcopy(self.model.model[22].heads[0].class_conv[2].bias),
-            copy.deepcopy(self.model.model[22].heads[1].class_conv[2].bias),
-            copy.deepcopy(self.model.model[22].heads[2].class_conv[2].bias),
-            copy.deepcopy(self.model.model[30].heads[0].class_conv[2].bias),
-            copy.deepcopy(self.model.model[30].heads[1].class_conv[2].bias),
-            copy.deepcopy(self.model.model[30].heads[2].class_conv[2].bias),
+            copy.deepcopy(self.model.head.gfl_cls[i].bias) for i in range(len(self.model.head.gfl_cls))
         ]
-        self.model.model[22].heads[0].class_conv[2] = nn.Conv2d(self.model.model[22].heads[0].class_conv[2].in_channels, self.num_learned_class, self.model.model[22].heads[0].class_conv[2].kernel_size, self.model.model[22].heads[0].class_conv[2].stride).to(self.device)
-        self.model.model[22].heads[1].class_conv[2] = nn.Conv2d(self.model.model[22].heads[1].class_conv[2].in_channels, self.num_learned_class, self.model.model[22].heads[1].class_conv[2].kernel_size, self.model.model[22].heads[1].class_conv[2].stride).to(self.device)
-        self.model.model[22].heads[2].class_conv[2] = nn.Conv2d(self.model.model[22].heads[2].class_conv[2].in_channels, self.num_learned_class, self.model.model[22].heads[2].class_conv[2].kernel_size, self.model.model[22].heads[2].class_conv[2].stride).to(self.device)
         
-        self.model.model[30].heads[0].class_conv[2] = nn.Conv2d(self.model.model[30].heads[0].class_conv[2].in_channels, self.num_learned_class, self.model.model[30].heads[0].class_conv[2].kernel_size, self.model.model[30].heads[0].class_conv[2].stride).to(self.device)
-        self.model.model[30].heads[1].class_conv[2] = nn.Conv2d(self.model.model[30].heads[1].class_conv[2].in_channels, self.num_learned_class, self.model.model[30].heads[1].class_conv[2].kernel_size, self.model.model[30].heads[1].class_conv[2].stride).to(self.device)
-        self.model.model[30].heads[2].class_conv[2] = nn.Conv2d(self.model.model[30].heads[2].class_conv[2].in_channels, self.num_learned_class, self.model.model[30].heads[2].class_conv[2].kernel_size, self.model.model[30].heads[2].class_conv[2].stride).to(self.device)
+        old_param_ids = set()
+        for head_layer in self.model.head.gfl_cls:
+            old_param_ids.add(id(head_layer.weight))
+            old_param_ids.add(id(head_layer.bias))
+
+        for i in range(len(self.model.head.gfl_cls)):
+            old_layer = self.model.head.gfl_cls[i]
+            new_layer = nn.Conv2d(
+                in_channels=old_layer.in_channels,
+                out_channels=self.num_learned_class,
+                kernel_size=old_layer.kernel_size,
+                stride=old_layer.stride,
+                padding=old_layer.padding
+            ).to(self.device)
+            self.model.head.gfl_cls[i] = new_layer
+
         with torch.no_grad():
             if self.num_learned_class > 1:
-                self.model.model[22].heads[0].class_conv[2].weight[:self.num_learned_class - 1] = prev_weights[0]
-                self.model.model[22].heads[0].class_conv[2].bias[:self.num_learned_class - 1] = prev_biases[0]
-                self.model.model[22].heads[1].class_conv[2].weight[:self.num_learned_class - 1] = prev_weights[1]
-                self.model.model[22].heads[1].class_conv[2].bias[:self.num_learned_class - 1] = prev_biases[1]
-                self.model.model[22].heads[2].class_conv[2].weight[:self.num_learned_class - 1] = prev_weights[2]
-                self.model.model[22].heads[2].class_conv[2].bias[:self.num_learned_class - 1] = prev_biases[2]
-                
-                self.model.model[30].heads[0].class_conv[2].weight[:self.num_learned_class - 1] = prev_weights[3]
-                self.model.model[30].heads[0].class_conv[2].bias[:self.num_learned_class - 1] = prev_biases[3]
-                self.model.model[30].heads[1].class_conv[2].weight[:self.num_learned_class - 1] = prev_weights[4]
-                self.model.model[30].heads[1].class_conv[2].bias[:self.num_learned_class - 1] = prev_biases[4]
-                self.model.model[30].heads[2].class_conv[2].weight[:self.num_learned_class - 1] = prev_weights[5]
-                self.model.model[30].heads[2].class_conv[2].bias[:self.num_learned_class - 1] = prev_biases[5]
-                
-                self.model.model[22].heads[0].class_conv[2].weight[self.num_learned_class - 1] = prev_weights[0].mean(dim=0)
-                self.model.model[22].heads[0].class_conv[2].bias[self.num_learned_class - 1] = prev_biases[0].mean(dim=0)
-                self.model.model[22].heads[1].class_conv[2].weight[self.num_learned_class - 1] = prev_weights[1].mean(dim=0)
-                self.model.model[22].heads[1].class_conv[2].bias[self.num_learned_class - 1] = prev_biases[1].mean(dim=0)
-                self.model.model[22].heads[2].class_conv[2].weight[self.num_learned_class - 1] = prev_weights[2].mean(dim=0)
-                self.model.model[22].heads[2].class_conv[2].bias[self.num_learned_class - 1] = prev_biases[2].mean(dim=0)
-                self.model.model[30].heads[0].class_conv[2].weight[self.num_learned_class - 1] = prev_weights[3].mean(dim=0)
-                self.model.model[30].heads[0].class_conv[2].bias[self.num_learned_class - 1] = prev_biases[3].mean(dim=0)
-                self.model.model[30].heads[1].class_conv[2].weight[self.num_learned_class - 1] = prev_weights[4].mean(dim=0)
-                self.model.model[30].heads[1].class_conv[2].bias[self.num_learned_class - 1] = prev_biases[4].mean(dim=0)
-                self.model.model[30].heads[2].class_conv[2].weight[self.num_learned_class - 1] = prev_weights[5].mean(dim=0)
-                self.model.model[30].heads[2].class_conv[2].bias[self.num_learned_class - 1] = prev_biases[5].mean(dim=0)
-                
+                for i in range(len(self.model.head.gfl_cls)):
+                    self.model.head.gfl_cls[i].weight[:self.num_learned_class - 1] = prev_weights[i]
+                    self.model.head.gfl_cls[i].bias[:self.num_learned_class - 1] = prev_biases[i]
+                    
+                    self.model.head.gfl_cls[i].weight[self.num_learned_class - 1] = prev_weights[i].mean(dim=0)
+                    self.model.head.gfl_cls[i].bias[self.num_learned_class - 1] = prev_biases[i].mean(dim=0)
+
+        new_param_groups = []
+        for group in self.optimizer.param_groups:
+            new_params = [p for p in group['params'] if id(p) not in old_param_ids]
+            if new_params:
+                group['params'] = new_params
+                new_param_groups.append(group)
+        self.optimizer.param_groups = new_param_groups
         
-        for param in self.optimizer.param_groups[3]['params']:
-            if param in self.optimizer.state.keys():
-                del self.optimizer.state[param]
-        for param in self.optimizer.param_groups[4]['params']:
-            if param in self.optimizer.state.keys():
-                del self.optimizer.state[param]
+        for param_id in old_param_ids:
+            for state in self.optimizer.state.values():
+                if param_id in state:
+                    del state[param_id]
+
+        self.optimizer.add_param_group({
+            'params': [p.weight for p in self.model.head.gfl_cls],
+        })
+        self.optimizer.add_param_group({
+            'params': [p.bias for p in self.model.head.gfl_cls],
+        })
         
-        del self.optimizer.param_groups[4], self.optimizer.param_groups[3]
-        self.optimizer.add_param_group({'params': [
-                                        self.model.model[22].heads[0].class_conv[2].weight,
-                                        self.model.model[22].heads[1].class_conv[2].weight,
-                                        self.model.model[22].heads[2].class_conv[2].weight,
-                                        self.model.model[30].heads[0].class_conv[2].weight,
-                                        self.model.model[30].heads[1].class_conv[2].weight,
-                                        self.model.model[30].heads[2].class_conv[2].weight,
-                                        ], "momentum": 0.937,})
-        self.optimizer.add_param_group({'params': [
-                                        self.model.model[22].heads[0].class_conv[2].bias,
-                                        self.model.model[22].heads[1].class_conv[2].bias,
-                                        self.model.model[22].heads[2].class_conv[2].bias,
-                                        self.model.model[30].heads[0].class_conv[2].bias,
-                                        self.model.model[30].heads[1].class_conv[2].bias,
-                                        self.model.model[30].heads[2].class_conv[2].bias,
-                                        ], "momentum": 0.937, "weight_decay": 0})
-        self.memory.add_new_class(cls_list=self.exposed_classes)
+        print("Successfully added new class and updated model/optimizer.")
+
         # if 'reset' in self.sched_name:
         #     self.update_schedule(reset=True)
-        self.model.set_loss_function(self.args, self.vec2box, self.num_learned_class)
+        # self.model.set_loss_function(self.args, self.vec2box, self.num_learned_class)
 
     def online_train(self, sample, batch_size, n_worker, iterations=1, stream_batch_size=1):
         total_loss = 0.0
@@ -280,7 +311,7 @@ class ER:
         for i in range(iterations):
             self.model.train()
             data = self.memory.get_batch(batch_size, stream_batch_size)
-
+            
             batch = {
                 "img": data[1],         # images
                 "cls": data[2],         # labels
@@ -304,7 +335,7 @@ class ER:
                 loss.backward()
                 self.optimizer.step()
             
-            self.total_flops += (len(data[1]) * self.backward_flops)
+            # self.total_flops += (len(data[1]) * self.backward_flops)
             
             self.update_schedule()
 
@@ -316,33 +347,39 @@ class ER:
     
     def model_forward(self, batch):
         batch = self.preprocess_batch(batch)
+        
+        pdb.set_trace()
+        
+        images = batch.get("img").to(self.device, non_blocking=True)
+        cls_targets = batch.get("cls")
+        
+        batch_size = images.shape[0]
+        formatted_targets = []
+        for i in range(batch_size):
+            img_targets = cls_targets[i]
+            valid_targets = img_targets[img_targets[:, 0] != -1]
+
+            target_obj = types.SimpleNamespace()
+
+            if valid_targets.numel() > 0:
+                target_obj.bbox = valid_targets[:, 1:]
+                cls_tensor = valid_targets[:, 0].long()
+                target_obj._cls_tensor = cls_tensor
+            else:
+                target_obj.bbox = torch.empty(0, 4).to(self.device)
+                target_obj._cls_tensor = torch.empty(0).to(self.device).long()
+            
+            target_obj.get_field = lambda field_name, t=target_obj: t._cls_tensor if field_name == 'labels' else None
+            
+            formatted_targets.append(target_obj)
 
         with torch.cuda.amp.autocast(enabled=self.use_amp):
-            # 모델 실행: output = {"AUX": ..., "Main": ...}
-            outputs = self.model(batch["img"])
-            aux_raw = outputs["AUX"]
-            main_raw = outputs["Main"]
-
-            # Vec2Box 변환: [B, A, C], [B, A, R], [B, A, 4]
-            aux_predicts = self.vec2box(aux_raw)
-            main_predicts = self.vec2box(main_raw)
-
-            # targets: [B, T, 5] (cls, cx, cy, w, h) → xyxy
-            # targets = batch["cls"].clone()
-            # x, y, w, h = targets[..., 1:].unbind(-1)
-            # targets[..., 1] = x
-            # targets[..., 2] = y
-            # targets[..., 3] = x + w
-            # targets[..., 4] = y + h
-
-            # 손실 계산
-            # loss, loss_items = self.model.loss_fn(aux_predicts, main_predicts, targets)
-            loss, loss_item = self.model.loss_fn(aux_predicts, main_predicts, batch['cls'])
+            loss_item = self.model(images, targets=formatted_targets)
+            total_loss = loss_item["total_loss"]
             
-            self.total_flops += (len(batch["img"]) * self.forward_flops)
-        return loss, loss_item
-
-
+            # self.total_flops += (len(batch["img"]) * self.forward_flops)
+        
+        return total_loss, loss_item
     
     def preprocess_batch(self, batch):
         batch["img"] = batch["img"].to(self.device, non_blocking=True)#.float()# / 255
@@ -404,17 +441,38 @@ class ER:
         self.reservoir_memory(sample)
 
     def update_schedule(self, reset=False):
-        pass
+        pass   
 
     def evaluate(self):
         for i, batch in enumerate(tqdm(self.val_loader)):
-            batch_size, images, targets, rev_tensor, img_paths = batch
-            H, W = images.shape[2:]
-            images, targets = images.to(self.device), targets.to(self.device)
-            predicts = self.post_process(self.model(images), image_size=[W, H])
-            mAP = self.metric(
-                [to_metrics_format(predict) for predict in predicts], [to_metrics_format(target) for target in targets]
-            )
+            images_obj, targets, _ = batch
+            
+            # pdb.set_trace()
+            
+            images = images_obj.tensors.float().to(self.device)
+            
+            with torch.no_grad():
+                predicts = self.model(images)
+
+            def boxlist_to_pred_dict(bl):
+                boxes = bl.bbox.detach().to('cpu').float()
+                labels = bl.extra_fields['labels'].detach().to('cpu').long()
+                scores = bl.extra_fields.get('scores', None)
+                if scores is None:
+                    scores = torch.empty((0,), dtype=torch.float32)
+                else:
+                    scores = scores.detach().to('cpu').float()
+                return {'boxes': boxes, 'scores': scores, 'labels': labels}
+
+            def boxlist_to_target_dict(bl):
+                boxes = bl.bbox.detach().to('cpu').float()
+                labels = bl.extra_fields['labels'].detach().to('cpu').long()
+                return {'boxes': boxes, 'labels': labels}
+
+            preds_list = [boxlist_to_pred_dict(p) for p in predicts]
+            targs_list = [boxlist_to_target_dict(t) for t in targets]
+            
+            self.metric(preds_list, targs_list)
         
         epoch_metrics = self.metric.compute()
         del epoch_metrics["classes"]
@@ -430,46 +488,69 @@ class ER:
         torch.cuda.empty_cache()
         self.model.eval()
         print("evaluate")
-        
+
         if self.dataset=='BDD_domain':
             eval_dict = {"avg_mAP50":0, "classwise_mAP50":[]}
-            for data_name in self.exposed_domains:#['bdd100k_source', 'bdd100k_cloudy', 'bdd100k_rainy', 'bdd100k_dawndusk', 'bdd100k_night']:
-                with initialize(config_path="../yolo/config", version_base=None):
-                    self.args: Config = compose(config_name="config", overrides=["model=v9-s",f"dataset={data_name}"])            
-                self.val_loader = create_dataloader(self.args.task.validation.data, self.args.dataset, self.args.task.validation.task)
+            for data_name in self.exposed_domains:
+                datasets = build_dataset(
+                    cfg=self.damo_cfg,
+                    ann_files=[data_name],
+                    is_train=False
+                )
+                dataloaders = build_dataloader(
+                    datasets=datasets,
+                    augment=self.damo_cfg.augment,
+                    batch_size=self.damo_cfg.train.batch_size,
+                    is_train=False,
+                    num_workers=self.damo_cfg.train.get('num_workers', 8)
+                )
+                self.val_loader = dataloaders[0]
+
                 eval_dict_sub = self.evaluate()
                 clean = [v for v in eval_dict_sub['classwise_mAP50'] if v != -1]
-                average = sum(clean) / len(clean)
-                eval_dict['avg_mAP50'] += average/len(self.exposed_domains) #/5
+                average = sum(clean) / len(clean) if clean else 0.0
+                eval_dict['avg_mAP50'] += average / len(self.exposed_domains)
                 eval_dict["classwise_mAP50"].append(average)
-            with initialize(config_path="../yolo/config", version_base=None):
-                self.args: Config = compose(config_name="config", overrides=["model=v9-s",f"dataset=bdd100k"])
+
         elif self.dataset=='SHIFT_domain':
             eval_dict = {"avg_mAP50":0, "classwise_mAP50":[]}
-            for data_name in self.exposed_domains:#['shift_source', 'shift_overcast', 'shift_cloudy', 'shift_rainy', 'shift_foggy', 'shift_dawndusk', 'shift_night']:
-                with initialize(config_path="../yolo/config", version_base=None):
-                    self.args: Config = compose(config_name="config", overrides=["model=v9-s",f"dataset={data_name}"])            
-                self.val_loader = create_dataloader(self.args.task.validation.data, self.args.dataset, self.args.task.validation.task)
+            for data_name in self.exposed_domains:
+                datasets = build_dataset(self.damo_cfg, [data_name], is_train=False)
+                dataloaders = build_dataloader(
+                    datasets,
+                    self.damo_cfg.augment,
+                    batch_size=self.damo_cfg.train.batch_size,
+                    is_train=False,
+                    num_workers=self.damo_cfg.train.get('num_workers', 8)
+                )
+                self.val_loader = dataloaders[0]
+
                 eval_dict_sub = self.evaluate()
                 clean = [v for v in eval_dict_sub['classwise_mAP50'] if v != -1]
-                average = sum(clean) / len(clean)
-                eval_dict['avg_mAP50'] += average/len(self.exposed_domains)
+                average = sum(clean) / len(clean) if clean else 0.0
+                eval_dict['avg_mAP50'] += average / len(self.exposed_domains)
                 eval_dict["classwise_mAP50"].append(average)
-            with initialize(config_path="../yolo/config", version_base=None):
-                self.args: Config = compose(config_name="config", overrides=["model=v9-s",f"dataset=shift"])
-        elif self.dataset=='MILITARY_SYNTHETIC_domain_1' or self.dataset=='MILITARY_SYNTHETIC_domain_2' or self.dataset=='MILITARY_SYNTHETIC_domain_3':
+
+        elif 'MILITARY_SYNTHETIC_domain' in self.dataset:
             eval_dict = {"avg_mAP50":0, "classwise_mAP50":[]}
-            for data_name in ['military_synthetic_domain_source', 'military_synthetic_domain_night', 'military_synthetic_domain_winter', 'military_synthetic_domain_infrared']:
-                with initialize(config_path="../yolo/config", version_base=None):
-                    self.args: Config = compose(config_name="config", overrides=["model=v9-s",f"dataset={data_name}"])            
-                self.val_loader = create_dataloader(self.args.task.validation.data, self.args.dataset, self.args.task.validation.task)
+            domain_list = ['military_synthetic_domain_source', 'military_synthetic_domain_night', 'military_synthetic_domain_winter', 'military_synthetic_domain_infrared']
+            for data_name in domain_list:
+                datasets = build_dataset(self.damo_cfg, [data_name], is_train=False)
+                dataloaders = build_dataloader(
+                    datasets,
+                    self.damo_cfg.augment,
+                    batch_size=self.damo_cfg.train.batch_size,
+                    is_train=False,
+                    num_workers=self.damo_cfg.train.get('num_workers', 8)
+                )
+                self.val_loader = dataloaders[0]
+
                 eval_dict_sub = self.evaluate()
                 clean = [v for v in eval_dict_sub['classwise_mAP50'] if v != -1]
-                average = sum(clean) / len(clean)
-                eval_dict['avg_mAP50'] += average/4 #len(self.exposed_domains)
+                average = sum(clean) / len(clean) if clean else 0.0
+                eval_dict['avg_mAP50'] += average / len(domain_list)
                 eval_dict["classwise_mAP50"].append(average)
-            with initialize(config_path="../yolo/config", version_base=None):
-                self.args: Config = compose(config_name="config", overrides=["model=v9-s",f"dataset=military_synthetic"])
+                
         else:
             eval_dict = self.evaluate()
 
@@ -623,7 +704,7 @@ class ER:
         
     
     def get_flops_parameter(self, method=None):
-        inp_size = self.args.image_size
+        inp_size = self.img_size
         
         self.flops_dict = get_model_complexity_info(self.model, (3, inp_size[0], inp_size[1]),
                                                                     as_strings=False,
@@ -653,4 +734,4 @@ class ER:
         #     pickle.dump(self.args, f)
         # self.save_std_pickle()
         
-        logger.info(f"Sample {sample_num} | Model saved at {save_path}/{model_path}")
+        logger.info(f"Sample {sample_num} | Modelc saved at {save_path}/{model_path}")

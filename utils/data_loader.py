@@ -97,12 +97,14 @@ def collate_fn(batch: List[Tuple[Tensor, Tensor]]) -> Tuple[Tensor, List[Tensor]
     batch_reverse = torch.stack(batch_reverse)
 
     return batch_size, batch_images, batch_targets, batch_reverse, batch_path
-
+        
 class MemoryDataset(Dataset):
-    def __init__(self, args, dataset, cls_list=None, device=None, data_dir=None, memory_size=None, 
-                 init_buffer_size=None, mosaic_prob=1.0, mixup_prob=0.0):
-        self.args = args
-        self.image_sizes = args.image_size  # [640, 640]
+    def __init__(self, dataset, cls_list=None, device=None, data_dir=None, memory_size=None, 
+                 init_buffer_size=None, mosaic_prob=1.0, mixup_prob=0.0, image_size=(640, 640)):
+        # self.args = args
+        if isinstance(image_size, int):
+            image_size = (image_size, image_size)
+        self.image_sizes = [int(image_size[0]), int(image_size[1])]
         self.memory_size = memory_size
 
         self.buffer = []

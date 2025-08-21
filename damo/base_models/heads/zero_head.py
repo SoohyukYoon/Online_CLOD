@@ -202,9 +202,11 @@ class ZeroHead(nn.Module):
 
         # prepare labels during training
         b, c, h, w = xin[0].shape
+        
+        gt_bbox_list = []
+        gt_cls_list = []
+            
         if labels is not None:
-            gt_bbox_list = []
-            gt_cls_list = []
             for label in labels:
                 gt_bbox_list.append(label.bbox)
                 gt_cls_list.append((label.get_field('labels')).long())

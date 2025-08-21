@@ -41,6 +41,9 @@ class LWF_Logit(ER):
 
                     T = 3.0
                     loss_distill = 0.0
+                    
+                    pdb.set_trace()
+                    
                     for new_out, old_out in zip(outputs["Main"], old_outputs["Main"]):
                         new_logits = new_out[0] if isinstance(new_out, tuple) else new_out
                         old_logits = old_out[0] if isinstance(old_out, tuple) else old_out
