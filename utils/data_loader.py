@@ -210,7 +210,6 @@ class MemoryDataset(Dataset):
             split_name = image_path.split('/')[-2]
             base_name = image_path.split('/')[-1]
             self.replace_sample({'file_name': split_name + '/' + base_name, 'label': None}, images_dir=images_dir,label_path=label_path)
-
     def __len__(self):
         return len(self.buffer)
 

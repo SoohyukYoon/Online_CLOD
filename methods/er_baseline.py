@@ -12,7 +12,7 @@ import math
 import types
 import torch.nn as nn
 from torch.utils.data import DataLoader
-from torch.utils.tensorboard import SummaryWriter
+# from torch.utils.tensorboard import SummaryWriter
 from torch import optim
 from scipy.stats import chi2, norm
 #from ptflops import get_model_complexity_info
@@ -132,7 +132,7 @@ class ER:
         self.f_next_time = 0
         self.start_time = time.time()
 
-        self.writer = SummaryWriter(f'tensorboard/{self.dataset}/{self.note}/seed_{self.rnd_seed}')
+        # self.writer = SummaryWriter(f'tensorboard/{self.dataset}/{self.note}/seed_{self.rnd_seed}')
         self.save_path = f'results/{self.dataset}/{self.note}/seed_{self.rnd_seed}'
         
         # test arguments
@@ -403,7 +403,7 @@ class ER:
 
 
     def report_training(self, sample_num, train_loss, train_initial_cka=None, train_group1_cka=None, train_group2_cka=None, train_group3_cka=None, train_group4_cka=None):
-        self.writer.add_scalar(f"train/loss", train_loss, sample_num)
+        # self.writer.add_scalar(f"train/loss", train_loss, sample_num)
 
         if train_initial_cka is not None:
             '''
@@ -420,7 +420,7 @@ class ER:
             cka_dict["train_group3_cka"] = train_group3_cka
             cka_dict["train_group4_cka"] = train_group4_cka
 
-            self.writer.add_scalars(f"train/cka", cka_dict, sample_num)
+            # self.writer.add_scalars(f"train/cka", cka_dict, sample_num)
             #self.writer.add_scalar(f"train/fc_cka", train_fc_cka, sample_num)
 
         logger.info(
@@ -433,7 +433,7 @@ class ER:
 
     def report_test(self, sample_num, avg_acc, classwise_acc):
         # self.writer.add_scalar(f"test/loss", avg_loss, sample_num)
-        self.writer.add_scalar(f"test/acc", avg_acc, sample_num)
+        # self.writer.add_scalar(f"test/acc", avg_acc, sample_num)
         # self.writer.add_scalar(f"test/classwise_acc", classwise_acc, sample_num)
         logger.info(
             f"Test | Sample # {sample_num} | test_acc {avg_acc:.4f} | \n"
@@ -450,7 +450,6 @@ class ER:
     def evaluate(self):
         for i, batch in enumerate(tqdm(self.val_loader)):
             images_obj, targets, _ = batch
-            
             # pdb.set_trace()
             
             images = images_obj.tensors.float().to(self.device)
