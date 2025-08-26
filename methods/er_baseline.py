@@ -73,16 +73,18 @@ class ER:
         
         if 'VOC' in self.dataset:
             data_name = 'voc'
-            config_file = 'configs/damoyolo_tinynasL25_S_VOC_10_10.py'
+            # config_file = 'configs/damoyolo_tinynasL25_S_VOC_10_10.py'
         elif 'BDD' in self.dataset:
             data_name = 'bdd100k'
-            config_file = 'configs/damoyolo_tinynasL25_S_BDD100K.py'
+            # config_file = 'configs/damoyolo_tinynasL25_S_BDD100K.py'
         elif 'SHIFT' in self.dataset:
             data_name = 'shift'
-            config_file = 'configs/damoyolo_tinynasL25_S_SHIFT.py'
+            # config_file = 'configs/damoyolo_tinynasL25_S_SHIFT.py'
         elif 'MILITARY_SYNTHETIC' in self.dataset:
             data_name = 'military_synthetic'
-            config_file = 'configs/damoyolo_tinynasL25_S_MILITARY_SYNTHETIC.py'
+            # config_file = 'configs/damoyolo_tinynasL25_S_MILITARY_SYNTHETIC.py'
+            
+        config_file = 'configs/damoyolo_tinynasL20_T.py'
         
         self.damo_cfg = parse_config(config_file)
         
@@ -111,7 +113,7 @@ class ER:
         # )
         # self.model.set_loss_function(self.args, self.vec2box, self.num_learned_class)
         self.img_size = self._resolve_image_size(self.damo_cfg, self.model, val_dataloaders)
-        self.memory = MemoryDataset(dataset=self.dataset, cls_list=self.exposed_classes, device=self.device, memory_size=self.memory_size, mosaic_prob=kwargs['mosaic_prob'], mixup_prob=kwargs['mixup_prob'], image_size=self.img_size)
+        self.memory = MemoryDataset(dataset=self.dataset, cls_list=self.exposed_classes, device=self.device, memory_size=self.memory_size, image_size=self.img_size, aug=self.damo_cfg.train.augment)
         
         self.temp_batch = []
         self.num_updates = 0
@@ -453,7 +455,6 @@ class ER:
             # pdb.set_trace()
             
             images = images_obj.tensors.float().to(self.device)
-            
             with torch.no_grad():
                 predicts = self.model(images)
 
@@ -474,7 +475,8 @@ class ER:
 
             preds_list = [boxlist_to_pred_dict(p) for p in predicts]
             targs_list = [boxlist_to_target_dict(t) for t in targets]
-            
+            print("preds", preds_list)
+            print("tags", targs_list)
             self.metric(preds_list, targs_list)
         
         epoch_metrics = self.metric.compute()

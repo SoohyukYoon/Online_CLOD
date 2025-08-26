@@ -7,7 +7,7 @@ from collections import defaultdict
 import numpy as np
 import torch
 from torch import nn
-from torch.utils.tensorboard import SummaryWriter
+# from torch.utils.tensorboard import SummaryWriter
 from torchvision import transforms
 
 from configuration import config
@@ -114,10 +114,9 @@ def main():
         if samples_cnt % args.val_period == 0:
             method.online_validate(samples_cnt, 512, args.n_worker)
         ''' 
-        
         if samples_cnt % args.save_period == 0:
             method.save(samples_cnt, args.output_dir)
-        
+            
         if samples_cnt % args.eval_period == 0:
             eval_dict = method.online_evaluate(samples_cnt, data["time"])
             eval_results["avg_mAP50"].append(eval_dict['avg_mAP50'])

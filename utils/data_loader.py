@@ -29,8 +29,14 @@ from torch import Tensor
 from pathlib import Path
 from yolo.utils.dataset_utils import create_image_metadata, scale_segmentation
 
+from damo.dataset.datasets.mosaic_wrapper import MosaicWrapper
+
 from collections import defaultdict
 import cv2
+
+import os
+from pathlib import Path
+from PIL import Image
 
 def get_statistics(dataset: str):
     """
@@ -100,7 +106,7 @@ def collate_fn(batch: List[Tuple[Tensor, Tensor]]) -> Tuple[Tensor, List[Tensor]
         
 class MemoryDataset(Dataset):
     def __init__(self, dataset, cls_list=None, device=None, data_dir=None, memory_size=None, 
-                 init_buffer_size=None, mosaic_prob=1.0, mixup_prob=0.0, image_size=(640, 640)):
+                 init_buffer_size=None, image_size=(640, 640), aug=None):
         # self.args = args
         if isinstance(image_size, int):
             image_size = (image_size, image_size)
@@ -140,19 +146,31 @@ class MemoryDataset(Dataset):
         self.label_path = label_path
 
         self.augment = True
-
+        self.use_mosaic_mixup = True
+        
         transforms = {
-            "Mosaic": mosaic_prob,
-            "MixUp": mixup_prob,
             "HorizontalFlip": 0.5,
             "RandomCrop": 1,
             "RemoveOutliers": 1e-8,
         }
         transforms = [eval(k)(v) for k, v in transforms.items()]
+        
+        self.mosaic_wrapper = MosaicWrapper(
+            dataset=self,                      # <-- this class will provide pull_item/load_anno
+            img_size=image_size,
+            mosaic_prob=aug.mosaic_mixup.mixup_prob,                   # always “allowed”; actual apply is still random inside wrapper
+            mixup_prob=aug.mosaic_mixup.mixup_prob,
+            transforms=None,                   # we'll run your own transforms after mosaic
+            degrees=aug.mosaic_mixup.degrees,
+            translate=aug.mosaic_mixup.translate,
+            mosaic_scale=aug.mosaic_mixup.mosaic_scale,
+            keep_ratio=True,
+        )
+
         self.base_size = mean(self.image_sizes)
+        
         self.transform = AugmentationComposer(transforms, self.image_sizes, self.base_size)
         self.transform.get_more_data = self.get_more_data
-        
         self.padResize = AugmentationComposer([], self.image_sizes, self.base_size)
         
         # Load all metadata once during initialization
@@ -214,6 +232,33 @@ class MemoryDataset(Dataset):
         return len(self.buffer)
 
     def __getitem__(self, idx):
+        if self.use_mosaic_mixup:
+            img_np_bgr, boxlist_or_target, _ = self.mosaic_wrapper[(True, idx)]
+            img_pil = Image.fromarray(cv2.cvtColor(img_np_bgr, cv2.COLOR_BGR2RGB))
+
+            boxes_px = boxlist_or_target.bbox  # Tensor [N,4] (xyxy pixels)
+            classes = boxlist_or_target.get_field('labels')  # Tensor [N]
+            h_tmp, w_tmp = img_np_bgr.shape[:2]
+
+            if boxes_px.numel() > 0:
+                labels_norm = torch.stack([
+                    classes.float(),
+                    boxes_px[:, 0] / float(w_tmp),
+                    boxes_px[:, 1] / float(h_tmp),
+                    boxes_px[:, 2] / float(w_tmp),
+                    boxes_px[:, 3] / float(h_tmp),
+                ], dim=1)
+            else:
+                labels_norm = torch.zeros((0, 5), dtype=torch.float32)
+
+            img, bboxes, rev_tensor = self.transform(img_pil, labels_norm)
+
+            bboxes[:, [1, 3]] *= self.image_sizes[0]
+            bboxes[:, [2, 4]] *= self.image_sizes[1]
+
+            _, _, base_img_path = self.get_data(idx)
+            return img, bboxes, rev_tensor, base_img_path
+        
         img, bboxes, img_path = self.get_data(idx)
         img, bboxes, rev_tensor = self.transform(img, bboxes)
         bboxes[:, [1, 3]] *= self.image_sizes[0]
@@ -1511,7 +1556,7 @@ class ASERMemory(MemoryDataset):
         minority_batch_y = current_data['label'][minority_ind]
         minority_data['image'] = minority_batch_x
         minority_data['label'] = minority_batch_y
-
+        min
         ##### for eval data #####    
         eval_data = dict()       
         eval_indices = self.get_class_balance_indices(n_smp_cls, candidate_size=None)
