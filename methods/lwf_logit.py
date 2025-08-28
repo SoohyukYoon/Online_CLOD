@@ -25,7 +25,7 @@ class LWF_Logit(ER):
         self.old_model = None
         self.lambda_old = kwargs.get("lambda_old", 0.1)
         logger.info(f"[LWF INIT] lambda_old: {self.lambda_old}")
-
+    
     def model_forward_with_lwf(self, batch):
         images = batch.get("img").to(self.device, non_blocking=True)
         cls_targets = batch.get("cls")
@@ -50,8 +50,16 @@ class LWF_Logit(ER):
             formatted_targets.append(tgt)
 
         with torch.cuda.amp.autocast(enabled=self.use_amp):
-            loss_item = self.model(images, targets=formatted_targets)
+            new_feats_b = self.model.backbone(images)
+            new_feats_n = self.model.neck(new_feats_b)
+
+            loss_item = self.model.head.forward_train(new_feats_n, labels=formatted_targets)
             loss_new = loss_item["total_loss"]
+
+            # [3, 16, 11, 80, 80]
+            new_levels = self.model.head.forward_cls_logits_levels(
+                new_feats_n, apply_sigmoid=False, drop_bg=True
+            )
 
             loss_distill = images.new_tensor(0.0)
 
@@ -65,13 +73,6 @@ class LWF_Logit(ER):
                     old_levels = self.old_model.head.forward_cls_logits_levels(
                         old_feats_n, apply_sigmoid=False, drop_bg=True
                     )
-
-                # [3, 16, 11, 80, 80]
-                new_feats_b = self.model.backbone(images)
-                new_feats_n = self.model.neck(new_feats_b)
-                new_levels = self.model.head.forward_cls_logits_levels(
-                    new_feats_n, apply_sigmoid=False, drop_bg=True
-                )
 
                 L = len(old_levels)  # 3
                 T = 3.0
@@ -94,6 +95,10 @@ class LWF_Logit(ER):
                 logger.info("[LWF DEBUG] No old model yet")
 
             total_loss = loss_new + self.lambda_old * loss_distill
+            
+            print(f"loss_new : {loss_new}")
+            print(f"loss_distill : {loss_distill}")
+            
             return total_loss
 
     def online_step(self, sample, sample_num, n_worker):

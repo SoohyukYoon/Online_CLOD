@@ -7,6 +7,7 @@ from methods.er_baseline import ER
 import torch.nn.functional as F
 from utils.data_loader import ImageDataset, StreamDataset, MemoryDataset, cutmix_data, get_statistics
 from utils.train_utils import select_model, select_optimizer, select_scheduler, MeanAveragePrecisionCustomized
+import types
 import pdb
 
 logger = logging.getLogger(__name__)
@@ -16,12 +17,12 @@ class LD(ER):
         super().__init__(criterion, n_classes, device, **kwargs)
 
         self.alpha = kwargs.get("alpha", 1.0)
-        self.frozen_point = kwargs.get("frozen_point", 22)
+        self.frozen_point = kwargs.get("frozen_point", 3)
         self.teacher_model = None
 
         logger.info(f"[LD INIT] α: {self.alpha}, frozen_point: {self.frozen_point}")
         
-        self.backward_flops = self.blockwise_backward_flops[-1]
+        # self.backward_flops = self.blockwise_backward_flops[-1]
 
 
     def online_step(self, sample, sample_num, n_worker):
@@ -57,19 +58,14 @@ class LD(ER):
         logger.info("Teacher model created and frozen.")
 
         # 2. Student 모델의 Backbone 동결
-        frozen_count = 0
-        total_count = 0
-        for i, (name, param) in enumerate(self.model.named_parameters()):
-            total_count += 1
-            # '.model.' 다음의 숫자 인덱스를 기준으로 동결
-            try:
-                layer_index = int(name.split('.')[1])
-                if layer_index != self.frozen_point:
-                    param.requires_grad = False
-                    frozen_count += 1
-            except (IndexError, ValueError):
-                 logger.warning(f"Could not parse layer index from {name}, not freezing.")
-                 param.requires_grad = True
+        frozen_cnt = 0
+        if hasattr(self.model, "backbone") and hasattr(self.model.backbone, "block_list"):
+            for i, m in enumerate(self.model.backbone.block_list):
+                if i < self.frozen_point:
+                    for p in m.parameters():
+                        if p.requires_grad:
+                            p.requires_grad = False
+                            frozen_cnt += 1
 
         # self.optimizer = select_optimizer(self.opt_name, self.model, lr=self.lr)
 
@@ -79,50 +75,60 @@ class LD(ER):
         if self.teacher_model is None:
             return super().model_forward(batch)
 
-        with torch.cuda.amp.autocast(enabled=self.use_amp):
-            student_outputs = self.model(batch["img"])
-            student_aux_raw = student_outputs["AUX"]
-            student_main_raw = student_outputs["Main"]
-            student_aux_predicts = self.vec2box(student_aux_raw)
-            student_main_predicts = self.vec2box(student_main_raw)
+        images = batch.get("img").to(self.device, non_blocking=True)
+        cls_targets = batch.get("cls")
+        
+        batch_size = images.shape[0]
+        formatted_targets = []
+        for i in range(batch_size):
+            img_targets = cls_targets[i]
+            valid_targets = img_targets[img_targets[:, 0] != -1]
 
-            with torch.no_grad():
-                teacher_outputs = self.teacher_model(batch["img"])
-                teacher_aux_raw = teacher_outputs["AUX"]
-                teacher_main_raw = teacher_outputs["Main"]
-                teacher_aux_predicts = self.vec2box(teacher_aux_raw)
-                teacher_main_predicts = self.vec2box(teacher_main_raw)
+            target_obj = types.SimpleNamespace()
 
-            # 1. 기본 모델 손실 계산
-            loss, loss_item = self.model.loss_fn(student_aux_predicts, student_main_predicts, batch['cls'])
+            if valid_targets.numel() > 0:
+                target_obj.bbox = valid_targets[:, 1:]
+                cls_tensor = valid_targets[:, 0].long()
+                target_obj._cls_tensor = cls_tensor
+            else:
+                target_obj.bbox = torch.empty(0, 4).to(self.device)
+                target_obj._cls_tensor = torch.empty(0).to(self.device).long()
             
-            # 2. 증류 손실 계산 (Student와 Teacher 출력 사용 - 이전 클래스에 대해서만)
+            target_obj.get_field = lambda field_name, t=target_obj: t._cls_tensor if field_name == 'labels' else None
+            
+            formatted_targets.append(target_obj)
+
+        with torch.cuda.amp.autocast(enabled=self.use_amp):
+            loss_item = self.model(images, targets=formatted_targets)
+            loss = loss_item["total_loss"]
+            
             dist_loss = 0.0
-            num_old_cls = self.num_learned_class - 1 
+            
+            with torch.no_grad():
+                tea_feats = self.teacher_model.backbone(images)
+                tea_neck  = self.teacher_model.neck(tea_feats)
+                teacher_cls_list = [self.teacher_model.head.gfl_cls[i](tea_neck[i]) for i in range(len(self.teacher_model.head.gfl_cls))]
+                teacher_reg_list = [self.teacher_model.head.gfl_reg[i](tea_neck[i]) for i in range(len(self.teacher_model.head.gfl_reg))]
 
-            if num_old_cls > 0:
-                # Vec2Box 출력에서 클래스 예측 부분 추출 [B, A, C]
-                # student_aux_cls = student_aux_predicts[0]
-                student_main_cls = student_main_predicts[0]
-                # teacher_aux_cls = teacher_aux_predicts[0]
-                teacher_main_cls = teacher_main_predicts[0]
+            stu_feats = self.model.backbone(images)
+            stu_neck  = self.model.neck(stu_feats)
+            student_cls_list = [self.model.head.gfl_cls[i](stu_neck[i]) for i in range(len(self.model.head.gfl_cls))]
+            student_reg_list = [self.model.head.gfl_reg[i](stu_neck[i]) for i in range(len(self.model.head.gfl_reg))]
 
-                # 이전 클래스에 해당하는 부분만 슬라이싱
-                # student_aux_old = student_aux_cls[..., :num_old_cls]
-                student_main_old = student_main_cls[..., :num_old_cls]
-                # teacher_aux_old = teacher_aux_cls[..., :num_old_cls]
-                teacher_main_old = teacher_main_cls[..., :num_old_cls]
+            teacher_cls_logits = torch.cat([t.permute(0,2,3,1).reshape(-1, t.shape[1]) for t in teacher_cls_list], dim=0)
+            student_cls_logits = torch.cat([t.permute(0,2,3,1).reshape(-1, t.shape[1]) for t in student_cls_list], dim=0)
+                
+            C_old = teacher_cls_logits.size(-1)
+            student_cls_logits = student_cls_logits[..., :C_old]
 
-                # MSE 손실 계산
-                # dist_loss += F.mse_loss(student_aux_old, teacher_aux_old)
-                dist_loss += F.mse_loss(student_main_old, teacher_main_old)
+            dist_loss = F.mse_loss(student_cls_logits, teacher_cls_logits)
             
             print(f"loss: {loss}, dist_loss: {dist_loss}")
             
             # 3. 최종 손실 = 모델 손실 + alpha * 증류 손실
             total_loss = loss + self.alpha * dist_loss
         
-            self.total_flops += (len(batch["img"]) * self.forward_flops * 2)
+            # self.total_flops += (len(batch["img"]) * self.forward_flops * 2)
             
         return total_loss, loss_item
 

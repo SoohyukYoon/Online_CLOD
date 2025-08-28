@@ -32,7 +32,7 @@ def cycle(iterable):
 class FINETUNE(ER):
     def __init__(self, criterion, n_classes, device, **kwargs):
         super().__init__(criterion=criterion, n_classes=n_classes, device=device, **kwargs)
-        self.memory = MemoryDataset(self.args, self.dataset, self.exposed_classes, device=self.device, memory_size=self.memory_size, init_buffer_size=3,mosaic_prob=kwargs['mosaic_prob'],mixup_prob=kwargs['mixup_prob'])
+        self.memory = MemoryDataset(dataset=self.dataset, cls_list=self.exposed_classes, device=self.device, memory_size=self.memory_size, image_size=self.img_size, aug=self.damo_cfg.train.augment)
         
         self.memory.transform.get_more_data = self.memory.ft_get_more_data
         
@@ -89,7 +89,7 @@ class FINETUNE(ER):
                 loss.backward()
                 self.optimizer.step()
             
-            self.total_flops += (len(data[1]) * self.backward_flops)
+            # self.total_flops += (len(data[1]) * self.backward_flops)
             
             self.update_schedule()
 

@@ -302,8 +302,6 @@ class ER:
                                         ], "momentum": 0.937, "weight_decay": 0})
         self.memory.add_new_class(cls_list=self.exposed_classes)
         
-        
-
         print("Successfully added new class and updated model/optimizer.")
 
         # if 'reset' in self.sched_name:
@@ -475,8 +473,7 @@ class ER:
 
             preds_list = [boxlist_to_pred_dict(p) for p in predicts]
             targs_list = [boxlist_to_target_dict(t) for t in targets]
-            print("preds", preds_list)
-            print("tags", targs_list)
+
             self.metric(preds_list, targs_list)
         
         epoch_metrics = self.metric.compute()

@@ -5,8 +5,7 @@ import logging
 from methods.er_baseline import ER
 
 from tqdm import tqdm
-from yolo.utils.bounding_box_utils import create_converter, to_metrics_format
-
+import types
 import pdb
 
 logger = logging.getLogger()
@@ -20,35 +19,77 @@ class ERD(ER):
         self.alpha_cls = kwargs.get("alpha_cls", 2.0)
         self.alpha_reg = kwargs.get("alpha_reg", 2.0)
         logger.info(f"[ERD INIT] λ_cls: {self.lambda_cls}, λ_reg: {self.lambda_reg}, α_cls: {self.alpha_cls}, α_reg: {self.alpha_reg}")
-
+    
+    def _get_layer(self, root_model, layer_spec):
+        mod = root_model
+        for attr in str(layer_spec).split("."):
+            if attr.isdigit():
+                mod = mod[int(attr)]
+            else:
+                mod = getattr(mod, attr)
+        return mod
+    
     def model_forward_with_erd(self, current_batch):
-        current_batch = self.preprocess_batch(current_batch)
-        outputs = self.model(current_batch["img"])
-        aux_preds = self.vec2box(outputs["AUX"])
-        main_preds = self.vec2box(outputs["Main"])
+        batch = self.preprocess_batch(current_batch)
+        images = batch.get("img").to(self.device, non_blocking=True)
+        cls_targets = batch.get("cls")
+        
+        batch_size = images.shape[0]
+        formatted_targets = []
+        for i in range(batch_size):
+            img_targets = cls_targets[i]
+            valid_targets = img_targets[img_targets[:, 0] != -1]
 
-        loss_model, _ = self.model.loss_fn(aux_preds, main_preds, current_batch['cls'])
-        loss_cls_distill, loss_reg_distill = 0.0, 0.0
+            target_obj = types.SimpleNamespace()
 
-        if self.old_model is not None:
-            with torch.no_grad():
-                old_outputs = self.old_model(current_batch["img"])
-                old_aux_preds = self.vec2box(old_outputs["AUX"])
-                old_main_preds = self.vec2box(old_outputs["Main"])
+            if valid_targets.numel() > 0:
+                target_obj.bbox = valid_targets[:, 1:]
+                cls_tensor = valid_targets[:, 0].long()
+                target_obj._cls_tensor = cls_tensor
+            else:
+                target_obj.bbox = torch.empty(0, 4).to(self.device)
+                target_obj._cls_tensor = torch.empty(0).to(self.device).long()
+            
+            target_obj.get_field = lambda field_name, t=target_obj: t._cls_tensor if field_name == 'labels' else None
+            
+            formatted_targets.append(target_obj)
 
-            C_old = old_aux_preds[0].shape[-1]
-            teacher_cls_logits = old_aux_preds[0][..., :C_old]
-            student_cls_logits = aux_preds[0][..., :C_old]
+        with torch.cuda.amp.autocast(enabled=self.use_amp):
+            loss_item = self.model(images, targets=formatted_targets)
+            loss_model = loss_item["total_loss"]
+            
+            loss_cls_distill, loss_reg_distill = 0.0, 0.0
 
-            mask_cls, old_cls_sel, new_cls_sel = self._elastic_response_selection(
-                teacher_cls_logits, student_cls_logits, alpha=self.alpha_cls
-            )
-            loss_cls_distill = self.distill_cls_loss(old_cls_sel, new_cls_sel, mask_cls)
+            if self.old_model is not None:
+                with torch.no_grad():
+                    tea_feats = self.old_model.backbone(images)
+                    tea_neck  = self.old_model.neck(tea_feats)
+                    teacher_cls_list = [self.old_model.head.gfl_cls[i](tea_neck[i]) for i in range(len(self.old_model.head.gfl_cls))]
+                    teacher_reg_list = [self.old_model.head.gfl_reg[i](tea_neck[i]) for i in range(len(self.old_model.head.gfl_reg))]
 
-            mask_reg, old_reg_sel, new_reg_sel = self._elastic_response_selection(
-                old_aux_preds[1], aux_preds[1], alpha=self.alpha_reg
-            )
-            loss_reg_distill = self.distill_bbox_loss(old_reg_sel, new_reg_sel, mask_reg)
+                stu_feats = self.model.backbone(images)
+                stu_neck  = self.model.neck(stu_feats)
+                student_cls_list = [self.model.head.gfl_cls[i](stu_neck[i]) for i in range(len(self.model.head.gfl_cls))]
+                student_reg_list = [self.model.head.gfl_reg[i](stu_neck[i]) for i in range(len(self.model.head.gfl_reg))]
+
+                teacher_cls_logits = torch.cat([t.permute(0,2,3,1).reshape(-1, t.shape[1]) for t in teacher_cls_list], dim=0)
+                student_cls_logits = torch.cat([t.permute(0,2,3,1).reshape(-1, t.shape[1]) for t in student_cls_list], dim=0)
+                teacher_reg_logits = torch.cat([t.permute(0,2,3,1).reshape(-1, t.shape[1]) for t in teacher_reg_list], dim=0)
+                student_reg_logits = torch.cat([t.permute(0,2,3,1).reshape(-1, t.shape[1]) for t in student_reg_list], dim=0)
+                
+                C_old = self.old_model.head.gfl_cls[0].out_channels
+                teacher_cls_logits = teacher_cls_logits[..., :C_old]
+                student_cls_logits = student_cls_logits[..., :C_old]
+
+                mask_cls, old_cls_sel, new_cls_sel = self._elastic_response_selection(
+                    teacher_cls_logits, student_cls_logits, alpha=self.alpha_cls
+                )
+                loss_cls_distill = self.distill_cls_loss(old_cls_sel, new_cls_sel, mask_cls)
+
+                mask_reg, old_reg_sel, new_reg_sel = self._elastic_response_selection(
+                    teacher_reg_logits, student_reg_logits, alpha=self.alpha_reg
+                )
+                loss_reg_distill = self.distill_bbox_loss(old_reg_sel, new_reg_sel, mask_reg)
 
         logger.info(f"loss_model: {loss_model.item():.4f}, cls_loss: {loss_cls_distill:.4f}, reg_loss: {loss_reg_distill:.4f}")
         total_loss = loss_model + self.lambda_cls * loss_cls_distill + self.lambda_reg * loss_reg_distill
