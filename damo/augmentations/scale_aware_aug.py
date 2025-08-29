@@ -73,3 +73,64 @@ class SA_Aug(object):
         self.count += 1
 
         return tensor, target
+
+import math
+class SA_Aug_infinite(object):
+    def __init__(self, sada_cfg):
+
+        autoaug_list = sada_cfg.autoaug_params
+        num_policies = sada_cfg.num_subpolicies
+        scale_splits = sada_cfg.scale_splits
+        box_prob = sada_cfg.box_prob
+
+        self.max_iters = math.inf
+        self.count = 0
+
+        box_aug_list = autoaug_list[4:]
+        color_aug_types = list(color_aug_func.keys())
+        geometric_aug_types = list(geometric_aug_func.keys())
+        policies = []
+        for i in range(num_policies):
+            _start_pos = i * 6
+            sub_policy = [
+                (
+                    color_aug_types[box_aug_list[_start_pos + 0] %
+                                    len(color_aug_types)],
+                    box_aug_list[_start_pos + 1] * 0.1,
+                    box_aug_list[_start_pos + 2],
+                ),  # box_color policy
+                (geometric_aug_types[box_aug_list[_start_pos + 3] %
+                                     len(geometric_aug_types)],
+                 box_aug_list[_start_pos + 4] * 0.1,
+                 box_aug_list[_start_pos + 5])
+            ]  # box_geometric policy
+            policies.append(sub_policy)
+
+        _start_pos = num_policies * 6
+        scale_ratios = {
+            'area': [
+                box_aug_list[_start_pos + 0], box_aug_list[_start_pos + 1],
+                box_aug_list[_start_pos + 2]
+            ],
+            'prob': [
+                box_aug_list[_start_pos + 3], box_aug_list[_start_pos + 4],
+                box_aug_list[_start_pos + 5]
+            ]
+        }
+
+        box_augs_dict = {'policies': policies, 'scale_ratios': scale_ratios}
+
+        self.box_augs = Box_augs(box_augs_dict=box_augs_dict,
+                                 max_iters=self.max_iters,
+                                 scale_splits=scale_splits,
+                                 box_prob=box_prob)
+
+    def __call__(self, tensor, target):
+        iteration = self.count
+        tensor = copy.deepcopy(tensor)
+        target = copy.deepcopy(target)
+        tensor, target = self.box_augs(tensor, target, iteration=iteration)
+
+        self.count += 1
+
+        return tensor, target

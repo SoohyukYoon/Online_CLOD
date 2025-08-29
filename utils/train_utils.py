@@ -67,11 +67,12 @@ def select_model(dataset):
     
     return model
 
-def select_optimizer(name, model, lr=0.01, momentum=0.937, decay=1e-5,):
-    # if hasattr(model, 'fc'):
-    #     fc_name = 'fc'
-    # elif hasattr(model, 'head'):
-    #     fc_name = 'head'
+def select_optimizer(name, model, lr=0.01, cfg=None):
+    
+    # use optimizer from cfg
+    name = cfg.pop('name', name)
+    # remove lr in cfg
+    cfg.pop('lr', None)
     
     # exclude classification head weight
     excluded_substrings = [
@@ -92,28 +93,21 @@ def select_optimizer(name, model, lr=0.01, momentum=0.937, decay=1e-5,):
                     g[1].append(param)
                 else:  # weight (with decay)
                     g[0].append(param)
+    param_groups = [{"params": g[0]},  # add g0 with weight_decay]
+                    {"params": g[1], "weight_decay": 0.0},  # add g1 (BatchNorm2d weights)
+                    {"params": g[2], "weight_decay": 0.0}]  # add g2 (biases)
     
     optimizers = {"Adam", "Adamax", "AdamW", "NAdam", "RAdam", "RMSProp", "SGD", "auto"}
     name = {x.lower(): x for x in optimizers}.get(name.lower())
     if name in {"Adam", "Adamax", "AdamW", "NAdam", "RAdam"}:
-        optimizer = getattr(optim, name, optim.Adam)(g[2], lr=lr, betas=(momentum, 0.999), weight_decay=0.0)
+        optimizer = getattr(optim, name, optim.Adam)(param_groups, lr=lr, **cfg)
     elif name == "RMSProp":
-        optimizer = optim.RMSprop(g[2], lr=lr, momentum=momentum)
+        optimizer = optim.RMSprop(param_groups, lr=lr, **cfg)
     elif name == "SGD":
-        optimizer = optim.SGD(g[2], lr=lr, momentum=momentum, nesterov=True)
-    else:
-        raise NotImplementedError(
-            f"Optimizer '{name}' not found in list of available optimizers {optimizers}. "
-            "Request support for addition optimizers at https://github.com/ultralytics/ultralytics."
-        )
-
-    optimizer.add_param_group({"params": g[0], "weight_decay": decay})  # add g0 with weight_decay
-    optimizer.add_param_group({"params": g[1], "weight_decay": 0.0})  # add g1 (BatchNorm2d weights)
+        optimizer = optim.SGD(param_groups, lr=lr, **cfg)
     
-    optimizer.add_param_group({'params': [p.weight for p in model.head.gfl_cls
-                                        ], "momentum": momentum,})
-    optimizer.add_param_group({'params': [p.bias for p in model.head.gfl_cls
-                                        ], "momentum": momentum, "weight_decay": 0})
+    optimizer.add_param_group({'params': [p.weight for p in model.head.gfl_cls]})
+    optimizer.add_param_group({'params': [p.bias for p in model.head.gfl_cls], "weight_decay": 0})
 
     return optimizer
     # if 'freeze_fc' not in opt_name:

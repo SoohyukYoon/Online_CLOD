@@ -22,14 +22,15 @@ import glob
 logger = logging.getLogger()
 
 
-from yolo.tools.data_augmentation import *
 from statistics import mean
 from typing import Generator, List, Tuple, Union
 from torch import Tensor
 from pathlib import Path
-from yolo.utils.dataset_utils import create_image_metadata, scale_segmentation
-
 from damo.dataset.datasets.mosaic_wrapper import MosaicWrapper
+from damo.dataset.datasets.coco import COCODataset
+from damo.dataset.collate_batch import BatchCollator
+from damo.dataset.transforms import build_transforms, build_transforms_memorydataset
+from damo.structures.bounding_box import BoxList
 
 from collections import defaultdict
 import cv2
@@ -37,6 +38,7 @@ import cv2
 import os
 from pathlib import Path
 from PIL import Image
+import re
 
 def get_statistics(dataset: str):
     """
@@ -74,39 +76,13 @@ def get_exposed_classes(dataset: str):
         return ['pedestrian', 'car', 'truck', 'bus', 'motorcycle', 'bicycle']
     elif 'MILITARY_SYNTHETIC_domain' in dataset:
         return ['fishing vessel', 'warship', 'merchant vessel', 'fixed-wing aircraft', 'rotary-wing aircraft', 'Unmanned Aerial Vehicle', 'bird', 'leaflet', 'waste bomb']
-
-def collate_fn(batch: List[Tuple[Tensor, Tensor]]) -> Tuple[Tensor, List[Tensor]]:
-    """
-    A collate function to handle batching of images and their corresponding targets.
-
-    Args:
-        batch (list of tuples): Each tuple contains:
-            - image (Tensor): The image tensor.
-            - labels (Tensor): The tensor of labels for the image.
-
-    Returns:
-        Tuple[Tensor, List[Tensor]]: A tuple containing:
-            - A tensor of batched images.
-            - A list of tensors, each corresponding to bboxes for each image in the batch.
-    """
-    batch_size = len(batch)
-    target_sizes = [item[1].size(0) for item in batch]
-    # TODO: Improve readability of these process
-    # TODO: remove maxBbox or reduce loss function memory usage
-    batch_targets = torch.zeros(batch_size, min(max(target_sizes), 100), 5)
-    batch_targets[:, :, 0] = -1
-    for idx, target_size in enumerate(target_sizes):
-        batch_targets[idx, : min(target_size, 100)] = batch[idx][1][:100]
-
-    batch_images, _, batch_reverse, batch_path = zip(*batch)
-    batch_images = torch.stack(batch_images)
-    batch_reverse = torch.stack(batch_reverse)
-
-    return batch_size, batch_images, batch_targets, batch_reverse, batch_path
         
-class MemoryDataset(Dataset):
-    def __init__(self, dataset, cls_list=None, device=None, data_dir=None, memory_size=None, 
-                 init_buffer_size=None, image_size=(640, 640), aug=None):
+class MemoryDataset(COCODataset):
+    def __init__(self, ann_file, root, transforms=None, class_names=None,
+                 dataset=None, cls_list=None, device=None, data_dir=None, memory_size=None, 
+                 init_buffer_size=None, image_size=(640, 640), aug=None
+                 ):
+        super().__init__(ann_file, root, transforms, class_names)
         # self.args = args
         if isinstance(image_size, int):
             image_size = (image_size, image_size)
@@ -139,85 +115,86 @@ class MemoryDataset(Dataset):
         self.sample_weight = []
         self.data = {}
         
+        with open(ann_file, 'r') as f:
+            annotations = json.load(f)
+            self.name2id = {ann['file_name'].split('.')[0]: ann['id'] for ann in annotations['images']}
+        
         self.build_initial_buffer(init_buffer_size)
 
         n_classes, image_dir, label_path = get_statistics(dataset=self.dataset)
         self.image_dir = image_dir
         self.label_path = label_path
-
-        self.augment = True
-        self.use_mosaic_mixup = True
         
-        transforms = {
-            "HorizontalFlip": 0.5,
-            "RandomCrop": 1,
-            "RemoveOutliers": 1e-8,
-        }
-        transforms = [eval(k)(v) for k, v in transforms.items()]
-        
+        # set transform
+        transforms = aug.transform
+        transforms = build_transforms_memorydataset(**transforms)
+        self._transforms = transforms
         self.mosaic_wrapper = MosaicWrapper(
             dataset=self,                      # <-- this class will provide pull_item/load_anno
             img_size=image_size,
-            mosaic_prob=aug.mosaic_mixup.mixup_prob,                   # always “allowed”; actual apply is still random inside wrapper
+            mosaic_prob=aug.mosaic_mixup.mosaic_prob,                   # always “allowed”; actual apply is still random inside wrapper
             mixup_prob=aug.mosaic_mixup.mixup_prob,
-            transforms=None,                   # we'll run your own transforms after mosaic
+            transforms=self._transforms,                   # we'll run your own transforms after mosaic
             degrees=aug.mosaic_mixup.degrees,
             translate=aug.mosaic_mixup.translate,
             mosaic_scale=aug.mosaic_mixup.mosaic_scale,
             keep_ratio=True,
         )
-
-        self.base_size = mean(self.image_sizes)
+        self.use_mosaic_mixup=True
         
-        self.transform = AugmentationComposer(transforms, self.image_sizes, self.base_size)
-        self.transform.get_more_data = self.get_more_data
-        self.padResize = AugmentationComposer([], self.image_sizes, self.base_size)
-        
-        # Load all metadata once during initialization
-        self.metadata_cache = {}
-        self._load_all_metadata()
+        self.batch_collator = BatchCollator(size_divisible=32)
     
-    def _load_all_metadata(self):
-        """Load metadata for all possible JSON files"""
-        if os.path.isdir(self.label_path):
-            json_files = [
-                'instances_train2012.json',
-                'instances_train2007.json', 
-                'instances_val2012.json',
-                'instances_val2007.json',
-                'instances_test2007.json',
-                'instances_train.json'  # fallback
-            ]
-            
-            for json_file in json_files:
-                full_path = os.path.join(self.label_path, json_file)
-                if os.path.exists(full_path):
-                    annotations_index, image_info_dict = create_image_metadata(full_path)
-                    self.metadata_cache[json_file] = (annotations_index, image_info_dict)
+    def __len__(self):
+        return len(self.buffer)
+
+    def __getitem__(self, inp):
+        if type(inp) is tuple:
+            idx = inp[1]
         else:
-            # Single JSON file
-            annotations_index, image_info_dict = create_image_metadata(self.label_path)
-            self.metadata_cache[self.label_path] = (annotations_index, image_info_dict)
+            idx = inp
+        img, anno = super(COCODataset, self).__getitem__(idx)
+        # PIL to numpy array
+        return img, anno, idx
 
-    def ft_get_more_data(self, num: int = 1):
-        indices = torch.randint(0, len(self.stream_data), (num,))
-        return [self.stream_data[idx][:2] for idx in indices]
-
-    def get_more_data(self, num: int = 1):
-        indices = torch.randint(0, len(self), (num,))
-        return [self.get_data(idx)[:2] for idx in indices]
-
+    def load_data(self, img_path, is_stream, data_class=None):
+        img_path = re.sub(r'\.(jpg|jpeg|png|JPG|JPEG|PNG)$', '', img_path)
+        try:
+            image_id = self.name2id[img_path]
+        except:
+            image_id = self.name2id[img_path.split('/')[-1]]
+        idx = self.ids.index(image_id)
+        img, label, img_id = self.__getitem__(idx)
+    
+        label = self.load_valid_labels(label, is_stream, data_class=data_class)
+        
+        return img, label, img_id
+    
+    def load_valid_labels(self, label, is_stream, data_class):
+        indices_to_keep = []
+        
+        for i in range(len(label)):
+            if is_stream:
+                if self.dataset == 'VOC_10_10':
+                    if self.contiguous_class2id[self.ori_id2class[label[i]['category_id']]] == data_class: # VOC_10_10 labels start from 0
+                        indices_to_keep.append(i)
+                else:
+                    indices_to_keep.append(i)
+            else:
+                if self.dataset == 'VOC_10_10':
+                    if self.contiguous_class2id[self.ori_id2class[label[i]['category_id']]] < 10:
+                        indices_to_keep.append(i)
+                else:
+                    indices_to_keep.append(i)
+        label = [label[i] for i in indices_to_keep]
+        
+        return label
+    
     def build_initial_buffer(self, buffer_size=None):
         n_classes, images_dir, label_path = get_pretrained_statistics(self.dataset)
         self.image_dir = images_dir
         self.label_path = label_path
-        self.metadata_cache = {}
-        self._load_all_metadata()
         if self.dataset == 'VOC_10_10':
-            image_files = glob.glob(os.path.join(images_dir, "train2012", "*.jpg")) \
-                        + glob.glob(os.path.join(images_dir, "train2007", "*.jpg")) \
-                        + glob.glob(os.path.join(images_dir, "val2012", "*.jpg")) \
-                        + glob.glob(os.path.join(images_dir, "val2007", "*.jpg"))
+            image_files = glob.glob(os.path.join(images_dir, "train","*/*.jpg"))
         else:
             image_files = glob.glob(os.path.join(images_dir, "train","*.jpg"))
 
@@ -227,138 +204,36 @@ class MemoryDataset(Dataset):
             image_path = image_files[idx]
             split_name = image_path.split('/')[-2]
             base_name = image_path.split('/')[-1]
-            self.replace_sample({'file_name': split_name + '/' + base_name, 'label': None}, images_dir=images_dir,label_path=label_path)
-    def __len__(self):
-        return len(self.buffer)
-
-    def __getitem__(self, idx):
-        if self.use_mosaic_mixup:
-            img_np_bgr, boxlist_or_target, _ = self.mosaic_wrapper[(True, idx)]
-            img_pil = Image.fromarray(cv2.cvtColor(img_np_bgr, cv2.COLOR_BGR2RGB))
-
-            boxes_px = boxlist_or_target.bbox  # Tensor [N,4] (xyxy pixels)
-            classes = boxlist_or_target.get_field('labels')  # Tensor [N]
-            h_tmp, w_tmp = img_np_bgr.shape[:2]
-
-            if boxes_px.numel() > 0:
-                labels_norm = torch.stack([
-                    classes.float(),
-                    boxes_px[:, 0] / float(w_tmp),
-                    boxes_px[:, 1] / float(h_tmp),
-                    boxes_px[:, 2] / float(w_tmp),
-                    boxes_px[:, 3] / float(h_tmp),
-                ], dim=1)
-            else:
-                labels_norm = torch.zeros((0, 5), dtype=torch.float32)
-
-            img, bboxes, rev_tensor = self.transform(img_pil, labels_norm)
-
-            bboxes[:, [1, 3]] *= self.image_sizes[0]
-            bboxes[:, [2, 4]] *= self.image_sizes[1]
-
-            _, _, base_img_path = self.get_data(idx)
-            return img, bboxes, rev_tensor, base_img_path
-        
-        img, bboxes, img_path = self.get_data(idx)
-        img, bboxes, rev_tensor = self.transform(img, bboxes)
-        bboxes[:, [1, 3]] *= self.image_sizes[0]
-        bboxes[:, [2, 4]] *= self.image_sizes[1]
-        return img, bboxes, rev_tensor, img_path
-
-    def get_data(self, idx):
-        img, labels, img_path, _ = self.buffer[idx]
-        valid_mask = labels[:, 0] != -1
-
-        return img, labels[valid_mask], img_path
-
-
-    def load_data(self, img_name, image_dir, label_path, cls_type = None):
-        image_path = os.path.join(image_dir, img_name)
-        image_id = Path(image_path).stem
-        
-        if os.path.isdir(label_path):
-            if 'train2012' in img_name:
-                json_file = 'instances_train2012.json'
-            elif 'train2007' in img_name:
-                json_file = 'instances_train2007.json'
-            elif 'val2012' in img_name:
-                json_file = 'instances_val2012.json'
-            elif 'val2007' in img_name:
-                json_file = 'instances_val2007.json'
-            elif 'test2007' in img_name:
-                json_file = 'instances_test2007.json'
-            else:
-                # raise ValueError(f"Cannot determine JSON file for {img_name}")
-                json_file = 'instances_train.json'
-        else:
-            json_file = label_path
-
-        annotations_index, image_info_dict = self.metadata_cache[json_file]
-        image_info = image_info_dict.get(image_id, None)
-        if image_info is None:
-            raise ValueError(f"Image info not found for {image_id}")
-
-        annotations = annotations_index.get(image_info["id"], [])
-        image_seg_annotations = scale_segmentation(annotations, image_info)
-        labels = self.load_valid_labels(image_id, image_seg_annotations, cls_type)
-
-        if '.jpg' not in image_path:
-            image_path += '.jpg'
-
-        img = Image.open(image_path)
-        w, h = img.size
-
-        return img, labels, image_path, w / h
-
-    def load_valid_labels(self, label_path: str, seg_data_one_img: list, cls_type: str = None) -> Union[torch.Tensor, None]:
-        bboxes = []
-        for seg_data in seg_data_one_img:
-            cls = seg_data[0]
-            if cls >= len(self.cls_list):
-                continue
-            if cls_type is not None and cls != self.cls_list.index(cls_type): # only one class is allowed per image
-                continue
-            
-            points = np.array(seg_data[1:]).reshape(-1, 2)
-            valid_points = points[(points >= 0) & (points <= 1)].reshape(-1, 2)
-            if valid_points.size > 1:
-                bbox = torch.tensor([cls, *valid_points.min(axis=0), *valid_points.max(axis=0)])
-                bboxes.append(bbox)
-
-        if bboxes:
-            return torch.stack(bboxes)
-        else:
-            return torch.zeros((0, 5))
-
-    def register_stream(self, datalist):
-        self.stream_data = []
-        for data in datalist:
-            img_name = data.get('file_name', data.get('filepath'))
-            img, labels, image_path, ratio = self.load_data(img_name, image_dir=self.image_dir, label_path=self.label_path, cls_type = data.get('klass', None))
-            self.stream_data.append((img, labels, image_path, ratio))
+            self.register_sample_for_initial_buffer({'file_name': split_name + '/' + base_name, 'label': None}, images_dir=images_dir,label_path=label_path)    
 
     def replace_sample(self, sample, idx=None, images_dir=None,label_path=None):
-        img, labels, image_path, ratio = self.load_data(sample['file_name'], image_dir=images_dir or self.image_dir, label_path=label_path or self.label_path, cls_type = sample.get('klass', None))
-        data = (img, labels, image_path, ratio)
+        data_class = sample.get('label', None)
+        img, labels, img_id = self.load_data(sample['file_name'], is_stream=True,data_class=data_class)
+        data = (img, labels, img_id)
+
         if idx is None:
             self.buffer.append(data)
         else:
             self.buffer[idx] = data
+            
+    def register_sample_for_initial_buffer(self, sample, idx=None, images_dir=None,label_path=None):
+        img, labels, img_id = self.load_data(sample['file_name'], is_stream=False)
+        data = (img, labels, img_id)
 
-    def get_stream_data(self, sample, transform=False):
-        batch = []
-        for data in sample:
-            img_name = data.get('file_name', data.get('filepath'))
-            img, labels, image_path, _ = self.load_data(img_name, image_dir=self.image_dir, label_path=self.label_path, cls_type = data.get('klass', None))
-            if transform:
-                img, labels, rev_tensor = self.transform(img, labels)
-            else:
-                img, labels, rev_tensor = self.padResize(img, labels)
-            labels[:, [1, 3]] *= self.image_sizes[0]
-            labels[:, [2, 4]] *= self.image_sizes[1]
-            batch.append((img, labels, rev_tensor, image_path))
-        return collate_fn(batch)
-    
+        if idx is None:
+            self.buffer.append(data)
+        else:
+            self.buffer[idx] = data
+    def register_stream(self, datalist):
+        self.stream_data = []
+        for data in datalist:
+            data_class = data.get('label', None)
+            img_path = data.get('file_name', data.get('filepath'))
+            
+            img, labels, img_id = self.load_data(img_path, is_stream=True, data_class=data_class)
+            
+            self.stream_data.append((img, labels, img_id))
+
     @torch.no_grad()
     def get_batch(self, batch_size, stream_batch_size=0, use_weight=None, transform=None, weight_method=None):
         assert batch_size >= stream_batch_size
@@ -367,26 +242,37 @@ class MemoryDataset(Dataset):
         memory_batch_size = batch_size - stream_batch_size
 
         data = []
-
+        
+        # append stream data to buffer for batch creation
+        buffer_size = len(self.buffer)
+        self.buffer.extend(self.stream_data)
+        
         if stream_batch_size > 0:
             stream_indices = np.random.choice(range(len(self.stream_data)), size=stream_batch_size, replace=False)
             for i in stream_indices:
-                img, bboxes, img_path, _ = self.stream_data[i]
-                img, bboxes, rev_tensor = self.transform(img, bboxes)
-                bboxes[:, [1, 3]] *= self.image_sizes[0]
-                bboxes[:, [2, 4]] *= self.image_sizes[1]
-                data.append((img, bboxes, rev_tensor, img_path))
+                
+                if self.use_mosaic_mixup:
+                    img, label, img_id = self.mosaic_wrapper.__getitem__((True, i + buffer_size))
+                else:
+                    img, label, img_id = self.buffer[i + buffer_size]
+                    img, label = self._transforms(img, label)
+                
+                data.append((img, label, img_id))
 
         if memory_batch_size > 0:
-            indices = np.random.choice(range(len(self.buffer)), size=memory_batch_size, replace=False)
+            indices = np.random.choice(range(buffer_size), size=memory_batch_size, replace=False)
             for i in indices:
-                img, bboxes, img_path = self.get_data(i)
-                img, bboxes, rev_tensor = self.transform(img, bboxes)
-                bboxes[:, [1, 3]] *= self.image_sizes[0]
-                bboxes[:, [2, 4]] *= self.image_sizes[1]
-                data.append((img, bboxes, rev_tensor, img_path))
+                if self.use_mosaic_mixup:
+                    img, label, img_id = self.mosaic_wrapper.__getitem__((True, i))
+                else:
+                    img, label, img_id = self.buffer[i]
+                    img, label = self._transforms(img, label)
+                data.append((img, label, img_id))
 
-        return collate_fn(data)
+        # remove stream data from buffer
+        self.buffer = self.buffer[:buffer_size]
+        
+        return self.batch_collator(data)
 
     def add_new_class(self, cls_list, sample=None):
         self.cls_list = cls_list
@@ -403,126 +289,51 @@ class MemoryDataset(Dataset):
         self.cls_dict = {self.cls_list[i]:i for i in range(len(self.cls_list))}
         self.cls_train_cnt = np.append(self.cls_train_cnt, 0)
 
-
-    def update_gss_score(self, score, idx=None):
-        if idx is None:
-            self.score.append(score)
-        else:
-            self.score[idx] = score
-
-    def batch_iterate(size: int, batch_size: int):
-        n_chunks = size // batch_size
-        if size % batch_size != 0:
-            n_chunks += 1
-
-        for i in range(n_chunks):
-            yield list(range(i * batch_size, min((i + 1) * batch_size), size))
-
-    def time_update(self, label, time):
-        if self.cls_times[label] is not None:
-            self.cls_times[label] = self.cls_times[label] * (1-self.weight_ema_ratio) + time * self.weight_ema_ratio
-        else:
-            self.cls_times[label] = time
-
-    def update_loss_history(self, loss, prev_loss, ema_ratio=0.90, dropped_idx=None):
-        if dropped_idx is None:
-            loss_diff = np.mean(loss - prev_loss)
-        elif len(prev_loss) > 0:
-            mask = np.ones(len(loss), bool)
-            mask[dropped_idx] = False
-            loss_diff = np.mean((loss[:len(prev_loss)] - prev_loss)[mask[:len(prev_loss)]])
-        else:
-            loss_diff = 0
-        difference = loss_diff - np.mean(self.others_loss_decrease[self.previous_idx]) / len(self.previous_idx)
-        self.others_loss_decrease[self.previous_idx] -= (1 - ema_ratio) * difference
-        self.previous_idx = np.array([], dtype=int)
-
-    
-    def get_two_batches(self, batch_size, test_transform):
-        indices = np.random.choice(range(len(self.images)), size=batch_size, replace=False)
-        data_1 = dict()
-        data_2 = dict()
-        images = []
-        labels = []
-        if self.use_kornia:
-            # images
-            for i in indices:
-                images.append(self.images[i])
-                labels.append(self.labels[i])
-            images = torch.stack(images).to(self.device)
-            data_1['image'] = self.transform_gpu(images)
-
-        else:
-            for i in indices:
-                if self.transform_on_gpu:
-                    images.append(self.transform_gpu(self.images[i].to(self.device)))
-                else:
-                    images.append(self.transform(self.images[i]))
-                labels.append(self.labels[i])
-            data_1['image'] = torch.stack(images)
-        data_1['label'] = torch.LongTensor(labels)
-        data_1['index'] = torch.LongTensor(indices)
-        images = []
-        labels = []
-        for i in indices:
-            images.append(self.test_transform(self.images[i]))
-            labels.append(self.labels[i])
-        data_2['image'] = torch.stack(images)
-        data_2['label'] = torch.LongTensor(labels)
+    def pull_item(self, idx):
+        img, anno, img_id = self.buffer[idx]
         
-        return data_1, data_2
+        # filter crowd annotations
+        # TODO might be better to add an extra field
+        anno = [obj for obj in anno if obj['iscrowd'] == 0]
 
-    def update_std(self, y_list):
-        for y in y_list:
-            self.class_usage_cnt[y] += 1
-            
-    def make_cls_dist_set(self, labels, transform=None):
-        if transform is None:
-            transform = self.transform
-        indices = []
-        for label in labels:
-            indices.append(np.random.choice(self.cls_idx[label]))
-        indices = np.array(indices)
-        data = dict()
-        images = []
-        labels = []
-        for i in indices:
-            images.append(transform(self.images[i]))
-            labels.append(self.labels[i])
-        data['image'] = torch.stack(images)
-        data['label'] = torch.LongTensor(labels)
-        return data
+        boxes = [obj['bbox'] for obj in anno]
+        boxes = torch.as_tensor(boxes).reshape(-1, 4)  # guard against no boxes
+        target = BoxList(boxes, img.size, mode='xywh').convert('xyxy')
+        
+        target = target.clip_to_image(remove_empty=True)
 
-    def make_val_set(self, size=None, transform=None):
-        if size is None:
-            size = int(0.1*len(self.images))
-        if transform is None:
-            transform = self.transform
-        size_per_cls = size//len(self.cls_list)
-        indices = []
-        for cls_list in self.cls_idx:
-            if len(cls_list) >= size_per_cls:
-                indices.append(np.random.choice(cls_list, size=size_per_cls, replace=False))
-            else:
-                indices.append(np.random.choice(cls_list, size=size_per_cls, replace=True))
-        indices = np.concatenate(indices)
-        data = dict()
-        images = []
-        labels = []
-        for i in indices:
-            images.append(transform(self.images[i]))
-            labels.append(self.labels[i])
-        data['image'] = torch.stack(images)
-        data['label'] = torch.LongTensor(labels)
-        return data
+        classes = [obj['category_id'] for obj in anno]
+        classes = [self.contiguous_class2id[self.ori_id2class[c]] 
+                   for c in classes]
 
-    def is_balanced(self):
-        mem_per_cls = len(self.images)//len(self.cls_list)
-        for cls in self.cls_count:
-            if cls < mem_per_cls or cls > mem_per_cls+1:
-                return False
-        return True
+        obj_masks = []
+        for obj in anno:
+            obj_mask = []
+            if 'segmentation' in obj:
+                for mask in obj['segmentation']:
+                    obj_mask += mask
+                if len(obj_mask) > 0:
+                    obj_masks.append(obj_mask)
+        seg_masks = [
+            np.array(obj_mask, dtype=np.float32).reshape(-1, 2)
+            for obj_mask in obj_masks
+        ]
 
+        res = np.zeros((len(target.bbox), 5))
+        for idx in range(len(target.bbox)):
+            res[idx, 0:4] = target.bbox[idx]
+            res[idx, 4] = classes[idx]
+
+        img = np.asarray(img)  # rgb
+
+        return img, res, seg_masks, img_id
+    def load_anno(self, idx):
+        _, anno, _ = self.buffer[idx]
+        anno = [obj for obj in anno if obj['iscrowd'] == 0]
+        classes = [obj['category_id'] for obj in anno]
+        classes = [self.contiguous_class2id[self.ori_id2class[c]] 
+                   for c in classes]
+        return classes
 def get_train_datalist(dataset, sigma, repeat, init_cls, rnd_seed):
     with open(f"collections/{dataset}/{dataset}_sigma{sigma}_repeat{repeat}_seed{rnd_seed}.json") as fp:
         train_list = json.load(fp)

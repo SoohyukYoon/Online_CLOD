@@ -13,3 +13,7 @@ rich
 torch
 torchvision
 wandb
+thop
+easydict
+tabulate
+calflops

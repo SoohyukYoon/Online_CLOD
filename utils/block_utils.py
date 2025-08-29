@@ -9,12 +9,15 @@ damo_yolo_s_block_list = [
     
     # Neck
     # FPN
-    ['neck.merge_5', 'neck.merge_4', 'neck.merge_3'],
+    ['neck.merge_5'], 
+    ['neck.merge_4'], 
+    ['neck.merge_3'],
     # PAN
     ['neck.bu_conv13', 'neck.bu_conv24', 'neck.merge_7', 'neck.bu_conv57', 'neck.merge_6', 'neck.bu_conv46', 'neck.bu_conv76'],
     
     # Head
-    ['head'],
+    ['head.gfl_reg'],
+    ['head.gfl_cls']
 ]
 
 

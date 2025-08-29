@@ -32,6 +32,10 @@ from hydra import compose, initialize
 
 from tqdm import tqdm
 
+from contextlib import redirect_stdout
+from calflops import calculate_flops
+from utils.flops_utils import blockwise_from_log_file
+
 import pdb
 
 logger = logging.getLogger()
@@ -93,7 +97,7 @@ class ER:
 
         # self.model.model.args = self.args.model
         self.stride = max(int(self.model.stride.max() if hasattr(self.model, "stride") else 32), 32)
-        self.optimizer = select_optimizer(self.opt_name, self.model, lr=self.lr)
+        self.optimizer = select_optimizer(self.opt_name, self.model, lr=self.lr, cfg=self.damo_cfg.train.optimizer)
         self.scheduler = None  # optional
 
         val_dataset_names = self.damo_cfg.dataset.val_ann
@@ -113,7 +117,9 @@ class ER:
         # )
         # self.model.set_loss_function(self.args, self.vec2box, self.num_learned_class)
         self.img_size = self._resolve_image_size(self.damo_cfg, self.model, val_dataloaders)
-        self.memory = MemoryDataset(dataset=self.dataset, cls_list=self.exposed_classes, device=self.device, memory_size=self.memory_size, image_size=self.img_size, aug=self.damo_cfg.train.augment)
+        data_args = self.damo_cfg.get_data(self.damo_cfg.dataset.train_ann[0])
+        self.memory = MemoryDataset(ann_file=data_args['args']['ann_file'], root=data_args['args']['root'], transforms=None,class_names=self.damo_cfg.dataset.class_names,
+            dataset=self.dataset, cls_list=self.exposed_classes, device=self.device, memory_size=self.memory_size, image_size=self.img_size, aug=self.damo_cfg.train.augment)
         
         self.temp_batch = []
         self.num_updates = 0
@@ -155,7 +161,7 @@ class ER:
         
         self.block_names = MODEL_BLOCK_DICT[self.model_name]
         self.num_blocks = len(self.block_names) - 1
-        # self.get_flops_parameter()
+        self.get_flops_parameter()
     
     def _resolve_image_size(self, damo_cfg, model, val_dataloaders):
         loader = val_dataloaders[0] if isinstance(val_dataloaders, (list, tuple)) else val_dataloaders
@@ -294,12 +300,12 @@ class ER:
                                         self.model.head.gfl_cls[0].weight,
                                         self.model.head.gfl_cls[1].weight,
                                         self.model.head.gfl_cls[2].weight,
-                                        ], "momentum": 0.937,})
+                                        ], })
         self.optimizer.add_param_group({'params': [
                                         self.model.head.gfl_cls[0].bias,
                                         self.model.head.gfl_cls[1].bias,
                                         self.model.head.gfl_cls[2].bias,
-                                        ], "momentum": 0.937, "weight_decay": 0})
+                                        ], "weight_decay": 0})
         self.memory.add_new_class(cls_list=self.exposed_classes)
         
         print("Successfully added new class and updated model/optimizer.")
@@ -316,20 +322,9 @@ class ER:
             self.model.train()
             data = self.memory.get_batch(batch_size, stream_batch_size)
             
-            batch = {
-                "img": data[1],         # images
-                "cls": data[2],         # labels
-                "reverse": data[3],     # reverse tensors
-                "img_path": data[4],    # image paths
-            }
-            
-            # print(f"[DEBUG] batch images: {batch['img_path']}")
-            # print(f"[DEBUG] batch labels shape: {batch['cls'].shape}")
-
             self.optimizer.zero_grad()
 
-            loss, loss_item = self.model_forward(batch)
-            # print(f"[DEBUG] individual losses: {loss_item}")
+            loss, loss_item = self.model_forward(data)
 
             if self.use_amp:
                 self.scaler.scale(loss).backward()
@@ -339,68 +334,29 @@ class ER:
                 loss.backward()
                 self.optimizer.step()
             
-            # self.total_flops += (len(data[1]) * self.backward_flops)
+            self.total_flops += (len(data[1]) * self.backward_flops)
             
             self.update_schedule()
 
             total_loss += loss.item()
             
-            # self.total_flops += (batch_size * (self.forward_flops + self.backward_flops))
-            # print("self.total_flops", self.total_flops)
         return total_loss / iterations
     
     def model_forward(self, batch):
-        batch = self.preprocess_batch(batch)
+        inps, targets = self.preprocess_batch(batch)
         
-        # pdb.set_trace()
-        
-        images = batch.get("img").to(self.device, non_blocking=True)
-        cls_targets = batch.get("cls")
-        
-        batch_size = images.shape[0]
-        formatted_targets = []
-        for i in range(batch_size):
-            img_targets = cls_targets[i]
-            valid_targets = img_targets[img_targets[:, 0] != -1]
-
-            target_obj = types.SimpleNamespace()
-
-            if valid_targets.numel() > 0:
-                target_obj.bbox = valid_targets[:, 1:]
-                cls_tensor = valid_targets[:, 0].long()
-                target_obj._cls_tensor = cls_tensor
-            else:
-                target_obj.bbox = torch.empty(0, 4).to(self.device)
-                target_obj._cls_tensor = torch.empty(0).to(self.device).long()
-            
-            target_obj.get_field = lambda field_name, t=target_obj: t._cls_tensor if field_name == 'labels' else None
-            
-            formatted_targets.append(target_obj)
-
         with torch.cuda.amp.autocast(enabled=self.use_amp):
-            loss_item = self.model(images, targets=formatted_targets)
+            loss_item = self.model(inps, targets)
             total_loss = loss_item["total_loss"]
             
-            # self.total_flops += (len(batch["img"]) * self.forward_flops)
+            self.total_flops += (len(targets) * self.forward_flops)
         
         return total_loss, loss_item
     
     def preprocess_batch(self, batch):
-        batch["img"] = batch["img"].to(self.device, non_blocking=True)#.float()# / 255
-        batch["cls"] = batch["cls"].to(self.device)
-
-        # if self.args.get('multi_scale', False):
-        #     imgs = batch["img"]
-        #     imgsz = self.args['image_size'][0]
-        #     sz = (random.randrange(int(imgsz * 0.5), int(imgsz * 1.5 + self.stride)) // self.stride) * self.stride
-        #     sf = sz / max(imgs.shape[2:])
-        #     if sf != 1:
-        #         ns = [math.ceil(x * sf / self.stride) * self.stride for x in imgs.shape[2:]]
-        #         imgs = nn.functional.interpolate(imgs, size=ns, mode="bilinear", align_corners=False)
-        #     batch["img"] = imgs
-        return batch
-
-
+        inps = batch[0].to(self.device)
+        targets = [target.to(self.device) for target in batch[1]]
+        return inps, targets
 
     def report_training(self, sample_num, train_loss, train_initial_cka=None, train_group1_cka=None, train_group2_cka=None, train_group3_cka=None, train_group4_cka=None):
         # self.writer.add_scalar(f"train/loss", train_loss, sample_num)
@@ -560,56 +516,6 @@ class ER:
         
         return eval_dict
 
-    def get_forgetting(self, sample_num, test_list, cls_dict, batch_size, n_worker):
-        test_df = pd.DataFrame(test_list)
-        test_dataset = ImageDataset(
-            test_df,
-            dataset=self.dataset,
-            transform=self.test_transform,
-            cls_list=list(cls_dict.keys()),
-            data_dir=self.data_dir
-        )
-        test_loader = DataLoader(
-            test_dataset,
-            shuffle=False,
-            batch_size=batch_size,
-            num_workers=n_worker,
-        )
-
-        preds = []
-        gts = []
-        self.model.eval()
-        with torch.no_grad():
-            for i, data in enumerate(test_loader):
-                x = data["image"]
-                y = data["label"]
-                x = x.to(self.device)
-                logit = self.model(x)
-                pred = torch.argmax(logit, dim=-1)
-                preds.append(pred.detach().cpu().numpy())
-                gts.append(y.detach().cpu().numpy())
-        preds = np.concatenate(preds)
-        if self.gt_label is None:
-            gts = np.concatenate(gts)
-            self.gt_label = gts
-        self.test_records.append(preds)
-        self.n_model_cls.append(copy.deepcopy(self.num_learned_class))
-        if len(self.test_records) > 1:
-            forgetting, knowledge_gain, total_knowledge, retained_knowledge = self.calculate_online_forgetting(self.n_classes, self.gt_label, self.test_records[-2], self.test_records[-1], self.n_model_cls[-2], self.n_model_cls[-1])
-            self.forgetting.append(forgetting)
-            self.knowledge_gain.append(knowledge_gain)
-            self.total_knowledge.append(total_knowledge)
-            self.retained_knowledge.append(retained_knowledge)
-            self.forgetting_time.append(sample_num)
-            logger.info(f'Forgetting {forgetting} | Knowledge Gain {knowledge_gain} | Total Knowledge {total_knowledge} | Retained Knowledge {retained_knowledge}')
-            np.save(self.save_path + '_forgetting.npy', self.forgetting)
-            np.save(self.save_path + '_knowledge_gain.npy', self.knowledge_gain)
-            np.save(self.save_path + '_total_knowledge.npy', self.total_knowledge)
-            np.save(self.save_path + '_retained_knowledge.npy', self.retained_knowledge)
-            np.save(self.save_path + '_forgetting_time.npy', self.forgetting_time)
-        else:
-            print("else")
-
     def online_before_task(self, cur_iter):
         # Task-Free
         pass
@@ -631,99 +537,39 @@ class ER:
         self.optimizer = select_optimizer(self.opt_name, self.lr, self.model)
         self.scheduler = None #select_scheduler(self.sched_name, self.optimizer, self.lr_gamma)
 
-    def _interpret_pred(self, y, pred):
-        # xlable is batch
-        ret_num_data = torch.zeros(self.n_classes)
-        ret_corrects = torch.zeros(self.n_classes)
-
-        xlabel_cls, xlabel_cnt = y.unique(return_counts=True)
-        for cls_idx, cnt in zip(xlabel_cls, xlabel_cnt):
-            ret_num_data[cls_idx] = cnt
-
-        correct_xlabel = y.masked_select(y == pred)
-        correct_cls, correct_cnt = correct_xlabel.unique(return_counts=True)
-        for cls_idx, cnt in zip(correct_cls, correct_cnt):
-            ret_corrects[cls_idx] = cnt
-
-        return ret_num_data, ret_corrects
-
-    def calculate_online_acc(self, cls_acc, data_time, cls_dict, cls_addition):
-        mean = (np.arange(self.n_classes*self.repeat)/self.n_classes).reshape(-1, self.n_classes)
-        cls_weight = np.exp(-0.5*((data_time-mean)/(self.sigma/100))**2)/(self.sigma/100*np.sqrt(2*np.pi))
-        cls_addition = np.array(cls_addition).astype(np.int)
-        for i in range(self.n_classes):
-            cls_weight[:cls_addition[i], i] = 0
-        cls_weight = cls_weight.sum(axis=0)
-        cls_order = [cls_dict[cls] for cls in self.exposed_classes]
-        for i in range(self.n_classes):
-            if i not in cls_order:
-                cls_order.append(i)
-        cls_weight = cls_weight[cls_order]/np.sum(cls_weight)
-        online_acc = np.sum(np.array(cls_acc)*cls_weight)
-        return online_acc
-
-    def calculate_online_forgetting(self, n_classes, y_gt, y_t1, y_t2, n_cls_t1, n_cls_t2, significance=0.99):
-        cnt = {}
-        total_cnt = len(y_gt)
-        uniform_cnt = len(y_gt)
-        cnt_gt = np.zeros(n_classes)
-        cnt_y1 = np.zeros(n_cls_t1)
-        cnt_y2 = np.zeros(n_cls_t2)
-        num_relevant = 0
-        for i, gt in enumerate(y_gt):
-            y1, y2 = y_t1[i], y_t2[i]
-            cnt_gt[gt] += 1
-            cnt_y1[y1] += 1
-            cnt_y2[y2] += 1
-            if (gt, y1, y2) in cnt.keys():
-                cnt[(gt, y1, y2)] += 1
-            else:
-                cnt[(gt, y1, y2)] = 1
-        cnt_list = list(sorted(cnt.items(), key=lambda item: item[1], reverse=True))
-        for i, item in enumerate(cnt_list):
-            chi2_value = total_cnt
-            for j, item_ in enumerate(cnt_list[i + 1:]):
-                expect = total_cnt / (n_classes * n_cls_t1 * n_cls_t2 - i)
-                chi2_value += (item_[1] - expect) ** 2 / expect - expect
-            if chi2.cdf(chi2_value, n_classes ** 3 - 2 - i) < significance:
-                break
-            uniform_cnt -= item[1]
-            num_relevant += 1
-        probs = uniform_cnt * np.ones([n_classes, n_cls_t1, n_cls_t2]) / ((n_classes * n_cls_t1 * n_cls_t2 - num_relevant) * total_cnt)
-        for j in range(num_relevant):
-            gt, y1, y2 = cnt_list[j][0]
-            probs[gt][y1][y2] = cnt_list[j][1] / total_cnt
-        forgetting = np.sum(probs*np.log(np.sum(probs, axis=(0, 1), keepdims=True) * probs / (np.sum(probs, axis=0, keepdims=True)+1e-10) / (np.sum(probs, axis=1, keepdims=True)+1e-10)+1e-10))/np.log(self.n_classes)
-        knowledge_gain = np.sum(probs*np.log(np.sum(probs, axis=(0, 2), keepdims=True) * probs / (np.sum(probs, axis=0, keepdims=True)+1e-10) / (np.sum(probs, axis=2, keepdims=True)+1e-10)+1e-10))/np.log(self.n_classes)
-        prob_gt_y2 = probs.sum(axis=1)
-        total_knowledge = np.sum(prob_gt_y2*np.log(prob_gt_y2/(np.sum(prob_gt_y2, axis=0, keepdims=True)+1e-10)/(np.sum(prob_gt_y2, axis=1, keepdims=True)+1e-10)+1e-10))/np.log(self.n_classes)
-        retained_knowledge = total_knowledge - knowledge_gain
-
-        return forgetting, knowledge_gain, total_knowledge, retained_knowledge
 
     def n_samples(self, n_samples):
         self.total_samples = n_samples
         
     
     def get_flops_parameter(self, method=None):
-        inp_size = self.img_size
+        input_shape = (1, 3, self.img_size[0], self.img_size[1])
         
-        self.flops_dict = get_model_complexity_info(self.model, (3, inp_size[0], inp_size[1]),
-                                                                    as_strings=False,
-                                                                    print_per_layer_stat=False, verbose=True,
-                                                                    original_opt=self.optimizer,
-                                                                    opt_name=self.opt_name, lr=self.lr)
-        forward_flops, backward_flops, G_forward_flops, G_backward_flops, F_forward_flops, F_backward_flops  = get_blockwise_flops(self.flops_dict, self.model_name, method)
+        model_for_info = copy.deepcopy(self.model)
+        flops_summary_path = "flops_summary.txt"
+        with open(flops_summary_path, "w", encoding="utf-8") as f:
+            with redirect_stdout(f):
+                flops, macs, _ = calculate_flops(
+                    model=model_for_info,
+                    input_shape=input_shape,
+                    output_as_string=False,
+                    output_precision=4,
+                    print_detailed=True,
+                )
+        params = sum(p.numel() for p in model_for_info.parameters())
+        del model_for_info
+        forward_flops = blockwise_from_log_file(flops_summary_path, self.block_names, unit='')
+        backward_flops = [flop * 2 for flop in forward_flops]  # Assuming backward pass has double the flops of forward pass
+        
         self.forward_flops = sum(forward_flops)
         self.backward_flops = sum(backward_flops)
         self.blockwise_forward_flops = forward_flops
         self.blockwise_backward_flops = backward_flops
         self.total_model_flops = self.forward_flops + self.backward_flops
         
-        self.G_forward_flops, self.G_backward_flops = sum(G_forward_flops), sum(G_backward_flops)
-        self.F_forward_flops, self.F_backward_flops = sum(F_forward_flops), sum(F_backward_flops)
-        self.G_blockwise_forward_flops, self.G_blockwise_backward_flops = G_forward_flops, G_backward_flops
-        self.F_blockwise_forward_flops, self.F_blockwise_backward_flops = F_forward_flops, F_backward_flops
+        print(f"Model FLOPs: {self.total_model_flops/1e9:.2f} GFLOPs | Model forward FLOPs: {self.forward_flops/1e9:.2f} GFLOPs | Model backward FLOPs: {self.backward_flops/1e9:.2f} GFLOPs")
+
+
 
     def save(self, sample_num, save_path=None):
         if save_path is None:

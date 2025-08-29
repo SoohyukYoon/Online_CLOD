@@ -22,7 +22,6 @@ from typing import Generator, List, Tuple, Union
 from torch import Tensor
 import torch.nn.functional as F
 
-from yolo.tools.data_loader import create_dataloader
 
 logger = logging.getLogger()
 #writer = SummaryWriter("tensorboard")
