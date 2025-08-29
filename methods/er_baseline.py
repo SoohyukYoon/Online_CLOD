@@ -255,6 +255,7 @@ class ER:
         self.num_learned_class = len(self.exposed_classes)
         
         self.model.head.num_classes = self.num_learned_class
+        self.model.head.cls_out_channels = self.num_learned_class
         
         prev_weights = [
             copy.deepcopy(self.model.head.gfl_cls[0].weight),
@@ -309,7 +310,7 @@ class ER:
         self.memory.add_new_class(cls_list=self.exposed_classes)
         
         print("Successfully added new class and updated model/optimizer.")
-
+        
         # if 'reset' in self.sched_name:
         #     self.update_schedule(reset=True)
         # self.model.set_loss_function(self.args, self.vec2box, self.num_learned_class)
@@ -408,9 +409,9 @@ class ER:
             images_obj, targets, _ = batch
             # pdb.set_trace()
             
-            images = images_obj.tensors.float().to(self.device)
+            images_obj = images_obj.to(self.device)
             with torch.no_grad():
-                predicts = self.model(images)
+                predicts = self.model(images_obj)
 
             def boxlist_to_pred_dict(bl):
                 boxes = bl.bbox.detach().to('cpu').float()
@@ -426,10 +427,9 @@ class ER:
                 boxes = bl.bbox.detach().to('cpu').float()
                 labels = bl.extra_fields['labels'].detach().to('cpu').long()
                 return {'boxes': boxes, 'labels': labels}
-
             preds_list = [boxlist_to_pred_dict(p) for p in predicts]
             targs_list = [boxlist_to_target_dict(t) for t in targets]
-
+            
             self.metric(preds_list, targs_list)
         
         epoch_metrics = self.metric.compute()
@@ -439,7 +439,6 @@ class ER:
             "classwise_mAP50": epoch_metrics['map50_per_class'].tolist()[:self.num_learned_class]
         }
         self.metric.reset()
-        
         return eval_dict
 
     def online_evaluate(self, sample_num, data_time):
