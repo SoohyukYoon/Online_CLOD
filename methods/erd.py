@@ -29,45 +29,52 @@ class ERD(ER):
                 mod = getattr(mod, attr)
         return mod
     
-    def model_forward_with_erd(self, current_batch):
-        batch = self.preprocess_batch(current_batch)
-        images = batch.get("img").to(self.device, non_blocking=True)
-        cls_targets = batch.get("cls")
-        
-        batch_size = images.shape[0]
-        formatted_targets = []
-        for i in range(batch_size):
-            img_targets = cls_targets[i]
-            valid_targets = img_targets[img_targets[:, 0] != -1]
+    def online_train(self, sample, batch_size, n_worker, iterations=1, stream_batch_size=1):
+        total_loss = 0.0
+        if len(sample) > 0:
+            self.memory.register_stream(sample)
+        for i in range(iterations):
+            self.model.train()
+            data = self.memory.get_batch(batch_size, stream_batch_size)
+            
+            self.optimizer.zero_grad()
 
-            target_obj = types.SimpleNamespace()
+            loss, loss_item = self.model_forward_with_erd(data)
 
-            if valid_targets.numel() > 0:
-                target_obj.bbox = valid_targets[:, 1:]
-                cls_tensor = valid_targets[:, 0].long()
-                target_obj._cls_tensor = cls_tensor
+            if self.use_amp:
+                self.scaler.scale(loss).backward()
+                self.scaler.step(self.optimizer)
+                self.scaler.update()
             else:
-                target_obj.bbox = torch.empty(0, 4).to(self.device)
-                target_obj._cls_tensor = torch.empty(0).to(self.device).long()
+                loss.backward()
+                self.optimizer.step()
             
-            target_obj.get_field = lambda field_name, t=target_obj: t._cls_tensor if field_name == 'labels' else None
+            self.total_flops += (len(data[1]) * self.backward_flops)
             
-            formatted_targets.append(target_obj)
+            self.update_schedule()
+
+            total_loss += loss.item()
+            
+        return total_loss / iterations
+        
+    def model_forward_with_erd(self, batch):
+        inps, targets = self.preprocess_batch(batch)
 
         with torch.cuda.amp.autocast(enabled=self.use_amp):
-            loss_item = self.model(images, targets=formatted_targets)
+            loss_item = self.model(inps, targets)
             loss_model = loss_item["total_loss"]
             
             loss_cls_distill, loss_reg_distill = 0.0, 0.0
 
             if self.old_model is not None:
                 with torch.no_grad():
-                    tea_feats = self.old_model.backbone(images)
+                    image_tensors = inps.tensors
+                    tea_feats = self.old_model.backbone(image_tensors)
                     tea_neck  = self.old_model.neck(tea_feats)
                     teacher_cls_list = [self.old_model.head.gfl_cls[i](tea_neck[i]) for i in range(len(self.old_model.head.gfl_cls))]
                     teacher_reg_list = [self.old_model.head.gfl_reg[i](tea_neck[i]) for i in range(len(self.old_model.head.gfl_reg))]
 
-                stu_feats = self.model.backbone(images)
+                stu_feats = self.model.backbone(image_tensors)
                 stu_neck  = self.model.neck(stu_feats)
                 student_cls_list = [self.model.head.gfl_cls[i](stu_neck[i]) for i in range(len(self.model.head.gfl_cls))]
                 student_reg_list = [self.model.head.gfl_reg[i](stu_neck[i]) for i in range(len(self.model.head.gfl_reg))]
@@ -93,7 +100,8 @@ class ERD(ER):
 
         logger.info(f"loss_model: {loss_model.item():.4f}, cls_loss: {loss_cls_distill:.4f}, reg_loss: {loss_reg_distill:.4f}")
         total_loss = loss_model + self.lambda_cls * loss_cls_distill + self.lambda_reg * loss_reg_distill
-        return total_loss
+        
+        return total_loss, loss_item
 
     def _elastic_response_selection(self, teacher_tensor, student_tensor, alpha=2.0):
         with torch.no_grad():
@@ -120,38 +128,6 @@ class ERD(ER):
         teacher_soft = F.log_softmax(teacher_dist, dim=-1)
         student_soft = F.log_softmax(student_dist, dim=-1)
         return F.kl_div(student_soft, teacher_soft, reduction='batchmean', log_target=True)
-
-    def online_train(self, sample, batch_size, n_worker, iterations=1, stream_batch_size=1):
-        total_loss = 0.0
-        if len(sample) > 0:
-            self.memory.register_stream(sample)
-
-        for _ in range(iterations):
-            self.model.train()
-            data = self.memory.get_batch(batch_size, stream_batch_size)
-            self.optimizer.zero_grad()
-
-            batch = {
-                "img": data[1],
-                "cls": data[2],
-                "reverse": data[3],
-                "img_path": data[4],
-            }
-
-            loss = self.model_forward_with_erd(batch)
-
-            if self.use_amp:
-                self.scaler.scale(loss).backward()
-                self.scaler.step(self.optimizer)
-                self.scaler.update()
-            else:
-                loss.backward()
-                self.optimizer.step()
-
-            self.update_schedule()
-            total_loss += loss.item()
-
-        return total_loss / iterations
 
     def online_step(self, sample, sample_num, n_worker):
         # self.temp_batchsize = self.batch_size

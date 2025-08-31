@@ -45,6 +45,7 @@ class LWF_Feature(LWF_Logit):
         self.old_features_per_layer = {}
         for layer in self.feature_layers:
             self.old_features_per_layer[layer] = []
+            
         self.hooks = []
         for layer in self.feature_layers:
             hook = self._get_layer(self.model, layer).register_forward_hook(
@@ -54,42 +55,51 @@ class LWF_Feature(LWF_Logit):
             self.hooks.append(hook)
             self.hooks.append(hook2)
 
+    def online_train(self, sample, batch_size, n_worker, iterations=1, stream_batch_size=1):
+        total_loss = 0.0
+        if len(sample) > 0:
+            self.memory.register_stream(sample)
+        for i in range(iterations):
+            self.model.train()
+            data = self.memory.get_batch(batch_size, stream_batch_size)
+            
+            self.optimizer.zero_grad()
+
+            loss, loss_item = self.model_forward_with_lwf(data)
+
+            if self.use_amp:
+                self.scaler.scale(loss).backward()
+                self.scaler.step(self.optimizer)
+                self.scaler.update()
+            else:
+                loss.backward()
+                self.optimizer.step()
+            
+            self.total_flops += (len(data[1]) * self.backward_flops)
+            
+            self.update_schedule()
+
+            total_loss += loss.item()
+            
+        return total_loss / iterations
+    
     def model_forward_with_lwf(self, batch):
+        inps, targets = self.preprocess_batch(batch)
+        
         for layer in self.feature_layers:
             self.features_per_layer[layer].clear()
             self.old_features_per_layer[layer].clear()
             
-        images = batch.get("img").to(self.device, non_blocking=True)
-        cls_targets = batch.get("cls")
-        
-        batch_size = images.shape[0]
-        formatted_targets = []
-        for i in range(batch_size):
-            img_targets = cls_targets[i]
-            valid_targets = img_targets[img_targets[:, 0] != -1]
-
-            target_obj = types.SimpleNamespace()
-
-            if valid_targets.numel() > 0:
-                target_obj.bbox = valid_targets[:, 1:]
-                cls_tensor = valid_targets[:, 0].long()
-                target_obj._cls_tensor = cls_tensor
-            else:
-                target_obj.bbox = torch.empty(0, 4).to(self.device)
-                target_obj._cls_tensor = torch.empty(0).to(self.device).long()
-            
-            target_obj.get_field = lambda field_name, t=target_obj: t._cls_tensor if field_name == 'labels' else None
-            
-            formatted_targets.append(target_obj)
-
         with torch.cuda.amp.autocast(enabled=self.use_amp):
-            loss_item = self.model(images, targets=formatted_targets)
+            loss_item = self.model(inps, targets)
             loss_new = loss_item["total_loss"]
 
+            self.total_flops += (len(targets) * self.forward_flops)
+            
             loss_distill = 0.0
             if getattr(self, "old_model", None) is not None:
                 with torch.no_grad():
-                    _ = self.old_model(images, targets=formatted_targets)
+                    _ = self.old_model(inps, targets)
 
                 n_layers = len(self.feature_layers)
                 for layer in self.feature_layers:
@@ -113,10 +123,10 @@ class LWF_Feature(LWF_Logit):
 
         total_loss = loss_new + self.lambda_old * loss_distill
         
-        print(f"loss_new : {loss_new}")
-        print(f"loss_distill : {loss_distill}")
+        # print(f"loss_new : {loss_new}")
+        # print(f"loss_distill : {loss_distill}")
             
-        return total_loss
+        return total_loss, loss_item
     
     def distillation_loss(self, new_feats, old_feats):
         return F.mse_loss(new_feats, old_feats)
