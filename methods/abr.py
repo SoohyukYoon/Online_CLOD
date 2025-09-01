@@ -1,5 +1,3 @@
-## 결과 확인하고 mixup 및 mosaic 시각화
-
 import torch
 import torch.nn.functional as F
 from PIL import Image
@@ -9,8 +7,14 @@ import os
 from copy import deepcopy
 from methods.er_baseline import ER
 
-from yolo.utils.bounding_box_utils import transform_bbox
+from damo.structures.image_list import ImageList
+from damo.structures.bounding_box import BoxList
+
+import types
 import pdb
+
+import logging
+logger = logging.getLogger()
 
 class ABR(ER):
     def __init__(self, criterion, n_classes, device, **kwargs):
@@ -31,7 +35,7 @@ class ABR(ER):
                 p.requires_grad_(False)
                 
         self._distill_layers = kwargs.get("distill_layers",
-                      kwargs.get("feature_layers", [15, 18, 21]))
+                      kwargs.get("feature_layers", ["neck.merge_3.convs.2", "neck.merge_4.convs.2", "neck.merge_6.convs.2"]))
 
         self.student_feats: list[torch.Tensor] = []
         self.teacher_feats: list[torch.Tensor] = []
@@ -59,14 +63,14 @@ class ABR(ER):
         if len(self.memory.buffer) == 0:
             raise RuntimeError("Memory buffer is empty.")
         sample = self.memory.buffer[self.boxes_index[i]]
-        img_tensor, label_tensor = sample[0], sample[1]
+        img_tensor, label_obj = sample[0], sample[1]
 
         if isinstance(img_tensor, Image.Image):
             box_im = img_tensor.convert("RGB")
         else:
             box_im = Image.fromarray((img_tensor.permute(1,2,0).cpu().numpy()*255).astype(np.uint8)).convert("RGB")
         
-        cls_name = int(label_tensor[0,0])
+        cls_name = int(label_obj[0]['category_id'])
         bboxes = [0, 0, box_im.size[0], box_im.size[1]]
         box_o_h, box_o_w = box_im.size[1], box_im.size[0]
         gt_classes = cls_name
@@ -118,27 +122,29 @@ class ABR(ER):
                 restart = True
                 overlap = False
                 max_iter = 0
-                while restart:
-                    for g in gts:
-                        _, overlap = self.compute_overlap(g, new_gt)
-                        if max_iter >= 20:
-                            restart = False
-                        elif max_iter < 10 and overlap:
-                            pos_x = random.randint(0, int(img_shape[1] * 0.6))
-                            pos_y = random.randint(0, int(img_shape[0] * 0.4))
-                            new_gt = [c_gt[0][0] + pos_x, c_gt[0][1] + pos_y, c_gt[0][2] + pos_x, c_gt[0][3] + pos_y]
-                            max_iter += 1
-                            restart = True
-                            break
-                        elif 20 > max_iter >= 10 and overlap:
-                            pos_x = random.randint(int(img_shape[1] * 0.4), img_shape[1])
-                            pos_y = random.randint(int(img_shape[0] * 0.6), img_shape[0])
-                            new_gt = [pos_x-(c_gt[0][2]-c_gt[0][0]), pos_y-(c_gt[0][3]-c_gt[0][1]), pos_x, pos_y]
-                            max_iter += 1
-                            restart = True
-                            break
-                        else:
-                            restart = False
+                
+                if gts.shape[0] > 0: ## infinite loop 방지
+                    while restart:
+                        for g in gts:
+                            _, overlap = self.compute_overlap(g, new_gt)
+                            if max_iter >= 20:
+                                restart = False
+                            elif max_iter < 10 and overlap:
+                                pos_x = random.randint(0, int(img_shape[1] * 0.6))
+                                pos_y = random.randint(0, int(img_shape[0] * 0.4))
+                                new_gt = [c_gt[0][0] + pos_x, c_gt[0][1] + pos_y, c_gt[0][2] + pos_x, c_gt[0][3] + pos_y]
+                                max_iter += 1
+                                restart = True
+                                break
+                            elif 20 > max_iter >= 10 and overlap:
+                                pos_x = random.randint(int(img_shape[1] * 0.4), img_shape[1])
+                                pos_y = random.randint(int(img_shape[0] * 0.6), img_shape[0])
+                                new_gt = [pos_x-(c_gt[0][2]-c_gt[0][0]), pos_y-(c_gt[0][3]-c_gt[0][1]), pos_x, pos_y]
+                                max_iter += 1
+                                restart = True
+                                break
+                            else:
+                                restart = False
 
                 if max_iter < 20:
                     a,b,c,d = 0,0,0,0
@@ -262,16 +268,16 @@ class ABR(ER):
     def _hook_teacher(self, _m, _i, o):
         self.teacher_feats.append(o)
 
-    @staticmethod
-    def _spatial_attention(F_map: torch.Tensor, p: int = 2) -> torch.Tensor:
-        """F_map[B,C,H,W] → [B,1,H,W] (ℓ_p‑norm‑based importance)"""
-        return F_map.abs().pow(p).sum(dim=1, keepdim=True)
+    def _spatial_attention(self, F_map: torch.Tensor, p: int = 2, eps: float = 1e-6) -> torch.Tensor:
+        x = F_map.float().abs().pow(p).mean(dim=1, keepdim=True)
+        x = x / (x.mean(dim=(2, 3), keepdim=True) + eps)
+        return x
 
     def _pad_loss(self):
         if not self.student_feats:
             return torch.tensor(0., device=self.device)
-        losses = [F.l1_loss(self._spatial_attention(s),
-                            self._spatial_attention(t))
+        losses = [F.l1_loss(self._spatial_attention(s).float(),
+                            self._spatial_attention(t).float())
                   for s, t in zip(self.student_feats, self.teacher_feats)]
         return torch.stack(losses).mean()
     
@@ -286,7 +292,7 @@ class ABR(ER):
         return torch.stack(losses).mean()
 
     def _inclusive_cls_loss(self, s_logits, gt_labels):
-        B, N, _ = s_logits.shape
+        B, N = s_logits.shape
         total, cnt = 0., 0
         for b in range(B):
             mask = gt_labels[b] >= 0
@@ -300,59 +306,86 @@ class ABR(ER):
                         F.softmax(t_logits / T, dim=-1),
                         reduction="batchmean") * (T ** 2)
 
+    def online_train(self, sample, batch_size, n_worker, iterations=1, stream_batch_size=1):
+        total_loss = 0.0
+        if len(sample) > 0:
+            self.memory.register_stream(sample)
+        for i in range(iterations):
+            self.model.train()
+            data = self.memory.get_batch(batch_size, stream_batch_size)
+            
+            self.optimizer.zero_grad()
+
+            loss, loss_item = self.model_forward_with_abr(data)
+
+            if self.use_amp:
+                self.scaler.scale(loss).backward()
+                self.scaler.step(self.optimizer)
+                self.scaler.update()
+            else:
+                loss.backward()
+                self.optimizer.step()
+            
+            self.total_flops += (len(data[1]) * self.backward_flops)
+            
+            self.update_schedule()
+
+            total_loss += loss.item()
+            
+        return total_loss / iterations
+    
     def model_forward_with_abr(self, batch):
+        inps, targets = self.preprocess_batch(batch)
+
         self.student_feats.clear()
         self.teacher_feats.clear()
-
-        batch = self.preprocess_batch(batch)
-        imgs, labels = batch["img"], batch["cls"]
-
-        if self.teacher is not None:
+        
+        with torch.cuda.amp.autocast(enabled=self.use_amp):
+            loss_item = self.model(inps, targets)
+            det_loss = loss_item["total_loss"]
+            
             with torch.no_grad():
-                t_out = self.teacher(imgs)
-        else:
-            t_out = {}
+                image_tensors = inps.tensors
+                tea_feats = self.teacher.backbone(image_tensors)
+                tea_neck  = self.teacher.neck(tea_feats)
+                teacher_cls_list = [self.teacher.head.gfl_cls[i](tea_neck[i]) for i in range(len(self.teacher.head.gfl_cls))]
+                teacher_reg_list = [self.teacher.head.gfl_reg[i](tea_neck[i]) for i in range(len(self.teacher.head.gfl_reg))]
 
-        s_out = self.model(imgs)
+            stu_feats = self.model.backbone(image_tensors)
+            stu_neck  = self.model.neck(stu_feats)
+            student_cls_list = [self.model.head.gfl_cls[i](stu_neck[i]) for i in range(len(self.model.head.gfl_cls))]
+            student_reg_list = [self.model.head.gfl_reg[i](stu_neck[i]) for i in range(len(self.model.head.gfl_reg))]
 
-        aux_preds  = self.vec2box(s_out["AUX"])
-        main_preds = self.vec2box(s_out["Main"])
-
-        num_known = self.model.num_classes
-        invalid   = (labels[..., 0] < 0) | (labels[..., 0] >= num_known)
-        labels[..., 0] = torch.where(invalid,
-                                     torch.tensor(0, device=labels.device),
-                                     labels[..., 0])
-        det_loss, _ = self.model.loss_fn(aux_preds, main_preds, labels)
-
-        matcher = self.model.loss_fn.loss.matcher
-        with torch.no_grad():
-            aligned = matcher(labels, (main_preds[0].detach(), main_preds[2].detach()))[0]
-        gt_boxes   = aligned[..., -4:]
-        pred_boxes = main_preds[2]
-        conf       = torch.ones_like(pred_boxes[..., :1])
-        ref_loss   = F.smooth_l1_loss(pred_boxes, gt_boxes, reduction="none")
-        ref_loss   = (torch.exp(-self.abr_alpha * (1 - conf)) * ref_loss).mean()
+            teacher_cls_logits = torch.cat([t.permute(0,2,3,1).reshape(-1, t.shape[1]) for t in teacher_cls_list], dim=0)
+            student_cls_logits = torch.cat([t.permute(0,2,3,1).reshape(-1, t.shape[1]) for t in student_cls_list], dim=0)
+            teacher_reg_logits = torch.cat([t.permute(0,2,3,1).reshape(-1, t.shape[1]) for t in teacher_reg_list], dim=0)
+            student_reg_logits = torch.cat([t.permute(0,2,3,1).reshape(-1, t.shape[1]) for t in student_reg_list], dim=0)
+            
+            C_old = self.teacher.head.gfl_cls[0].out_channels
+            teacher_cls_logits = teacher_cls_logits[..., :C_old]
+            student_cls_logits = student_cls_logits[..., :C_old]
+                                
+            t_conf = torch.sigmoid(teacher_cls_logits).max(dim=-1, keepdim=True).values
+            ref_weight = torch.exp(-self.abr_alpha * (1.0 - t_conf))
+            ref_loss = F.smooth_l1_loss(student_reg_logits, teacher_reg_logits, reduction="none")
+            ref_loss = (ref_weight * ref_loss).mean()
 
         pad_loss = self._pad_loss() if self.teacher else torch.tensor(0., device=self.device)
         afd_loss = self._afd_loss() if self.teacher else torch.tensor(0., device=self.device)
 
-        if self.teacher and "cls_logits" in s_out and "cls_logits" in t_out:
-            s_logit = s_out["cls_logits"]
-            t_logit = t_out["cls_logits"]
-            anchor_labels = labels[..., 0].long()
-            ic_loss = self._inclusive_cls_loss(s_logit, anchor_labels)
-            id_loss = self._inclusive_kd_loss(s_logit, t_logit)
-        else:
-            ic_loss = torch.tensor(0., device=self.device)
-            id_loss = torch.tensor(0., device=self.device)
+        with torch.no_grad():
+            t_prob = torch.sigmoid(teacher_cls_logits)
+            t_conf_vals, t_labels = t_prob.max(dim=-1)
+            pseudo_labels = torch.where(
+                t_conf_vals > 0.5,
+                t_labels,
+                torch.full_like(t_labels, -1)
+            )
 
-        print(f"ref_loss:", ref_loss)
-        print(f"pad_loss:", pad_loss)
-        print(f"afd_loss:", afd_loss)
-        print(f"ic_loss:", ic_loss)
-        print(f"id_loss:", id_loss)
+        ic_loss = self._inclusive_cls_loss(student_cls_logits, pseudo_labels)
+        id_loss = self._inclusive_kd_loss(student_cls_logits, teacher_cls_logits)   
         
+        logger.info(f"ref_loss: {ref_loss.item():.4f}, pad_loss: {pad_loss.item():.4f}, afd_loss: {afd_loss.item():.4f}, ic_loss: {ic_loss.item():.4f}, id_loss: {id_loss.item():.4f}")
         total_loss = (
             det_loss
             + self.abr_weight * ref_loss
@@ -361,67 +394,75 @@ class ABR(ER):
             + self.ic_weight  * ic_loss
             + self.id_weight  * id_loss
         )
-        return total_loss
+        
+        return total_loss, loss_item
 
-    def online_train(self, sample, batch_size, n_worker, iterations=1, stream_batch_size=1):
-        total_loss = 0.0
-        if len(sample) > 0:
-            self.memory.register_stream(sample)
+    def preprocess_batch(self, batch):
+        image_list_obj, targets_list = batch[0], batch[1]
+        
+        image_batch_tensor = image_list_obj.tensors
 
-        for _ in range(iterations):
-            self.model.train()
-            data = self.memory.get_batch(batch_size, stream_batch_size)
-            self.optimizer.zero_grad()
+        processed_imgs = []
+        processed_tgts_as_boxlist = []
 
-            new_imgs, new_labels = [], []
-            for i in range(len(data[1])):
-                aug_img, aug_lbl = self.transform_current_data_with_ABR(
-                    Image.fromarray((data[1][i].permute(1,2,0).cpu().numpy()*255).astype(np.uint8)),
-                    data[2][i].cpu().numpy()
+        with torch.no_grad():
+            for i in range(len(targets_list)):
+                img_tensor = image_batch_tensor[i]
+                target_boxlist = targets_list[i]
+
+                np_img = (img_tensor.cpu().permute(1, 2, 0).numpy() * 255).astype(np.uint8)
+                pil_img = Image.fromarray(np_img)
+
+                bboxes = target_boxlist.bbox.cpu().numpy()
+                labels = target_boxlist.get_field('labels').cpu().numpy()
+
+                if len(labels) > 0:
+                    target_for_transform = np.concatenate(
+                        (bboxes, labels[:, np.newaxis]), axis=1
+                    )
+                else:
+                    target_for_transform = np.empty((0, 5))
+                
+                transformed_img, transformed_tgt = self.transform_current_data_with_ABR(
+                    pil_img, target_for_transform
                 )
-                new_imgs.append(torch.from_numpy(np.array(aug_img)).permute(2,0,1).float() / 255.0)
-                new_labels.append(torch.tensor(aug_lbl, dtype=torch.float32))
-            
-            aug_imgs = torch.stack(new_imgs).to(self.device)
+                
+                if transformed_tgt.shape[0] > 0:
+                    new_boxes = transformed_tgt[:, 1:5]
+                    original_labels = transformed_tgt[:, 0].long()
+                    
+                    num_model_classes = self.model.head.num_classes
+                    
+                    valid_mask = (original_labels >= 0) & (original_labels < num_model_classes)
+                
+                    filtered_boxes = new_boxes[valid_mask]
+                    filtered_labels = original_labels[valid_mask]
+                    
+                    new_target_boxlist = BoxList(filtered_boxes, target_boxlist.size, mode="xyxy")
+                    new_target_boxlist.add_field("labels", filtered_labels)
+                else:
+                    new_target_boxlist = BoxList(torch.empty((0, 4)), target_boxlist.size, mode="xyxy")
+                    new_target_boxlist.add_field("labels", torch.empty((0,), dtype=torch.long))
 
-            max_objects = max(lbl.shape[0] for lbl in new_labels)
-            padded_labels = []
-            for lbl in new_labels:
-                if lbl.shape[0] < max_objects:
-                    pad = torch.zeros((max_objects - lbl.shape[0], lbl.shape[1]), dtype=lbl.dtype)
-                    pad[:, 0] = -1  # 무효 라벨로 패딩
-                    lbl = torch.cat([lbl, pad], dim=0)
-                # 현재 모델 클래스 범위 초과 시 -1로 (무효 라벨)
-                num_known = self.model.num_classes
-                lbl[:, 0] = torch.where(
-                    (lbl[:, 0] >= 0) & (lbl[:, 0] < num_known),
-                    lbl[:, 0],
-                    torch.tensor(-1, device=lbl.device)
-                )
-                padded_labels.append(lbl.unsqueeze(0))
-            aug_labels = torch.cat(padded_labels, dim=0).to(self.device)  # [B, T, 5]
+                processed_tgts_as_boxlist.append(new_target_boxlist)
 
-            batch = {
-                "img": aug_imgs,
-                "cls": aug_labels,
-                "reverse": data[3],
-                "img_path": data[4],
-            }
+                np_transformed_img = np.array(transformed_img)
+                tensor_img = torch.from_numpy(np_transformed_img).permute(2, 0, 1).float()
 
-            loss = self.model_forward_with_abr(batch)
-            if self.use_amp:
-                self.scaler.scale(loss).backward()
-                self.scaler.step(self.optimizer)
-                self.scaler.update()
-            else:
-                loss.backward()
-                self.optimizer.step()
+                processed_imgs.append(tensor_img)
 
-            self.update_schedule()
-            total_loss += loss.item()
+        targets = [t.to(self.device) for t in processed_tgts_as_boxlist]
+        
+        new_inps_tensor = torch.stack(processed_imgs)
 
-        return total_loss / iterations
-
+        inps = ImageList(
+            new_inps_tensor, 
+            image_list_obj.image_sizes, 
+            image_list_obj.pad_sizes
+        ).to(self.device)
+        
+        return inps, targets
+    
     def online_step(self, sample, sample_num, n_worker):
         # self.temp_batchsize = self.batch_size
         if sample.get('klass', None) and sample['klass'] not in self.exposed_classes:
