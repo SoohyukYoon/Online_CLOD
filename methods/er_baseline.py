@@ -355,7 +355,6 @@ class ER:
         return total_loss, loss_item
     
     def preprocess_batch(self, batch):
-        pdb.set_trace()
         inps = batch[0].to(self.device)
         targets = [target.to(self.device) for target in batch[1]]
         return inps, targets
