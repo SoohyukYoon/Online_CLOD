@@ -74,7 +74,7 @@ class Config(metaclass=ABCMeta):
         self.miscs = miscs
 
     def get_data(self, name):
-        if any(keyword in name for keyword in ['coco', 'voc', 'bdd', 'shift']):
+        if any(keyword in name for keyword in ['coco', 'voc', 'shift', 'military']):
             data_dir = DatasetCatalog.DATA_DIR
             attrs = DatasetCatalog.DATASETS[name]
             args = dict(
@@ -86,7 +86,7 @@ class Config(metaclass=ABCMeta):
                 args=args,
             )
         else:
-            raise RuntimeError('Only support coco, voc, bdd, shift format dataset now!')
+            raise RuntimeError('Only support coco, voc, shift, military format dataset now!')
 
     def __repr__(self):
         table_header = ['keys', 'values']
