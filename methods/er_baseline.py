@@ -77,23 +77,23 @@ class ER:
         
         if 'VOC' in self.dataset:
             data_name = 'voc'
-            # config_file = 'configs/damoyolo_tinynasL25_S_VOC_10_10.py'
+            config_file = 'configs/damoyolo_tinynasL25_S_VOC_10_10.py'
         elif 'BDD' in self.dataset:
             data_name = 'bdd100k'
-            # config_file = 'configs/damoyolo_tinynasL25_S_BDD100K.py'
+            config_file = 'configs/damoyolo_tinynasL25_S_BDD100K.py'
         elif 'SHIFT' in self.dataset:
             data_name = 'shift'
-            # config_file = 'configs/damoyolo_tinynasL25_S_SHIFT.py'
+            config_file = 'configs/damoyolo_tinynasL25_S_SHIFT.py'
         elif 'MILITARY_SYNTHETIC' in self.dataset:
             data_name = 'military_synthetic'
-            # config_file = 'configs/damoyolo_tinynasL25_S_MILITARY_SYNTHETIC.py'
+            config_file = 'configs/damoyolo_tinynasL25_S_MILITARY_SYNTHETIC.py'
             
-        config_file = 'configs/damoyolo_tinynasL20_T.py'
+        # config_file = 'configs/damoyolo_tinynasL20_T.py'
         
         self.damo_cfg = parse_config(config_file)
         
         self.exposed_domains = [f'{data_name}_source']
-        self.model = select_model(self.dataset)
+        self.model = select_model(self.dataset, self.damo_cfg)
 
         # self.model.model.args = self.args.model
         self.stride = max(int(self.model.stride.max() if hasattr(self.model, "stride") else 32), 32)
@@ -116,7 +116,8 @@ class ER:
         #     self.args.model.name, self.model, self.args.model.anchor, self.args.image_size, self.device
         # )
         # self.model.set_loss_function(self.args, self.vec2box, self.num_learned_class)
-        self.img_size = self._resolve_image_size(self.damo_cfg, self.model, val_dataloaders)
+        # self.img_size = self._resolve_image_size(self.damo_cfg, self.model, val_dataloaders)
+        self.img_size = [640, 640]
         data_args = self.damo_cfg.get_data(self.damo_cfg.dataset.train_ann[0])
         self.memory = MemoryDataset(ann_file=data_args['args']['ann_file'], root=data_args['args']['root'], transforms=None,class_names=self.damo_cfg.dataset.class_names,
             dataset=self.dataset, cls_list=self.exposed_classes, device=self.device, memory_size=self.memory_size, image_size=self.img_size, aug=self.damo_cfg.train.augment)
@@ -147,63 +148,53 @@ class ER:
         self.metric = MeanAveragePrecisionCustomized(iou_type="bbox", box_format="xyxy",class_metrics=True)#, backend="faster_coco_eval")
         self.metric.warn_on_many_detections = False
         
-        N = 5  # 예측 박스 개수
-        self.cls_scores = torch.rand(self.batch_size, N, self.num_learned_class, device=self.device)
-        self.bbox_preds = torch.rand(self.batch_size, N, 4, device=self.device) * 100
-        # self.post_process = lambda cls_scores, bbox_preds, num_classes, imgs=None: postprocess(
-        #     cls_scores=cls_scores,
-        #     bbox_preds=bbox_preds,
-        #     num_classes=num_classes,
-        #     imgs=imgs,
-        # )
-        
         self.model = self.model.to(self.device)
         
         self.block_names = MODEL_BLOCK_DICT[self.model_name]
         self.num_blocks = len(self.block_names) - 1
         self.get_flops_parameter()
     
-    def _resolve_image_size(self, damo_cfg, model, val_dataloaders):
-        loader = val_dataloaders[0] if isinstance(val_dataloaders, (list, tuple)) else val_dataloaders
-        try:
-            batch = next(iter(loader))
-        except StopIteration:
-            batch = None
-        except Exception:
-            batch = None
+    # def _resolve_image_size(self, damo_cfg, model, val_dataloaders):
+    #     loader = val_dataloaders[0] if isinstance(val_dataloaders, (list, tuple)) else val_dataloaders
+    #     try:
+    #         batch = next(iter(loader))
+    #     except StopIteration:
+    #         batch = None
+    #     except Exception:
+    #         batch = None
 
-        if isinstance(batch, dict):
-            if 'images' in batch:
-                imgs = batch['images']
-            elif 'img' in batch:
-                imgs = batch['img']
-            else:
-                imgs = None
-        elif isinstance(batch, (list, tuple)) and len(batch) > 0:
-            imgs = batch[0]
-        else:
-            imgs = None
+    #     if isinstance(batch, dict):
+    #         if 'images' in batch:
+    #             imgs = batch['images']
+    #         elif 'img' in batch:
+    #             imgs = batch['img']
+    #         else:
+    #             imgs = None
+    #     elif isinstance(batch, (list, tuple)) and len(batch) > 0:
+    #         imgs = batch[0]
+    #     else:
+    #         imgs = None
 
-        if imgs is not None:
-            # Detectron 스타일 ImageList: .tensors가 [B,C,H,W]
-            if hasattr(imgs, 'tensors') and hasattr(imgs.tensors, 'shape'):
-                h, w = imgs.tensors.shape[-2], imgs.tensors.shape[-1]
-                return [int(h), int(w)]
-            # 그냥 Tensor [B,C,H,W]
-            if hasattr(imgs, 'shape') and getattr(imgs, 'ndim', 0) >= 4:
-                h, w = imgs.shape[-2], imgs.shape[-1]
-                return [int(h), int(w)]
+    #     if imgs is not None:
+    #         # Detectron 스타일 ImageList: .tensors가 [B,C,H,W]
+    #         if hasattr(imgs, 'tensors') and hasattr(imgs.tensors, 'shape'):
+    #             h, w = imgs.tensors.shape[-2], imgs.tensors.shape[-1]
+    #             return [int(h), int(w)]
+    #         # 그냥 Tensor [B,C,H,W]
+    #         if hasattr(imgs, 'shape') and getattr(imgs, 'ndim', 0) >= 4:
+    #             h, w = imgs.shape[-2], imgs.shape[-1]
+    #             return [int(h), int(w)]
 
-        # default
-        stride = 32
-        try:
-            if hasattr(self.model, "model") and hasattr(self.model, "stride"):
-                stride = int(self.model.stride.max())
-        except Exception:
-            pass
-        base = 640
-        s = ((base + stride - 1) // stride) * stride
-        return [s, s]
+    #     # default
+    #     stride = 32
+    #     try:
+    #         if hasattr(self.model, "model") and hasattr(self.model, "stride"):
+    #             stride = int(self.model.stride.max())
+    #     except Exception:
+    #         pass
+    #     base = 640
+    #     s = ((base + stride - 1) // stride) * stride
+    #     return [s, s]
         
     def get_total_flops(self):
         return self.total_flops
@@ -407,7 +398,6 @@ class ER:
     def evaluate(self):
         for i, batch in enumerate(tqdm(self.val_loader)):
             images_obj, targets, _ = batch
-            # pdb.set_trace()
             
             images_obj = images_obj.to(self.device)
             with torch.no_grad():
@@ -427,11 +417,13 @@ class ER:
                 boxes = bl.bbox.detach().to('cpu').float()
                 labels = bl.extra_fields['labels'].detach().to('cpu').long()
                 return {'boxes': boxes, 'labels': labels}
+            
             preds_list = [boxlist_to_pred_dict(p) for p in predicts]
             targs_list = [boxlist_to_target_dict(t) for t in targets]
             
             self.metric(preds_list, targs_list)
         
+        # pdb.set_trace()
         epoch_metrics = self.metric.compute()
         del epoch_metrics["classes"]
         eval_dict = {
