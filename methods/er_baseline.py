@@ -40,7 +40,6 @@ import pdb
 
 logger = logging.getLogger()
 
-
 class ER:
     def __init__(self, criterion, n_classes, device, **kwargs):
         # 기존 파라미터 저장
