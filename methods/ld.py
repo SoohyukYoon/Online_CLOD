@@ -55,7 +55,7 @@ class LD(ER):
     def model_forward_with_ld(self, batch):
         inps, targets = self.preprocess_batch(batch)
 
-        with torch.cuda.amp.autocast(enabled=self.use_amp):
+        with torch.cuda.amp.autocast(enabled=False):
             loss_item = self.model(inps, targets)
             loss_model = loss_item["total_loss"]
             
