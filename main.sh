@@ -1,13 +1,8 @@
 #/bin/bash
 
 # CIL CONFIG
-<<<<<<< HEAD
 NOTE="er" # Short description of the experiment. (WARNING: logs/results with the same note will be overwritten!)
 MODE="er"
-=======
-NOTE="abr" # Short description of the experiment. (WARNING: logs/results with the same note will be overwritten!)
-MODE="abr"
->>>>>>> 93394bf91f1556931f24d06a136b70e5626fe915
 DATASET="VOC_10_10" # VOC_10_10 BDD_domain SHIFT_domain MILITARY_SYNTHETIC_domain_1 MILITARY_SYNTHETIC_domain_2 MILITARY_SYNTHETIC_domain_3
 SIGMA=10
 REPEAT=1
@@ -20,11 +15,7 @@ SEEDS="1"
 
 if [ "$DATASET" == "VOC_10_10" ]; then
     MEM_SIZE=500 ONLINE_ITER=1
-<<<<<<< HEAD
-    MODEL_NAME="damo" EVAL_PERIOD=500
-=======
     MODEL_NAME="damo" EVAL_PERIOD=100
->>>>>>> 93394bf91f1556931f24d06a136b70e5626fe915
     BATCHSIZE=16; LR=3e-4 OPT_NAME="SGD" SCHED_NAME="default" IMP_UPDATE_PERIOD=1
 elif [ "$DATASET" == "BDD_domain" ]; then
     MEM_SIZE=10 ONLINE_ITER=1
