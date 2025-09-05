@@ -57,7 +57,7 @@ class LWF_Logit(ER):
     def model_forward_with_lwf(self, batch):
         inps, targets = self.preprocess_batch(batch)
 
-        with torch.cuda.amp.autocast(enabled=self.use_amp):
+        with torch.cuda.amp.autocast(enabled=False):
             image_tensors = inps.tensors
             new_feats_b = self.model.backbone(image_tensors)
             new_feats_n = self.model.neck(new_feats_b)

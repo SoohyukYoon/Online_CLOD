@@ -90,7 +90,7 @@ class LWF_Feature(LWF_Logit):
             self.features_per_layer[layer].clear()
             self.old_features_per_layer[layer].clear()
             
-        with torch.cuda.amp.autocast(enabled=self.use_amp):
+        with torch.cuda.amp.autocast(enabled=False):
             loss_item = self.model(inps, targets)
             loss_new = loss_item["total_loss"]
 
