@@ -32,9 +32,11 @@ def cycle(iterable):
 class FINETUNE(ER):
     def __init__(self, criterion, n_classes, device, **kwargs):
         super().__init__(criterion=criterion, n_classes=n_classes, device=device, **kwargs)
-        self.memory = MemoryDataset(dataset=self.dataset, cls_list=self.exposed_classes, device=self.device, memory_size=self.memory_size, image_size=self.img_size, aug=self.damo_cfg.train.augment)
+        data_args = self.damo_cfg.get_data(self.damo_cfg.dataset.train_ann[0])
+        self.memory = MemoryDataset(ann_file=data_args['args']['ann_file'], root=data_args['args']['root'], transforms=None,class_names=self.damo_cfg.dataset.class_names,
+            dataset=self.dataset, cls_list=self.exposed_classes, device=self.device, memory_size=self.memory_size, image_size=self.img_size, aug=self.damo_cfg.train.augment)
         
-        self.memory.transform.get_more_data = self.memory.ft_get_more_data
+        # self.memory.transform.get_more_data = self.memory.ft_get_more_data
         
         self.temp_batchsize = self.batch_size
     
@@ -64,22 +66,11 @@ class FINETUNE(ER):
             self.memory.register_stream(sample)
         for i in range(iterations):
             self.model.train()
-            data = self.memory.get_stream_data(sample, transform=True)
-
-            batch = {
-                "img": data[1],         # images
-                "cls": data[2],         # labels
-                "reverse": data[3],     # reverse tensors
-                "img_path": data[4],    # image paths
-            }
+            data = self.memory.get_batch(batch_size, stream_batch_size)
             
-            # print(f"[DEBUG] batch images: {batch['img_path']}")
-            # print(f"[DEBUG] batch labels shape: {batch['cls'].shape}")
-
             self.optimizer.zero_grad()
 
-            loss, loss_item = self.model_forward(batch)
-            # print(f"[DEBUG] individual losses: {loss_item}")
+            loss, loss_item = self.model_forward(data)
 
             if self.use_amp:
                 self.scaler.scale(loss).backward()
@@ -95,6 +86,4 @@ class FINETUNE(ER):
 
             total_loss += loss.item()
             
-            # self.total_flops += (batch_size * (self.forward_flops + self.backward_flops))
-            # print("self.total_flops", self.total_flops)
         return total_loss / iterations

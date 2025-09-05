@@ -12,30 +12,37 @@ class Config(MyConfig):
         self.miscs.exp_name = os.path.split(
             os.path.realpath(__file__))[1].split('.')[0]
         self.miscs.eval_interval_epochs = 10
-        self.miscs.ckpt_interval_epochs = 10
+        self.miscs.ckpt_interval_epochs = 100
+        self.miscs.output_dir = './damo_pretrain_outputs_w/military_synthetic'
         # optimizer
-        self.train.batch_size = 256
+        self.train.batch_size = 16
         self.train.base_lr_per_img = 0.01 / 64
         self.train.min_lr_ratio = 0.05
         self.train.weight_decay = 5e-4
         self.train.momentum = 0.9
         self.train.no_aug_epochs = 16
         self.train.warmup_epochs = 5
+        # self.train.total_epochs = 100
 
         # augment
         self.train.augment.transform.image_max_range = (640, 640)
         self.train.augment.mosaic_mixup.mixup_prob = 0.15
         self.train.augment.mosaic_mixup.degrees = 10.0
         self.train.augment.mosaic_mixup.translate = 0.2
-        self.train.augment.mosaic_mixup.shear = 0.2
+        self.train.augment.mosaic_mixup.shear = 2.0
         self.train.augment.mosaic_mixup.mosaic_scale = (0.1, 2.0)
 
-        self.dataset.train_ann = ('coco_2017_train', )
-        self.dataset.val_ann = ('coco_2017_val', )
+        self.dataset.train_ann = (
+            'military_synthetic_train_pretrain',
+        )
+        self.dataset.val_ann = ('military_synthetic_val_pretrain',)
 
+        # weight
+        self.train.finetune_path = "./damo/damoyolo_tinynasL25_S_456.pth"
+        
         # backbone
         structure = self.read_structure(
-            './damo/base_models/backbones/nas_backbones/tinynas_L20_k1kx.txt')
+            './damo/base_models/backbones/nas_backbones/tinynas_L25_k1kx.txt')
         TinyNAS = {
             'name': 'TinyNAS_res',
             'net_structure_str': structure,
@@ -51,9 +58,9 @@ class Config(MyConfig):
         GiraffeNeckV2 = {
             'name': 'GiraffeNeckV2',
             'depth': 1.0,
-            'hidden_ratio': 1.0,
-            'in_channels': [96, 192, 384],
-            'out_channels': [64, 128, 256],
+            'hidden_ratio': 0.75,
+            'in_channels': [128, 256, 512],
+            'out_channels': [128, 256, 512],
             'act': 'relu',
             'spp': False,
             'block_name': 'BasicBlock_3x3_Reverse',
@@ -63,8 +70,8 @@ class Config(MyConfig):
 
         ZeroHead = {
             'name': 'ZeroHead',
-            'num_classes': 80,
-            'in_channels': [64, 128, 256],
+            'num_classes': 9,
+            'in_channels': [128, 256, 512],
             'stacked_convs': 0,
             'reg_max': 16,
             'act': 'silu',
@@ -74,4 +81,4 @@ class Config(MyConfig):
         }
         self.model.head = ZeroHead
 
-        self.dataset.class_names = ['person', 'bicycle', 'car', 'motorcycle', 'airplane', 'bus', 'train', 'truck', 'boat', 'traffic light', 'fire hydrant', 'stop sign', 'parking meter', 'bench', 'bird', 'cat', 'dog', 'horse', 'sheep', 'cow', 'elephant', 'bear', 'zebra', 'giraffe', 'backpack', 'umbrella', 'handbag', 'tie', 'suitcase', 'frisbee', 'skis', 'snowboard', 'sports ball', 'kite', 'baseball bat', 'baseball glove', 'skateboard', 'surfboard', 'tennis racket', 'bottle', 'wine glass', 'cup', 'fork', 'knife', 'spoon', 'bowl', 'banana', 'apple', 'sandwich', 'orange', 'broccoli', 'carrot', 'hot dog', 'pizza', 'donut', 'cake', 'chair', 'couch', 'potted plant', 'bed', 'dining table', 'toilet', 'tv', 'laptop', 'mouse', 'remote', 'keyboard', 'cell phone', 'microwave', 'oven', 'toaster', 'sink', 'refrigerator', 'book', 'clock', 'vase', 'scissors', 'teddy bear', 'hair drier', 'toothbrush']
+        self.dataset.class_names = ['fishing vessel', 'warship', 'merchant vessel', 'fixed-wing aircraft', 'rotary-wing aircraft', 'Unmanned Aerial Vehicle', 'bird', 'leaflet', 'waste bomb']

@@ -26,34 +26,43 @@ class LWF_Logit(ER):
         self.lambda_old = kwargs.get("lambda_old", 0.1)
         logger.info(f"[LWF INIT] lambda_old: {self.lambda_old}")
     
-    def model_forward_with_lwf(self, batch):
-        images = batch.get("img").to(self.device, non_blocking=True)
-        cls_targets = batch.get("cls")
+    def online_train(self, sample, batch_size, n_worker, iterations=1, stream_batch_size=1):
+            total_loss = 0.0
+            if len(sample) > 0:
+                self.memory.register_stream(sample)
+            for i in range(iterations):
+                self.model.train()
+                data = self.memory.get_batch(batch_size, stream_batch_size)
+                
+                self.optimizer.zero_grad()
+
+                loss, loss_item = self.model_forward_with_lwf(data)
+
+                if self.use_amp:
+                    self.scaler.scale(loss).backward()
+                    self.scaler.step(self.optimizer)
+                    self.scaler.update()
+                else:
+                    loss.backward()
+                    self.optimizer.step()
+                
+                self.total_flops += (len(data[1]) * self.backward_flops)
+                
+                self.update_schedule()
+
+                total_loss += loss.item()
+                
+            return total_loss / iterations
         
-        batch_size = images.shape[0]
-        formatted_targets = []
-        for i in range(batch_size):
-            img_targets = cls_targets[i]
-            valid_targets = img_targets[img_targets[:, 0] != -1]
-
-            tgt = types.SimpleNamespace()
-            if valid_targets.numel() > 0:
-                tgt.bbox = valid_targets[:, 1:]
-                cls_tensor = valid_targets[:, 0].long()
-                tgt._cls_tensor = cls_tensor
-            else:
-                tgt.bbox = torch.empty(0, 4, device=self.device)
-                tgt._cls_tensor = torch.empty(0, dtype=torch.long, device=self.device)
-
-            tgt.get_field = (lambda field_name, t=tgt: t._cls_tensor
-                            if field_name == 'labels' else None)
-            formatted_targets.append(tgt)
+    def model_forward_with_lwf(self, batch):
+        inps, targets = self.preprocess_batch(batch)
 
         with torch.cuda.amp.autocast(enabled=self.use_amp):
-            new_feats_b = self.model.backbone(images)
+            image_tensors = inps.tensors
+            new_feats_b = self.model.backbone(image_tensors)
             new_feats_n = self.model.neck(new_feats_b)
 
-            loss_item = self.model.head.forward_train(new_feats_n, labels=formatted_targets)
+            loss_item = self.model.head.forward_train(new_feats_n, labels=targets)
             loss_new = loss_item["total_loss"]
 
             # [3, 16, 11, 80, 80]
@@ -61,13 +70,11 @@ class LWF_Logit(ER):
                 new_feats_n, apply_sigmoid=False, drop_bg=True
             )
 
-            loss_distill = images.new_tensor(0.0)
-
-            # pdb.set_trace()
+            loss_distill = image_tensors.new_tensor(0.0)
             
             if getattr(self, "old_model", None) is not None:
                 with torch.no_grad():
-                    old_feats_b = self.old_model.backbone(images)
+                    old_feats_b = self.old_model.backbone(image_tensors)
                     old_feats_n = self.old_model.neck(old_feats_b)
                     # [3, 16, 10, 80, 80]
                     old_levels = self.old_model.head.forward_cls_logits_levels(
@@ -76,7 +83,7 @@ class LWF_Logit(ER):
 
                 L = len(old_levels)  # 3
                 T = 3.0
-                kl_sum = images.new_tensor(0.0)
+                kl_sum = image_tensors.new_tensor(0.0)
                 for l in range(L):
                     new_l = new_levels[l]
                     old_l = old_levels[l]
@@ -96,10 +103,10 @@ class LWF_Logit(ER):
 
             total_loss = loss_new + self.lambda_old * loss_distill
             
-            print(f"loss_new : {loss_new}")
-            print(f"loss_distill : {loss_distill}")
+            # print(f"loss_new : {loss_new}")
+            # print(f"loss_distill : {loss_distill}")
             
-            return total_loss
+            return total_loss, loss_item
 
     def online_step(self, sample, sample_num, n_worker):
         if sample.get('klass',None) and sample['klass'] not in self.exposed_classes:
@@ -129,42 +136,6 @@ class LWF_Logit(ER):
 
                 self.temp_batch = []
                 self.num_updates -= iteration
-
-    def online_train(self, sample, batch_size, n_worker, iterations=1, stream_batch_size=1):
-        total_loss = 0.0
-        if len(sample) > 0:
-            self.memory.register_stream(sample)
-
-        for i in range(iterations):
-            self.model.train()
-            data = self.memory.get_batch(batch_size, stream_batch_size)
-            batch = {
-                "img": data[1],
-                "cls": data[2],
-                "reverse": data[3],
-                "img_path": data[4],
-            }
-            batch = self.preprocess_batch(batch)
-            self.optimizer.zero_grad()
-
-            if self.use_amp:
-                with torch.cuda.amp.autocast():
-                    loss = self.model_forward_with_lwf(batch)
-            else:
-                loss = self.model_forward_with_lwf(batch)
-
-            if self.use_amp:
-                self.scaler.scale(loss).backward()
-                self.scaler.step(self.optimizer)
-                self.scaler.update()
-            else:
-                loss.backward()
-                self.optimizer.step()
-
-            self.update_schedule()
-            total_loss += loss.item()
-
-        return total_loss / iterations
 
     def online_after_task(self, cur_iter):
         self.old_model = copy.deepcopy(self.model)

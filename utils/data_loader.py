@@ -273,10 +273,25 @@ class MemoryDataset(COCODataset):
                 if self.use_mosaic_mixup:
                     img, label, img_id = self.mosaic_wrapper.__getitem__((True, i + buffer_size))
                 else:
-                    img, label, img_id = self.buffer[i + buffer_size]
-                    img = np.array(img)
-                    img, label = self._transforms(img, label)
+                    img, anno, img_id = self.buffer[i + buffer_size]
+                    anno = [obj for obj in anno if obj['iscrowd'] == 0]
+
+                    boxes = [obj['bbox'] for obj in anno]
+                    boxes = torch.as_tensor(boxes).reshape(-1, 4)  # guard against no boxes
+                    target = BoxList(boxes, img.size, mode='xywh').convert('xyxy')
+
+                    classes = [obj['category_id'] for obj in anno]
+                    classes = [self.contiguous_class2id[self.ori_id2class[c]] 
+                            for c in classes]
+
+                    classes = torch.tensor(classes)
+                    target.add_field('labels', classes)
+
+
+                    target = target.clip_to_image(remove_empty=True)
                     
+                    img = np.asarray(img)
+                    img, label = self._transforms(img, target)
                 
                 data.append((img, label, img_id))
 
@@ -287,8 +302,24 @@ class MemoryDataset(COCODataset):
                     img, label, img_id = self.mosaic_wrapper.__getitem__((True, i))
                 else:
                     img, label, img_id = self.buffer[i]
-                    img = np.array(img)
-                    img, label = self._transforms(img, label)
+                    anno = [obj for obj in anno if obj['iscrowd'] == 0]
+
+                    boxes = [obj['bbox'] for obj in anno]
+                    boxes = torch.as_tensor(boxes).reshape(-1, 4)  # guard against no boxes
+                    target = BoxList(boxes, img.size, mode='xywh').convert('xyxy')
+
+                    classes = [obj['category_id'] for obj in anno]
+                    classes = [self.contiguous_class2id[self.ori_id2class[c]] 
+                            for c in classes]
+
+                    classes = torch.tensor(classes)
+                    target.add_field('labels', classes)
+
+
+                    target = target.clip_to_image(remove_empty=True)
+                    
+                    img = np.asarray(img)
+                    img, label = self._transforms(img, target)
                 data.append((img, label, img_id))
 
         # remove stream data from buffer
@@ -296,6 +327,25 @@ class MemoryDataset(COCODataset):
         
         return self.batch_collator(data)
 
+    def get_stream_batch(self, batch_size):
+        if not hasattr(self, 'stream_data') or len(self.stream_data) == 0:
+            raise ValueError("stream_data is empty. Cannot get a stream batch.")
+
+        current_batch_size = min(batch_size, len(self.stream_data))
+        stream_indices = np.random.choice(range(len(self.stream_data)), size=current_batch_size, replace=False)
+        
+        data_to_collate = []
+        for i in stream_indices:
+            buffer_size = len(self.buffer)
+            self.buffer.append(self.stream_data[i])
+            
+            img, label, img_id = self.mosaic_wrapper.__getitem__((True, buffer_size))
+            data_to_collate.append((img, label, img_id))
+
+            self.buffer.pop()
+
+        return self.batch_collator(data_to_collate)
+    
     def add_new_class(self, cls_list, sample=None):
         self.cls_list = cls_list
         self.cls_count.append(0)

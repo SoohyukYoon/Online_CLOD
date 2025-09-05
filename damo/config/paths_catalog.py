@@ -40,16 +40,48 @@ class DatasetCatalog(object):
             'ann_file': 'voc/annotations/instances_test2007.json'
         },
         
-        # --- BDD100K 데이터셋 ---
-
-        
         # --- SHIFT 데이터셋 ---
+        'shift_train_pretrain': {
+            'img_dir': '/home/vision/mjlee/Online_CLOD/data/shift_source/images/train',
+            'ann_file': '/home/vision/mjlee/Online_CLOD/data/shift_source/annotations/instances_train.json'
+        } ,
+        'shift_val_pretrain': {
+            'img_dir': '/home/vision/mjlee/Online_CLOD/data/shift_source/images/val',
+            'ann_file': '/home/vision/mjlee/Online_CLOD/data/shift_source/annotations/instances_val_full.json'
+        },
         
+        'shift_train': {
+            'img_dir': '/home/vision/mjlee/Online_CLOD/data/shift/images/train',
+            'ann_file': '/home/vision/mjlee/Online_CLOD/data/shift/annotations/instances_train.json'
+        },
+        'shift_val': {
+            'img_dir': '/home/vision/mjlee/Online_CLOD/data/shift/images/val',
+            'ann_file': '/home/vision/mjlee/Online_CLOD/data/shift/annotations/instances_val.json'
+        },
+        
+        # --- MILITARY SYNTHETIC 데이터셋 ---
+        'military_synthetic_train_pretrain': {
+            'img_dir': '/home/vision/mjlee/Online_CLOD/data/military_synthetic_domain_source/images/train',
+            'ann_file': '/home/vision/mjlee/Online_CLOD/data/military_synthetic_domain_source/annotations/instances_train_area.json'
+        },
+        'military_synthetic_val_pretrain': {
+            'img_dir': '/home/vision/mjlee/Online_CLOD/data/military_synthetic_domain_source/images/val',
+            'ann_file': '/home/vision/mjlee/Online_CLOD/data/military_synthetic_domain_source/annotations/instances_val_area.json'
+        },
+        
+        'military_synthetic_train': {
+            'img_dir': '/home/vision/mjlee/Online_CLOD/data/military_synthetic/images/train',
+            'ann_file': '/home/vision/mjlee/Online_CLOD/data/military_synthetic/annotations/instances_train_area.json'
+        },
+        'military_synthetic_val': {
+            'img_dir': '/home/vision/mjlee/Online_CLOD/data/military_synthetic/images/val',
+            'ann_file': '/home/vision/mjlee/Online_CLOD/data/military_synthetic/annotations/instances_val_area.json'
+        }
         }
 
     @staticmethod
     def get(name):
-        keywords = ['coco', 'voc', 'bdd', 'shift']
+        keywords = ['coco', 'voc', 'shift', 'military']
         if any(keyword in name for keyword in keywords):
             data_dir = DatasetCatalog.DATA_DIR
             attrs = DatasetCatalog.DATASETS[name]
