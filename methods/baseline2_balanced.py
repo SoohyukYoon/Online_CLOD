@@ -31,9 +31,12 @@ def cycle(iterable):
 
 
 class BASELINE2Balanced(BASELINE2):
-    def __init__(self, criterion, n_classes, device, **kwargs):
-        super().__init__(criterion=criterion, n_classes=n_classes, device=device, **kwargs)
-        self.memory = ClassBalancedDataset(self.args, self.dataset, self.exposed_classes, device=self.device, memory_size=self.memory_size, mosaic_prob=kwargs['mosaic_prob'],mixup_prob=kwargs['mixup_prob'])
+    def initialize_memory_buffer(self, memory_size):
+        self.memory_size = memory_size - 1
+        data_args = self.damo_cfg.get_data(self.damo_cfg.dataset.train_ann[0])
+        self.memory = ClassBalancedDataset(ann_file=data_args['args']['ann_file'], root=data_args['args']['root'], transforms=None,class_names=self.damo_cfg.dataset.class_names,
+            dataset=self.dataset, cls_list=self.exposed_classes, device=self.device, memory_size=self.memory_size, image_size=self.img_size, aug=self.damo_cfg.train.augment)
+        
         self.new_exposed_classes = ['pretrained']
 
     def add_new_class(self, class_name):

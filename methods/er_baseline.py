@@ -19,7 +19,7 @@ from scipy.stats import chi2, norm
 from flops_counter.ptflops import get_model_complexity_info
 # from utils.cka import linear_CKA
 from utils.data_loader import ImageDataset, MemoryDataset, get_exposed_classes
-from utils.train_utils import select_model, select_optimizer, select_scheduler, MeanAveragePrecisionCustomized
+from utils.train_utils import select_model, select_optimizer, select_scheduler, MeanAveragePrecisionCustomized, boxlist_to_pred_dict, boxlist_to_target_dict
 #### object detection
 import random
 
@@ -121,9 +121,8 @@ class ER:
         # self.model.set_loss_function(self.args, self.vec2box, self.num_learned_class)
         # self.img_size = self._resolve_image_size(self.damo_cfg, self.model, val_dataloaders)
         self.img_size = [640, 640]
-        data_args = self.damo_cfg.get_data(self.damo_cfg.dataset.train_ann[0])
-        self.memory = MemoryDataset(ann_file=data_args['args']['ann_file'], root=data_args['args']['root'], transforms=None,class_names=self.damo_cfg.dataset.class_names,
-            dataset=self.dataset, cls_list=self.exposed_classes, device=self.device, memory_size=self.memory_size, image_size=self.img_size, aug=self.damo_cfg.train.augment)
+        
+        self.initialize_memory_buffer(kwargs["memory_size"])
         
         self.temp_batch = []
         self.num_updates = 0
@@ -156,49 +155,13 @@ class ER:
         self.block_names = MODEL_BLOCK_DICT[self.model_name]
         self.num_blocks = len(self.block_names) - 1
         self.get_flops_parameter()
-    
-    # def _resolve_image_size(self, damo_cfg, model, val_dataloaders):
-    #     loader = val_dataloaders[0] if isinstance(val_dataloaders, (list, tuple)) else val_dataloaders
-    #     try:
-    #         batch = next(iter(loader))
-    #     except StopIteration:
-    #         batch = None
-    #     except Exception:
-    #         batch = None
-
-    #     if isinstance(batch, dict):
-    #         if 'images' in batch:
-    #             imgs = batch['images']
-    #         elif 'img' in batch:
-    #             imgs = batch['img']
-    #         else:
-    #             imgs = None
-    #     elif isinstance(batch, (list, tuple)) and len(batch) > 0:
-    #         imgs = batch[0]
-    #     else:
-    #         imgs = None
-
-    #     if imgs is not None:
-    #         # Detectron 스타일 ImageList: .tensors가 [B,C,H,W]
-    #         if hasattr(imgs, 'tensors') and hasattr(imgs.tensors, 'shape'):
-    #             h, w = imgs.tensors.shape[-2], imgs.tensors.shape[-1]
-    #             return [int(h), int(w)]
-    #         # 그냥 Tensor [B,C,H,W]
-    #         if hasattr(imgs, 'shape') and getattr(imgs, 'ndim', 0) >= 4:
-    #             h, w = imgs.shape[-2], imgs.shape[-1]
-    #             return [int(h), int(w)]
-
-    #     # default
-    #     stride = 32
-    #     try:
-    #         if hasattr(self.model, "model") and hasattr(self.model, "stride"):
-    #             stride = int(self.model.stride.max())
-    #     except Exception:
-    #         pass
-    #     base = 640
-    #     s = ((base + stride - 1) // stride) * stride
-    #     return [s, s]
-        
+     
+    def initialize_memory_buffer(self, memory_size):
+        self.memory_size = memory_size - self.temp_batchsize
+        data_args = self.damo_cfg.get_data(self.damo_cfg.dataset.train_ann[0])
+        self.memory = MemoryDataset(ann_file=data_args['args']['ann_file'], root=data_args['args']['root'], transforms=None,class_names=self.damo_cfg.dataset.class_names,
+            dataset=self.dataset, cls_list=self.exposed_classes, device=self.device, memory_size=self.memory_size, image_size=self.img_size, aug=self.damo_cfg.train.augment)
+     
     def get_total_flops(self):
         return self.total_flops
         
@@ -437,33 +400,20 @@ class ER:
         # }
         
         
-        
+        preds_lists = []
+        targs_lists = []
         for i, batch in enumerate(tqdm(self.val_loader)):
             images_obj, targets, _ = batch
             
             images_obj = images_obj.to(self.device)
             with torch.no_grad():
                 predicts = self.model(images_obj)
-
-            def boxlist_to_pred_dict(bl):
-                boxes = bl.bbox.detach().to('cpu').float()
-                labels = bl.extra_fields['labels'].detach().to('cpu').long()
-                scores = bl.extra_fields.get('scores', None)
-                if scores is None:
-                    scores = torch.empty((0,), dtype=torch.float32)
-                else:
-                    scores = scores.detach().to('cpu').float()
-                return {'boxes': boxes, 'scores': scores, 'labels': labels}
-
-            def boxlist_to_target_dict(bl):
-                boxes = bl.bbox.detach().to('cpu').float()
-                labels = bl.extra_fields['labels'].detach().to('cpu').long()
-                return {'boxes': boxes, 'labels': labels}
             
             preds_list = [boxlist_to_pred_dict(p) for p in predicts]
             targs_list = [boxlist_to_target_dict(t) for t in targets]
-            
-            self.metric(preds_list, targs_list)
+            preds_lists.extend(preds_list)
+            targs_lists.extend(targs_list)
+        self.metric(preds_lists, targs_lists)
         
         # pdb.set_trace()
         epoch_metrics = self.metric.compute()
