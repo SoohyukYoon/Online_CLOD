@@ -337,8 +337,7 @@ class AlignOTAAssigner(BaseAssigner):
         soft_label = gt_onehot_label * pairwise_ious[..., None]
         scale_factor = soft_label - valid_pred_scores
 
-        ## with_logits으로 수정
-        cls_cost = F.binary_cross_entropy_with_logits(
+        cls_cost = F.binary_cross_entropy(
             valid_pred_scores, soft_label,
             reduction='none') * scale_factor.abs().pow(2.0)
 

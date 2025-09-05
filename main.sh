@@ -1,8 +1,8 @@
 #/bin/bash
 
 # CIL CONFIG
-NOTE="lwf_logit" # Short description of the experiment. (WARNING: logs/results with the same note will be overwritten!)
-MODE="lwf_logit"
+NOTE="er" # Short description of the experiment. (WARNING: logs/results with the same note will be overwritten!)
+MODE="er"
 DATASET="VOC_10_10" # VOC_10_10 BDD_domain SHIFT_domain MILITARY_SYNTHETIC_domain_1 MILITARY_SYNTHETIC_domain_2 MILITARY_SYNTHETIC_domain_3
 SIGMA=10
 REPEAT=1
@@ -15,8 +15,8 @@ SEEDS="1"
 
 if [ "$DATASET" == "VOC_10_10" ]; then
     MEM_SIZE=500 ONLINE_ITER=1
-    MODEL_NAME="damo" EVAL_PERIOD=100
-    BATCHSIZE=16; LR=3e-3 OPT_NAME="SGD" SCHED_NAME="default" IMP_UPDATE_PERIOD=1
+    MODEL_NAME="damo" EVAL_PERIOD=500
+    BATCHSIZE=16; LR=3e-4 OPT_NAME="SGD" SCHED_NAME="default" IMP_UPDATE_PERIOD=1
 elif [ "$DATASET" == "BDD_domain" ]; then
     MEM_SIZE=10 ONLINE_ITER=1
     MODEL_NAME="yolov9-s" EVAL_PERIOD=1000

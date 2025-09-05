@@ -68,6 +68,7 @@ def prepare_for_coco_detection(predictions, dataset):
     # assert isinstance(dataset, COCODataset)
     coco_results = []
     for image_id, prediction in enumerate(predictions):
+        # prediction = predictions[prediction]
         original_id = dataset.id_to_img_map[image_id]
         if len(prediction) == 0:
             continue
@@ -228,9 +229,6 @@ def evaluate_predictions_on_coco(coco_gt,
     from pycocotools.coco import COCO
     from pycocotools.cocoeval import COCOeval
 
-    coco_gt.dataset.setdefault("info", {})
-    coco_gt.dataset.setdefault("licenses", [])
-    
     coco_dt = coco_gt.loadRes(
         str(json_result_file)) if coco_results else COCO()
 

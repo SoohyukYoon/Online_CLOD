@@ -220,7 +220,7 @@ class DistributionFocalLoss(nn.Module):
 
 
 @weighted_loss
-def quality_focal_loss(pred, target, beta=2.0, use_sigmoid=True):
+def quality_focal_loss(pred, target, beta=2.0, use_sigmoid=False):
     r"""Quality Focal Loss (QFL) is from `Generalized Focal Loss: Learning
     Qualified and Distributed Bounding Boxes for Dense Object Detection
     <https://arxiv.org/abs/2006.04388>`_.
@@ -247,8 +247,7 @@ def quality_focal_loss(pred, target, beta=2.0, use_sigmoid=True):
     pred_sigmoid = pred.sigmoid() if use_sigmoid else pred
     scale_factor = pred_sigmoid  # 8400, 81
     zerolabel = scale_factor.new_zeros(pred.shape)
-    ## with_logits으로 수정
-    loss = F.binary_cross_entropy_with_logits(pred, zerolabel, reduction='none') * scale_factor.pow(beta)
+    loss = func(pred, zerolabel, reduction='none') * scale_factor.pow(beta)
 
     bg_class_ind = pred.size(1)
     pos = ((label >= 0) &
@@ -257,8 +256,8 @@ def quality_focal_loss(pred, target, beta=2.0, use_sigmoid=True):
     # positives are supervised by bbox quality (IoU) score
     scale_factor = score[pos] - pred_sigmoid[pos, pos_label]
     loss[pos,
-         pos_label] = F.binary_cross_entropy_with_logits(pred[pos, pos_label], score[pos],
-                                                          reduction='none') * scale_factor.pow(beta)
+         pos_label] = func(pred[pos, pos_label], score[pos],
+                           reduction='none') * scale_factor.abs().pow(beta)
 
     loss = loss.sum(dim=1, keepdim=False)
     return loss

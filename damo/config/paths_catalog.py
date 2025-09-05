@@ -9,11 +9,11 @@ class DatasetCatalog(object):
     DATASETS = {
         # --- 기존 COCO 데이터셋 ---
         'coco_2017_train': {
-            'img_dir': 'coco/train2017',
+            'img_dir': 'coco/images/train2017',
             'ann_file': 'coco/annotations/instances_train2017.json'
         },
         'coco_2017_val': {
-            'img_dir': 'coco/val2017',
+            'img_dir': 'coco/images/val2017',
             'ann_file': 'coco/annotations/instances_val2017.json'
         },
         'coco_2017_test_dev': {

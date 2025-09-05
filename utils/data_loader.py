@@ -129,6 +129,20 @@ class MemoryDataset(COCODataset):
         transforms = aug.transform
         transforms = build_transforms_memorydataset(**transforms)
         self._transforms = transforms
+        
+        # aug.mosaic_mixup.mosaic_prob = 0
+        # aug.mosaic_mixup.mixup_prob = 0
+        # aug.mosaic_mixup.degrees = 0
+        # aug.mosaic_mixup.translate = 0
+        # aug.mosaic_mixup.mosaic_scale = (0.8, 1.2)
+        
+        print("mosaic_prob", aug.mosaic_mixup.mosaic_prob)
+        print("mixup_prob", aug.mosaic_mixup.mixup_prob)
+        print("degrees", aug.mosaic_mixup.degrees)
+        print("translate", aug.mosaic_mixup.translate)
+        print("mosaic_scale", aug.mosaic_mixup.mosaic_scale)
+        
+        
         self.mosaic_wrapper = MosaicWrapper(
             dataset=self,                      # <-- this class will provide pull_item/load_anno
             img_size=image_size,
@@ -140,7 +154,7 @@ class MemoryDataset(COCODataset):
             mosaic_scale=aug.mosaic_mixup.mosaic_scale,
             keep_ratio=True,
         )
-        self.use_mosaic_mixup=True
+        self.use_mosaic_mixup=True 
         
         self.batch_collator = BatchCollator(size_divisible=32)
     
@@ -177,6 +191,8 @@ class MemoryDataset(COCODataset):
                 if self.dataset == 'VOC_10_10':
                     if self.contiguous_class2id[self.ori_id2class[label[i]['category_id']]] == data_class: # VOC_10_10 labels start from 0
                         indices_to_keep.append(i)
+                    # if self.contiguous_class2id[self.ori_id2class[label[i]['category_id']]] < len(self.cls_list): # VOC_10_10 labels start from 0
+                    #     indices_to_keep.append(i)
                 else:
                     indices_to_keep.append(i)
             else:
@@ -205,6 +221,7 @@ class MemoryDataset(COCODataset):
             split_name = image_path.split('/')[-2]
             base_name = image_path.split('/')[-1]
             self.register_sample_for_initial_buffer({'file_name': split_name + '/' + base_name, 'label': None}, images_dir=images_dir,label_path=label_path)    
+            
 
     def replace_sample(self, sample, idx=None, images_dir=None,label_path=None):
         data_class = sample.get('label', None)
@@ -224,6 +241,7 @@ class MemoryDataset(COCODataset):
             self.buffer.append(data)
         else:
             self.buffer[idx] = data
+            
     def register_stream(self, datalist):
         self.stream_data = []
         for data in datalist:
@@ -246,16 +264,19 @@ class MemoryDataset(COCODataset):
         # append stream data to buffer for batch creation
         buffer_size = len(self.buffer)
         self.buffer.extend(self.stream_data)
-        
+ 
         if stream_batch_size > 0:
             stream_indices = np.random.choice(range(len(self.stream_data)), size=stream_batch_size, replace=False)
             for i in stream_indices:
+                
                 
                 if self.use_mosaic_mixup:
                     img, label, img_id = self.mosaic_wrapper.__getitem__((True, i + buffer_size))
                 else:
                     img, label, img_id = self.buffer[i + buffer_size]
+                    img = np.array(img)
                     img, label = self._transforms(img, label)
+                    
                 
                 data.append((img, label, img_id))
 
@@ -266,6 +287,7 @@ class MemoryDataset(COCODataset):
                     img, label, img_id = self.mosaic_wrapper.__getitem__((True, i))
                 else:
                     img, label, img_id = self.buffer[i]
+                    img = np.array(img)
                     img, label = self._transforms(img, label)
                 data.append((img, label, img_id))
 
@@ -327,6 +349,7 @@ class MemoryDataset(COCODataset):
         img = np.asarray(img)  # rgb
 
         return img, res, seg_masks, img_id
+    
     def load_anno(self, idx):
         _, anno, _ = self.buffer[idx]
         anno = [obj for obj in anno if obj['iscrowd'] == 0]
@@ -334,6 +357,8 @@ class MemoryDataset(COCODataset):
         classes = [self.contiguous_class2id[self.ori_id2class[c]] 
                    for c in classes]
         return classes
+    
+    
 def get_train_datalist(dataset, sigma, repeat, init_cls, rnd_seed):
     with open(f"collections/{dataset}/{dataset}_sigma{sigma}_repeat{repeat}_seed{rnd_seed}.json") as fp:
         train_list = json.load(fp)

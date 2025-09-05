@@ -167,7 +167,7 @@ class Trainer:
 
         # dataloader
         self.train_loader, self.val_loader, iters = self.get_data_loader(cfg)
-
+        
         # setup iters according epochs and iters_per_epoch
         self.setup_iters(iters, self.start_epoch, cfg.train.total_epochs,
                          cfg.train.warmup_epochs, cfg.train.no_aug_epochs,
@@ -195,6 +195,7 @@ class Trainer:
             len(train_dataset[0]) /
             cfg.train.batch_size)  # train_dataset is a list, however,
 
+
         train_loader = build_dataloader(train_dataset,
                                         cfg.train.augment,
                                         batch_size=cfg.train.batch_size,
@@ -203,6 +204,7 @@ class Trainer:
                                         num_workers=cfg.miscs.num_workers,
                                         is_train=True,
                                         size_div=32)
+
 
         val_loader = build_dataloader(val_dataset,
                                       cfg.test.augment,

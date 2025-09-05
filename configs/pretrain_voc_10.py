@@ -38,7 +38,8 @@ class Config(MyConfig):
         self.dataset.val_ann = ('voc_10_val',)
 
         # weight
-        self.train.finetune_path = "./damo/damoyolo_tinynasL25_S_456.pth"
+        # self.train.finetune_path = "./damo/damoyolo_tinynasL25_S_456.pth"
+        self.train.finetune_path = None
         
         # backbone
         structure = self.read_structure(

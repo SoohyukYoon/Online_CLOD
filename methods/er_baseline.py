@@ -38,6 +38,10 @@ from utils.flops_utils import blockwise_from_log_file
 
 import pdb
 
+from damo.apis.detector_inference import compute_on_dataset
+from damo.dataset.datasets.evaluation import evaluate
+from damo.utils.timer import Timer
+
 logger = logging.getLogger()
 
 
@@ -255,6 +259,7 @@ class ER:
         self.num_learned_class = len(self.exposed_classes)
         
         self.model.head.num_classes = self.num_learned_class
+        self.model.head.cls_out_channels = self.num_learned_class
         
         prev_weights = [
             copy.deepcopy(self.model.head.gfl_cls[0].weight),
@@ -345,7 +350,8 @@ class ER:
     def model_forward(self, batch):
         inps, targets = self.preprocess_batch(batch)
         
-        with torch.cuda.amp.autocast(enabled=self.use_amp):
+        # with torch.cuda.amp.autocast(enabled=self.use_amp):
+        with torch.cuda.amp.autocast(enabled=False):
             loss_item = self.model(inps, targets)
             total_loss = loss_item["total_loss"]
             
@@ -404,6 +410,44 @@ class ER:
         pass   
 
     def evaluate(self):
+        
+        
+        # # alternative eval
+        # inference_timer = Timer()
+        # predictions = compute_on_dataset(self.model, self.val_loader, self.device, inference_timer)
+        
+        # extra_args = dict(
+        #     box_only=False,
+        #     iou_types=('bbox', ),
+        #     expected_results=(),
+        #     expected_results_sigma_tol=4,
+        # )
+        
+        # result = evaluate(self.val_loader.dataset, predictions, None, **extra_args)
+        
+        # coco_eval = result[2]
+        # prec = coco_eval.eval['precision']  # [T, R, K, A, M]
+        # iou_thrs = coco_eval.params.iouThrs
+        # cat_ids = coco_eval.params.catIds
+        # area_idx = 0   # all
+        # maxdet_idx = -1  # use last (usually 100)
+
+        # t = np.where(np.isclose(iou_thrs, 0.5))[0][0]
+
+        # ap50_per_class = []
+        # for k, catId in enumerate(cat_ids):
+            
+        #     s = prec[t, :, k, area_idx, maxdet_idx]
+        #     s = s[s > -1] 
+        #     ap50_per_class.append(np.mean(s) if s.size else float("nan"))
+
+        # eval_dict = {
+        #     "avg_mAP50": sum(ap50_per_class[:self.num_learned_class])/self.num_learned_class,
+        #     "classwise_mAP50": ap50_per_class[:self.num_learned_class]
+        # }
+        
+        
+        
         for i, batch in enumerate(tqdm(self.val_loader)):
             images_obj, targets, _ = batch
             # pdb.set_trace()
