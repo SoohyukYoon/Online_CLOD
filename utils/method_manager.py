@@ -27,7 +27,6 @@ from methods.abr import ABR
 
 logger = logging.getLogger()
 
-
 def select_method(args, criterion, n_classes, device):
     kwargs = vars(args)
     if args.mode == "er":
