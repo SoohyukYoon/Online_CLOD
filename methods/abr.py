@@ -340,7 +340,7 @@ class ABR(ER):
         self.student_feats.clear()
         self.teacher_feats.clear()
         
-        with torch.cuda.amp.autocast(enabled=self.use_amp):
+        with torch.cuda.amp.autocast(enabled=False):
             loss_item = self.model(inps, targets)
             det_loss = loss_item["total_loss"]
             

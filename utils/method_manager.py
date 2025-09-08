@@ -23,7 +23,7 @@ from methods.sdp import SDP
 from methods.sdp_only import SDPOnly
 from methods.lwf_logit import LWF_Logit
 from methods.lwf_feature_extraction import LWF_Feature
-# from methods.abr import ABR
+from methods.abr import ABR
 
 logger = logging.getLogger()
 
