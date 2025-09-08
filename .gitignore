@@ -318,7 +318,7 @@ data/coco_40/annotations/*.zip
 online_CL_snapshot/
 pseudo_vis/
 
-damo_joint_train_outputs/
-damo_pretrain_outputs/
+# damo_joint_train_outputs/
+# damo_pretrain_outputs/
 joint_train_outputs/
 pretrain_outputs/
