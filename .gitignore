@@ -311,8 +311,8 @@ data/coco_40/annotations/*.zip
 # Log and output files
 *.out
 
-# Model weight files
-*.pth
+# # Model weight files
+# *.pth
 
 # Specific result folders
 online_CL_snapshot/
@@ -322,3 +322,4 @@ pseudo_vis/
 # damo_pretrain_outputs/
 joint_train_outputs/
 pretrain_outputs/
+weight/hgnetv2/PPHGNetV2_B0_stage1.pth

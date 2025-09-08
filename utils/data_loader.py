@@ -426,53 +426,30 @@ def get_test_datalist(dataset) -> List:
 ###############################################################################################
 # Frequency-based Dataset
 class FreqDataset(MemoryDataset):
-    def __init__(self, args, dataset, cls_list=None, device=None, data_dir=None, memory_size=None,
-                 init_buffer_size=None, mosaic_prob=0.5, mixup_prob=0.0):
-        super().__init__(args, dataset, cls_list, device, data_dir, memory_size,
-                         init_buffer_size, mosaic_prob, mixup_prob)
+    def __init__(self, ann_file, root, transforms=None, class_names=None,
+                 dataset=None, cls_list=None, device=None, data_dir=None, memory_size=None, 
+                 init_buffer_size=None, image_size=(640, 640), aug=None
+                 ):
+        super().__init__(ann_file, root, transforms, class_names, 
+                         dataset, cls_list, device, data_dir, memory_size,
+                         init_buffer_size, image_size, aug)
         self.alpha = 1.0                  # smoothing constant in 1/(usage+α)
         self.beta = 1.0
         self.usage_decay = 0.9
 
-    def build_initial_buffer(self, buffer_size=None):
-        n_classes, images_dir, label_path = get_pretrained_statistics(self.dataset)
-        self.image_dir = images_dir
-        self.label_path = label_path
-        self.metadata_cache = {}
-        self._load_all_metadata()
-        if self.dataset == 'VOC_10_10':
-            image_files = glob.glob(os.path.join(images_dir, "train2012", "*.jpg")) \
-                        + glob.glob(os.path.join(images_dir, "train2007", "*.jpg")) \
-                        + glob.glob(os.path.join(images_dir, "val2012", "*.jpg")) \
-                        + glob.glob(os.path.join(images_dir, "val2007", "*.jpg"))
-        else:
-            image_files = glob.glob(os.path.join(images_dir, "train", "*.jpg"))
-
-        indices = np.random.choice(range(len(image_files)), size=self.memory_size, replace=False)
-
-        for idx in indices:
-            image_path = image_files[idx]
-            split_name = image_path.split('/')[-2]
-            base_name = image_path.split('/')[-1]
-            self.replace_sample({'file_name': split_name + '/' + base_name, 'label': None}, images_dir=images_dir,label_path=label_path)
-
-    def replace_sample(self, sample, idx=None, images_dir=None, label_path=None):
-        img, labels, image_path, ratio = self.load_data(
-            sample['file_name'],
-            # cls_label=sample['label'],
-            image_dir=images_dir or self.image_dir,
-            label_path=label_path or self.label_path,
-            cls_type = sample.get('klass', None)
-        )
-
+    def replace_sample(self, sample, idx=None, images_dir=None,label_path=None):
+        data_class = sample.get('label', None)
+        img, labels, img_id = self.load_data(sample['file_name'], is_stream=True,data_class=data_class)
         ### BEGIN USAGE
+        classes = [obj['category_id'] for obj in labels]
+        classes = [self.contiguous_class2id[self.ori_id2class[c]] 
+                   for c in classes]
         entry = {
             "img": img,
             "labels": labels,
-            "img_path": image_path,
-            "ratio": ratio,
+            "img_id": img_id,
             "usage": sample.get("usage", 0),
-            "classes": torch.unique(labels[:, 0]).tolist() if len(labels) else []
+            "classes": list(set(classes)) if len(classes) else []
         }
         ### END USAGE
 
@@ -481,30 +458,86 @@ class FreqDataset(MemoryDataset):
         else:
             self.buffer[idx] = entry
     
-    def get_data(self, idx):
-        entry = self.buffer[idx]
-        img, labels, img_path = entry["img"], entry["labels"], entry["img_path"]
-        valid_mask = labels[:, 0] != -1
+    def register_sample_for_initial_buffer(self, sample, idx=None, images_dir=None,label_path=None):
+        img, labels, img_id = self.load_data(sample['file_name'], is_stream=False)
+        ### BEGIN USAGE
+        classes = [obj['category_id'] for obj in labels]
+        classes = [self.contiguous_class2id[self.ori_id2class[c]] 
+                   for c in classes]
+        entry = {
+            "img": img,
+            "labels": labels,
+            "img_id": img_id,
+            "usage": sample.get("usage", 0),
+            "classes": list(set(classes)) if len(classes) else []
+        }
+        ### END USAGE
 
-        return img, labels[valid_mask], img_path
-
+        if idx is None:
+            self.buffer.append(entry)
+        else:
+            self.buffer[idx] = entry
+    
+    def register_stream(self, datalist):
+        self.stream_data = []
+        for data in datalist:
+            data_class = data.get('label', None)
+            img_path = data.get('file_name', data.get('filepath'))
+            
+            img, labels, img_id = self.load_data(img_path, is_stream=True, data_class=data_class)
+            classes = [obj['category_id'] for obj in labels]
+            classes = [self.contiguous_class2id[self.ori_id2class[c]] 
+                    for c in classes]
+            entry = {
+                "img": img,
+                "labels": labels,
+                "img_id": img_id,
+                "usage": 0,
+                "classes": list(set(classes)) if len(classes) else []
+            }
+            
+            self.stream_data.append(entry)
+    
     @torch.no_grad()
-    def get_batch(self, batch_size, stream_batch_size=0, use_weight=None,
-                  transform=None, weight_method="cls_usage"):
+    def get_batch(self, batch_size, stream_batch_size=0, use_weight=None, transform=None, weight_method=None):
         assert batch_size >= stream_batch_size
         stream_batch_size = min(stream_batch_size, len(self.stream_data))
         batch_size = min(batch_size, stream_batch_size + len(self.buffer))
         memory_batch_size = batch_size - stream_batch_size
 
         data = []
+        
+        # append stream data to buffer for batch creation
+        buffer_size = len(self.buffer)
+        self.buffer.extend(self.stream_data)
+ 
         if stream_batch_size > 0:
             stream_indices = np.random.choice(range(len(self.stream_data)), size=stream_batch_size, replace=False)
             for i in stream_indices:
-                img, bboxes, img_path, _ = self.stream_data[i]
-                img, bboxes, rev_tensor = self.transform(img, bboxes)
-                bboxes[:, [1, 3]] *= self.image_sizes[0]
-                bboxes[:, [2, 4]] *= self.image_sizes[1]
-                data.append((img, bboxes, rev_tensor, img_path))
+                if self.use_mosaic_mixup:
+                    img, label, img_id = self.mosaic_wrapper.__getitem__((True, i + buffer_size))
+                else:
+                    entry = self.buffer[i + buffer_size]
+                    img, anno, img_id = entry['img'], entry['labels'], entry['img_id']
+                    anno = [obj for obj in anno if obj['iscrowd'] == 0]
+
+                    boxes = [obj['bbox'] for obj in anno]
+                    boxes = torch.as_tensor(boxes).reshape(-1, 4)  # guard against no boxes
+                    target = BoxList(boxes, img.size, mode='xywh').convert('xyxy')
+
+                    classes = [obj['category_id'] for obj in anno]
+                    classes = [self.contiguous_class2id[self.ori_id2class[c]] 
+                            for c in classes]
+
+                    classes = torch.tensor(classes)
+                    target.add_field('labels', classes)
+
+                    target = target.clip_to_image(remove_empty=True)
+                    
+                    img = np.asarray(img)
+                    img, label = self._transforms(img, target)
+                
+                data.append((img, label, img_id))
 
         # ───── Memory part ──────────────────────────────────────────────
         if memory_batch_size > 0 and len(self.buffer):
@@ -552,21 +585,96 @@ class FreqDataset(MemoryDataset):
                     if idx_cls < len(self.cls_train_cnt):
                         self.cls_train_cnt[int(idx_cls)] += 1
 
-                img, bboxes, img_path = self.get_data(i)
-                img, bboxes, rev_tensor = self.transform(img, bboxes)
-                bboxes[:, [1, 3]] *= self.image_sizes[0]
-                bboxes[:, [2, 4]] *= self.image_sizes[1]
-                data.append((img, bboxes, rev_tensor, img_path))
+                if self.use_mosaic_mixup:
+                    img, label, img_id = self.mosaic_wrapper.__getitem__((True, i))
+                else:
+                    entry = self.buffer[i]
+                    img, anno, img_id = entry['img'], entry['labels'], entry['img_id']
+                    anno = [obj for obj in anno if obj['iscrowd'] == 0]
 
-        return collate_fn(data)
+                    boxes = [obj['bbox'] for obj in anno]
+                    boxes = torch.as_tensor(boxes).reshape(-1, 4)  # guard against no boxes
+                    target = BoxList(boxes, img.size, mode='xywh').convert('xyxy')
+
+                    classes = [obj['category_id'] for obj in anno]
+                    classes = [self.contiguous_class2id[self.ori_id2class[c]] 
+                            for c in classes]
+
+                    classes = torch.tensor(classes)
+                    target.add_field('labels', classes)
+
+
+                    target = target.clip_to_image(remove_empty=True)
+                    
+                    img = np.asarray(img)
+                    img, label = self._transforms(img, target)
+                data.append((img, label, img_id))
+
+         # remove stream data from buffer
+        self.buffer = self.buffer[:buffer_size]
+        
+        return self.batch_collator(data)
+
+    def pull_item(self, idx):
+        entry = self.buffer[idx]
+        img, anno, img_id = entry['img'], entry['labels'], entry['img_id']
+        # filter crowd annotations
+        # TODO might be better to add an extra field
+        anno = [obj for obj in anno if obj['iscrowd'] == 0]
+
+        boxes = [obj['bbox'] for obj in anno]
+        boxes = torch.as_tensor(boxes).reshape(-1, 4)  # guard against no boxes
+        target = BoxList(boxes, img.size, mode='xywh').convert('xyxy')
+        
+        target = target.clip_to_image(remove_empty=True)
+
+        classes = [obj['category_id'] for obj in anno]
+        classes = [self.contiguous_class2id[self.ori_id2class[c]] 
+                   for c in classes]
+
+        obj_masks = []
+        for obj in anno:
+            obj_mask = []
+            if 'segmentation' in obj:
+                for mask in obj['segmentation']:
+                    obj_mask += mask
+                if len(obj_mask) > 0:
+                    obj_masks.append(obj_mask)
+        seg_masks = [
+            np.array(obj_mask, dtype=np.float32).reshape(-1, 2)
+            for obj_mask in obj_masks
+        ]
+
+        res = np.zeros((len(target.bbox), 5))
+        for idx in range(len(target.bbox)):
+            res[idx, 0:4] = target.bbox[idx]
+            res[idx, 4] = classes[idx]
+
+        img = np.asarray(img)  # rgb
+
+        return img, res, seg_masks, img_id
+    
+    def load_anno(self, idx):
+        entry = self.buffer[idx]
+        anno = entry['labels']
+        anno = [obj for obj in anno if obj['iscrowd'] == 0]
+        classes = [obj['category_id'] for obj in anno]
+        classes = [self.contiguous_class2id[self.ori_id2class[c]] 
+                   for c in classes]
+        return classes
 
 ################################################################################################
 # Class Balanced Dataset
 class ClassBalancedDataset(MemoryDataset):
-    def __init__(self, args, dataset, cls_list=None, device=None, data_dir=None, memory_size=None, 
-                 init_buffer_size=None, mosaic_prob=1.0, mixup_prob=0.0):
-        self.args = args
-        self.image_sizes = args.image_size  # [640, 640]
+    def __init__(self, ann_file, root, transforms=None, class_names=None,
+                 dataset=None, cls_list=None, device=None, data_dir=None, memory_size=None, 
+                 init_buffer_size=None, image_size=(640, 640), aug=None
+                 ):
+        super(MemoryDataset, self).__init__(ann_file, root, transforms, class_names)
+        # self.args = args
+        if isinstance(image_size, int):
+            image_size = (image_size, image_size)
+        self.image_sizes = [int(image_size[0]), int(image_size[1])]
         self.memory_size = memory_size
 
         self.buffer = []
@@ -589,6 +697,7 @@ class ClassBalancedDataset(MemoryDataset):
         self.cls_idx = [[]]
         
         self.new_exposed_classes = ['pretrained']
+        # self.cls_train_cnt = np.array([0,]*len(cls_list)) if cls_list else np.array([])
         self.cls_train_cnt = np.array([])
         self.score = []
         self.others_loss_decrease = np.array([])
@@ -597,63 +706,78 @@ class ClassBalancedDataset(MemoryDataset):
         self.sample_weight = []
         self.data = {}
         
+        with open(ann_file, 'r') as f:
+            annotations = json.load(f)
+            self.name2id = {ann['file_name'].split('.')[0]: ann['id'] for ann in annotations['images']}
+        
         self.build_initial_buffer(init_buffer_size)
 
         n_classes, image_dir, label_path = get_statistics(dataset=self.dataset)
         self.image_dir = image_dir
         self.label_path = label_path
-
-        self.augment = True
-
-        transforms = {
-            "Mosaic": mosaic_prob,
-            "MixUp": mixup_prob,
-            "HorizontalFlip": 0.5,
-            "RandomCrop": 1,
-            "RemoveOutliers": 1e-8,
-        }
-        transforms = [eval(k)(v) for k, v in transforms.items()]
-        self.base_size = mean(self.image_sizes)
-        self.transform = AugmentationComposer(transforms, self.image_sizes, self.base_size)
-        self.transform.get_more_data = self.get_more_data
         
-        self.padResize = AugmentationComposer([], self.image_sizes, self.base_size)
+        # set transform
+        transforms = aug.transform
+        transforms = build_transforms_memorydataset(**transforms)
+        self._transforms = transforms
         
-        # Load all metadata once during initialization
-        self.metadata_cache = {}
-        self._load_all_metadata()
+        # aug.mosaic_mixup.mosaic_prob = 0
+        # aug.mosaic_mixup.mixup_prob = 0
+        # aug.mosaic_mixup.degrees = 0
+        # aug.mosaic_mixup.translate = 0
+        # aug.mosaic_mixup.mosaic_scale = (0.8, 1.2)
         
-    
-    def build_initial_buffer(self, buffer_size=None):
-        n_classes, images_dir, label_path = get_pretrained_statistics(self.dataset)
-        self.image_dir = images_dir
-        self.label_path = label_path
-        self.metadata_cache = {}
-        self._load_all_metadata()
-        if self.dataset == 'VOC_10_10':
-            image_files = glob.glob(os.path.join(images_dir, "train2012", "*.jpg")) \
-                        + glob.glob(os.path.join(images_dir, "train2007", "*.jpg")) \
-                        + glob.glob(os.path.join(images_dir, "val2012", "*.jpg")) \
-                        + glob.glob(os.path.join(images_dir, "val2007", "*.jpg"))
-        else:
-            image_files = glob.glob(os.path.join(images_dir, "train","*.jpg"))
+        print("mosaic_prob", aug.mosaic_mixup.mosaic_prob)
+        print("mixup_prob", aug.mosaic_mixup.mixup_prob)
+        print("degrees", aug.mosaic_mixup.degrees)
+        print("translate", aug.mosaic_mixup.translate)
+        print("mosaic_scale", aug.mosaic_mixup.mosaic_scale)
+        
+        
+        self.mosaic_wrapper = MosaicWrapper(
+            dataset=self,                      # <-- this class will provide pull_item/load_anno
+            img_size=image_size,
+            mosaic_prob=aug.mosaic_mixup.mosaic_prob,                   # always “allowed”; actual apply is still random inside wrapper
+            mixup_prob=aug.mosaic_mixup.mixup_prob,
+            transforms=self._transforms,                   # we'll run your own transforms after mosaic
+            degrees=aug.mosaic_mixup.degrees,
+            translate=aug.mosaic_mixup.translate,
+            mosaic_scale=aug.mosaic_mixup.mosaic_scale,
+            keep_ratio=True,
+        )
+        self.use_mosaic_mixup=True 
+        
+        self.batch_collator = BatchCollator(size_divisible=32)
 
-        indices = np.random.choice(range(len(image_files)), size=buffer_size or self.memory_size, replace=False)
-
-        for idx in indices:
-            image_path = image_files[idx]
-            split_name = image_path.split('/')[-2]
-            base_name = image_path.split('/')[-1]
-            self.replace_sample({'file_name': split_name + '/' + base_name, 'label': None}, images_dir=images_dir,label_path=label_path)
-    
     def add_new_class(self, cls_list, sample=None):
         self.cls_list = cls_list
         self.cls_count.append(0)
         self.cls_idx.append([])
-    
-    def replace_sample(self, sample, idx=None, images_dir=None, label_path=None):
-        img, labels, image_path, ratio = self.load_data(sample['file_name'], image_dir=images_dir or self.image_dir, label_path=label_path or self.label_path, cls_type = sample.get('klass', None))
-        data = (img, labels, image_path, ratio)
+
+    def replace_sample(self, sample, idx=None, images_dir=None,label_path=None):
+        data_class = sample.get('label', None)
+        img, labels, img_id = self.load_data(sample['file_name'], is_stream=True,data_class=data_class)
+        data = (img, labels, img_id)
+
+        if sample.get('klass', None):
+            self.cls_count[self.new_exposed_classes.index(sample['klass'])] += 1
+            sample_category = sample['klass']
+        elif sample.get('domain', None):
+            self.cls_count[self.new_exposed_classes.index(sample['domain'])] += 1
+            sample_category = sample['domain']
+        else:
+            self.cls_count[self.new_exposed_classes.index('pretrained')] += 1
+            sample_category = 'pretrained'
+        # self.cls_count[self.new_exposed_classes.index(sample.get('klass', 'pretrained'))] += 1
+        if idx is None:
+            self.cls_idx[self.new_exposed_classes.index(sample_category)].append(len(self.buffer))
+            self.buffer.append(data)
+        else:
+            self.buffer[idx] = data
+    def register_sample_for_initial_buffer(self, sample, idx=None, images_dir=None, label_path=None):
+        data_class = sample.get('label', None)
+        img, labels = self.load_data(sample['file_name'], is_stream=False)
+        data = (img, labels)
         if sample.get('klass', None):
             self.cls_count[self.new_exposed_classes.index(sample['klass'])] += 1
             sample_category = sample['klass']
@@ -675,10 +799,15 @@ class ClassBalancedDataset(MemoryDataset):
 
 # Frequency-based Dataset
 class FreqClsBalancedDataset(MemoryDataset):
-    def __init__(self, args, dataset, cls_list=None, device=None, data_dir=None, memory_size=None,
-                 init_buffer_size=None, mosaic_prob=0.5, mixup_prob=0.0):
-        self.args = args
-        self.image_sizes = args.image_size  # [640, 640]
+    def __init__(self, ann_file, root, transforms=None, class_names=None,
+                 dataset=None, cls_list=None, device=None, data_dir=None, memory_size=None, 
+                 init_buffer_size=None, image_size=(640, 640), aug=None
+                 ):
+        super(MemoryDataset, self).__init__(ann_file, root, transforms, class_names)
+        # self.args = args
+        if isinstance(image_size, int):
+            image_size = (image_size, image_size)
+        self.image_sizes = [int(image_size[0]), int(image_size[1])]
         self.memory_size = memory_size
 
         self.buffer = []
@@ -701,6 +830,7 @@ class FreqClsBalancedDataset(MemoryDataset):
         self.cls_idx = [[]]
         
         self.new_exposed_classes = ['pretrained']
+        # self.cls_train_cnt = np.array([0,]*len(cls_list)) if cls_list else np.array([])
         self.cls_train_cnt = np.array([])
         self.score = []
         self.others_loss_decrease = np.array([])
@@ -709,75 +839,67 @@ class FreqClsBalancedDataset(MemoryDataset):
         self.sample_weight = []
         self.data = {}
         
+        with open(ann_file, 'r') as f:
+            annotations = json.load(f)
+            self.name2id = {ann['file_name'].split('.')[0]: ann['id'] for ann in annotations['images']}
+        
         self.build_initial_buffer(init_buffer_size)
 
         n_classes, image_dir, label_path = get_statistics(dataset=self.dataset)
         self.image_dir = image_dir
         self.label_path = label_path
-
-        self.augment = True
-
-        transforms = {
-            "Mosaic": mosaic_prob,
-            "MixUp": mixup_prob,
-            "HorizontalFlip": 0.5,
-            "RandomCrop": 1,
-            "RemoveOutliers": 1e-8,
-        }
-        transforms = [eval(k)(v) for k, v in transforms.items()]
-        self.base_size = mean(self.image_sizes)
-        self.transform = AugmentationComposer(transforms, self.image_sizes, self.base_size)
-        self.transform.get_more_data = self.get_more_data
         
-        self.padResize = AugmentationComposer([], self.image_sizes, self.base_size)
+        # set transform
+        transforms = aug.transform
+        transforms = build_transforms_memorydataset(**transforms)
+        self._transforms = transforms
         
-        # Load all metadata once during initialization
-        self.metadata_cache = {}
-        self._load_all_metadata()
+        # aug.mosaic_mixup.mosaic_prob = 0
+        # aug.mosaic_mixup.mixup_prob = 0
+        # aug.mosaic_mixup.degrees = 0
+        # aug.mosaic_mixup.translate = 0
+        # aug.mosaic_mixup.mosaic_scale = (0.8, 1.2)
+        
+        print("mosaic_prob", aug.mosaic_mixup.mosaic_prob)
+        print("mixup_prob", aug.mosaic_mixup.mixup_prob)
+        print("degrees", aug.mosaic_mixup.degrees)
+        print("translate", aug.mosaic_mixup.translate)
+        print("mosaic_scale", aug.mosaic_mixup.mosaic_scale)
+        
+        
+        self.mosaic_wrapper = MosaicWrapper(
+            dataset=self,                      # <-- this class will provide pull_item/load_anno
+            img_size=image_size,
+            mosaic_prob=aug.mosaic_mixup.mosaic_prob,                   # always “allowed”; actual apply is still random inside wrapper
+            mixup_prob=aug.mosaic_mixup.mixup_prob,
+            transforms=self._transforms,                   # we'll run your own transforms after mosaic
+            degrees=aug.mosaic_mixup.degrees,
+            translate=aug.mosaic_mixup.translate,
+            mosaic_scale=aug.mosaic_mixup.mosaic_scale,
+            keep_ratio=True,
+        )
+        self.use_mosaic_mixup=True 
+        
+        self.batch_collator = BatchCollator(size_divisible=32)
         
         self.alpha = 1.0                  # smoothing constant in 1/(usage+α)
         self.beta = 1.0
         self.usage_decay = 0.9
     
-    def build_initial_buffer(self, buffer_size=None):
-        n_classes, images_dir, label_path = get_pretrained_statistics(self.dataset)
-        self.image_dir = images_dir
-        self.label_path = label_path
-        self.metadata_cache = {}
-        self._load_all_metadata()
-        if self.dataset == 'VOC_10_10':
-            image_files = glob.glob(os.path.join(images_dir, "train2012", "*.jpg")) \
-                        + glob.glob(os.path.join(images_dir, "train2007", "*.jpg")) \
-                        + glob.glob(os.path.join(images_dir, "val2012", "*.jpg")) \
-                        + glob.glob(os.path.join(images_dir, "val2007", "*.jpg"))
-        else:
-            image_files = glob.glob(os.path.join(images_dir, "train", "*.jpg"))
-
-        indices = np.random.choice(range(len(image_files)), size=self.memory_size, replace=False)
-
-        for idx in indices:
-            image_path = image_files[idx]
-            split_name = image_path.split('/')[-2]
-            base_name = image_path.split('/')[-1]
-            self.replace_sample({'file_name': split_name + '/' + base_name, 'label': None}, images_dir=images_dir,label_path=label_path)
-
-    def replace_sample(self, sample, idx=None, images_dir=None, label_path=None):
-        img, labels, image_path, ratio = self.load_data(
-            sample['file_name'],
-            # cls_label=sample['label'],
-            image_dir=images_dir or self.image_dir,
-            label_path=label_path or self.label_path,
-            cls_type = sample.get('klass', None)
-        )
-
+        
+    def replace_sample(self, sample, idx=None, images_dir=None,label_path=None):
+        data_class = sample.get('label', None)
+        img, labels, img_id = self.load_data(sample['file_name'], is_stream=True,data_class=data_class)
+        classes = [obj['category_id'] for obj in labels]
+        classes = [self.contiguous_class2id[self.ori_id2class[c]] 
+                   for c in classes]
         ### BEGIN USAGE
         entry = {
             "img": img,
             "labels": labels,
-            "img_path": image_path,
-            "ratio": ratio,
+            "img_id": img_id,
             "usage": sample.get("usage", 0),
-            "classes": torch.unique(labels[:, 0]).tolist() if len(labels) else []
+            "classes": list(set(classes)) if len(classes) else []
         }
         ### END USAGE
 
@@ -797,30 +919,97 @@ class FreqClsBalancedDataset(MemoryDataset):
         else:
             self.buffer[idx] = entry
     
-    def get_data(self, idx):
-        entry = self.buffer[idx]
-        img, labels, img_path = entry["img"], entry["labels"], entry["img_path"]
-        valid_mask = labels[:, 0] != -1
+    def register_sample_for_initial_buffer(self, sample, idx=None, images_dir=None,label_path=None):
+        img, labels, img_id = self.load_data(sample['file_name'], is_stream=False)
+        ### BEGIN USAGE
+        classes = [obj['category_id'] for obj in labels]
+        classes = [self.contiguous_class2id[self.ori_id2class[c]] 
+                   for c in classes]
+        entry = {
+            "img": img,
+            "labels": labels,
+            "img_id": img_id,
+            "usage": sample.get("usage", 0),
+            "classes": list(set(classes)) if len(classes) else []
+        }
+        ### END USAGE
 
-        return img, labels[valid_mask], img_path
+        if sample.get('klass', None):
+            self.cls_count[self.new_exposed_classes.index(sample['klass'])] += 1
+            sample_category = sample['klass']
+        elif sample.get('domain', None):
+            self.cls_count[self.new_exposed_classes.index(sample['domain'])] += 1
+            sample_category = sample['domain']
+        else:
+            self.cls_count[self.new_exposed_classes.index('pretrained')] += 1
+            sample_category = 'pretrained'
+        # self.cls_count[self.new_exposed_classes.index(sample.get('klass', 'pretrained'))] += 1
+        if idx is None:
+            self.cls_idx[self.new_exposed_classes.index(sample_category)].append(len(self.buffer))
+            self.buffer.append(entry)
+        else:
+            self.buffer[idx] = entry
+    
+    def register_stream(self, datalist):
+        self.stream_data = []
+        for data in datalist:
+            data_class = data.get('label', None)
+            img_path = data.get('file_name', data.get('filepath'))
+            
+            img, labels, img_id = self.load_data(img_path, is_stream=True, data_class=data_class)
+            classes = [obj['category_id'] for obj in labels]
+            classes = [self.contiguous_class2id[self.ori_id2class[c]] 
+                    for c in classes]
+            entry = {
+                "img": img,
+                "labels": labels,
+                "img_id": img_id,
+                "usage": 0,
+                "classes": list(set(classes)) if len(classes) else []
+            }
+            
+            self.stream_data.append(entry)
 
     @torch.no_grad()
-    def get_batch(self, batch_size, stream_batch_size=0, use_weight=None,
-                  transform=None, weight_method="cls_usage"):
+    def get_batch(self, batch_size, stream_batch_size=0, use_weight=None, transform=None, weight_method=None):
         assert batch_size >= stream_batch_size
         stream_batch_size = min(stream_batch_size, len(self.stream_data))
         batch_size = min(batch_size, stream_batch_size + len(self.buffer))
         memory_batch_size = batch_size - stream_batch_size
 
         data = []
+        
+        # append stream data to buffer for batch creation
+        buffer_size = len(self.buffer)
+        self.buffer.extend(self.stream_data)
+ 
         if stream_batch_size > 0:
             stream_indices = np.random.choice(range(len(self.stream_data)), size=stream_batch_size, replace=False)
             for i in stream_indices:
-                img, bboxes, img_path, _ = self.stream_data[i]
-                img, bboxes, rev_tensor = self.transform(img, bboxes)
-                bboxes[:, [1, 3]] *= self.image_sizes[0]
-                bboxes[:, [2, 4]] *= self.image_sizes[1]
-                data.append((img, bboxes, rev_tensor, img_path))
+                if self.use_mosaic_mixup:
+                    img, label, img_id = self.mosaic_wrapper.__getitem__((True, i + buffer_size))
+                else:
+                    entry = self.buffer[i + buffer_size]
+                    img, anno, img_id = entry['img'], entry['labels'], entry['img_id']
+                    anno = [obj for obj in anno if obj['iscrowd'] == 0]
+
+                    boxes = [obj['bbox'] for obj in anno]
+                    boxes = torch.as_tensor(boxes).reshape(-1, 4)  # guard against no boxes
+                    target = BoxList(boxes, img.size, mode='xywh').convert('xyxy')
+
+                    classes = [obj['category_id'] for obj in anno]
+                    classes = [self.contiguous_class2id[self.ori_id2class[c]] 
+                            for c in classes]
+
+                    classes = torch.tensor(classes)
+                    target.add_field('labels', classes)
+
+                    target = target.clip_to_image(remove_empty=True)
+                    
+                    img = np.asarray(img)
+                    img, label = self._transforms(img, target)
+                
+                data.append((img, label, img_id))
 
         # ───── Memory part ──────────────────────────────────────────────
         if memory_batch_size > 0 and len(self.buffer):
@@ -828,6 +1017,7 @@ class FreqClsBalancedDataset(MemoryDataset):
                 e['usage'] *= self.usage_decay
             for cls_idx in range(len(self.cls_train_cnt)):
                 self.cls_train_cnt[cls_idx] *= self.usage_decay
+
             ### HYBRID WEIGHT BEGIN
             if weight_method == "cls_usage":          # new option
                 # 1 / (usage+α)  ×  1 / (mean cls_trained + β)
@@ -867,14 +1057,83 @@ class FreqClsBalancedDataset(MemoryDataset):
                     if idx_cls < len(self.cls_train_cnt):
                         self.cls_train_cnt[int(idx_cls)] += 1
 
-                img, bboxes, img_path = self.get_data(i)
-                img, bboxes, rev_tensor = self.transform(img, bboxes)
-                bboxes[:, [1, 3]] *= self.image_sizes[0]
-                bboxes[:, [2, 4]] *= self.image_sizes[1]
-                data.append((img, bboxes, rev_tensor, img_path))
+                if self.use_mosaic_mixup:
+                    img, label, img_id = self.mosaic_wrapper.__getitem__((True, i))
+                else:
+                    entry = self.buffer[i]
+                    img, anno, img_id = entry['img'], entry['labels'], entry['img_id']
+                    anno = [obj for obj in anno if obj['iscrowd'] == 0]
 
-        return collate_fn(data)
+                    boxes = [obj['bbox'] for obj in anno]
+                    boxes = torch.as_tensor(boxes).reshape(-1, 4)  # guard against no boxes
+                    target = BoxList(boxes, img.size, mode='xywh').convert('xyxy')
 
+                    classes = [obj['category_id'] for obj in anno]
+                    classes = [self.contiguous_class2id[self.ori_id2class[c]] 
+                            for c in classes]
+
+                    classes = torch.tensor(classes)
+                    target.add_field('labels', classes)
+
+
+                    target = target.clip_to_image(remove_empty=True)
+                    
+                    img = np.asarray(img)
+                    img, label = self._transforms(img, target)
+                data.append((img, label, img_id))
+
+         # remove stream data from buffer
+        self.buffer = self.buffer[:buffer_size]
+        
+        return self.batch_collator(data)
+
+    def pull_item(self, idx):
+        entry = self.buffer[idx]
+        img, anno, img_id = entry['img'], entry['labels'], entry['img_id']
+        # filter crowd annotations
+        # TODO might be better to add an extra field
+        anno = [obj for obj in anno if obj['iscrowd'] == 0]
+
+        boxes = [obj['bbox'] for obj in anno]
+        boxes = torch.as_tensor(boxes).reshape(-1, 4)  # guard against no boxes
+        target = BoxList(boxes, img.size, mode='xywh').convert('xyxy')
+        
+        target = target.clip_to_image(remove_empty=True)
+
+        classes = [obj['category_id'] for obj in anno]
+        classes = [self.contiguous_class2id[self.ori_id2class[c]] 
+                   for c in classes]
+
+        obj_masks = []
+        for obj in anno:
+            obj_mask = []
+            if 'segmentation' in obj:
+                for mask in obj['segmentation']:
+                    obj_mask += mask
+                if len(obj_mask) > 0:
+                    obj_masks.append(obj_mask)
+        seg_masks = [
+            np.array(obj_mask, dtype=np.float32).reshape(-1, 2)
+            for obj_mask in obj_masks
+        ]
+
+        res = np.zeros((len(target.bbox), 5))
+        for idx in range(len(target.bbox)):
+            res[idx, 0:4] = target.bbox[idx]
+            res[idx, 4] = classes[idx]
+
+        img = np.asarray(img)  # rgb
+
+        return img, res, seg_masks, img_id
+    
+    def load_anno(self, idx):
+        entry = self.buffer[idx]
+        anno = entry['labels']
+        anno = [obj for obj in anno if obj['iscrowd'] == 0]
+        classes = [obj['category_id'] for obj in anno]
+        classes = [self.contiguous_class2id[self.ori_id2class[c]] 
+                   for c in classes]
+        return classes
 #################################################################################################
 ########## Below is original code that we don't use now
 
