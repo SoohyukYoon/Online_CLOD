@@ -60,10 +60,10 @@ def filter_dataset(original_path, output_path, target_dataset, label_bound):
 if __name__ == "__main__":
 
     original_path = Path("./data/voc")
-    output_path   = Path("./data/voc_10")
+    output_path   = Path("./data/voc_15")
     # target_datasets = ['train2007', 'val2007', 'test2007', 'train2012', 'val2012']
     target_datasets = ['train', 'val']
-    label_bound = 10
+    label_bound = 15
     
     for target_dataset in target_datasets:
         print(f"Processing {target_dataset}")
