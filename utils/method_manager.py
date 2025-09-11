@@ -17,15 +17,19 @@ from methods.baseline2 import BASELINE2
 from methods.baseline2_balanced import BASELINE2Balanced
 from methods.baseline2_frequency import BASELINE2Frequency
 from methods.baseline2_freq_balanced import BASELINE2FreqBalanced
+from methods.er_freq_balanced import ERFreqBalanced
+from methods.er_frequency import ERFrequency
+from methods.er_balanced import ERBalanced
 
 from methods.finetune import FINETUNE
 from methods.sdp import SDP
 from methods.sdp_only import SDPOnly
 from methods.lwf_logit import LWF_Logit
 from methods.lwf_feature_extraction import LWF_Feature
-from methods.abr import ABR
+# from methods.abr import ABR
 
 logger = logging.getLogger()
+
 
 def select_method(args, criterion, n_classes, device):
     kwargs = vars(args)
@@ -87,6 +91,27 @@ def select_method(args, criterion, n_classes, device):
         )
     elif args.mode == "baseline2_freq_balanced":
         method = BASELINE2FreqBalanced(
+            criterion=criterion,
+            device=device,
+            n_classes=n_classes,
+            **kwargs,
+        )
+    elif args.mode == "er_freq_balanced":
+        method = ERFreqBalanced(
+            criterion=criterion,
+            device=device,
+            n_classes=n_classes,
+            **kwargs,
+        )
+    elif args.mode == "er_balanced":
+        method = ERBalanced(
+            criterion=criterion,
+            device=device,
+            n_classes=n_classes,
+            **kwargs,
+        )
+    elif args.mode == "er_frequency":
+        method = ERFrequency(
             criterion=criterion,
             device=device,
             n_classes=n_classes,
