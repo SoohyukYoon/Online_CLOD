@@ -43,11 +43,11 @@ class DatasetCatalog(object):
         # --- SHIFT 데이터셋 ---
         'shift_train_pretrain': {
             'img_dir': '/home/vision/mjlee/Online_CLOD/data/shift_source/images/train',
-            'ann_file': '/home/vision/mjlee/Online_CLOD/data/shift_source/annotations/instances_train.json'
+            'ann_file': '/home/vision/mjlee/Online_CLOD/data/shift_source/annotations/instances_train2.json'
         } ,
         'shift_val_pretrain': {
             'img_dir': '/home/vision/mjlee/Online_CLOD/data/shift_source/images/val',
-            'ann_file': '/home/vision/mjlee/Online_CLOD/data/shift_source/annotations/instances_val_full.json'
+            'ann_file': '/home/vision/mjlee/Online_CLOD/data/shift_source/annotations/instances_val2.json'
         },
         
         'shift_train': {
