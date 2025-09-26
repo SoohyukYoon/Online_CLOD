@@ -189,7 +189,7 @@ class MemoryDataset(COCODataset):
         for i in range(len(label)):
             if is_stream:
                 if self.dataset == 'VOC_10_10':
-                    if self.contiguous_class2id[self.ori_id2class[label[i]['category_id']]] == data_class: # VOC_10_10 labels start from 0
+                    if self.contiguous_class2id[self.ori_id2class[label[i]['category_id']]] <= data_class:# == data_class: # VOC_10_10 labels start from 0
                         indices_to_keep.append(i)
                     # if self.contiguous_class2id[self.ori_id2class[label[i]['category_id']]] < len(self.cls_list): # VOC_10_10 labels start from 0
                     #     indices_to_keep.append(i)
@@ -435,7 +435,7 @@ class FreqDataset(MemoryDataset):
                          init_buffer_size, image_size, aug)
         self.alpha = 1.0                  # smoothing constant in 1/(usage+α)
         self.beta = 1.0
-        self.usage_decay = 0.9
+        self.usage_decay = 0.995
 
     def replace_sample(self, sample, idx=None, images_dir=None,label_path=None):
         data_class = sample.get('label', None)
@@ -776,8 +776,8 @@ class ClassBalancedDataset(MemoryDataset):
             self.buffer[idx] = data
     def register_sample_for_initial_buffer(self, sample, idx=None, images_dir=None, label_path=None):
         data_class = sample.get('label', None)
-        img, labels = self.load_data(sample['file_name'], is_stream=False)
-        data = (img, labels)
+        img, labels, img_id = self.load_data(sample['file_name'], is_stream=False)
+        data = (img, labels, img_id)
         if sample.get('klass', None):
             self.cls_count[self.new_exposed_classes.index(sample['klass'])] += 1
             sample_category = sample['klass']

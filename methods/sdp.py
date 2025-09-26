@@ -11,17 +11,16 @@ from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 
 from methods.er_baseline import ER
+from methods.baseline2_balanced import BASELINE2Balanced
 from utils.data_loader import MemoryDataset, ClassBalancedDataset, FreqClsBalancedDataset
 
 logger = logging.getLogger()
 writer = SummaryWriter("tensorboard")
 
 
-class SDP(ER):
+class SDP(BASELINE2Balanced):
     def __init__(self, criterion, n_classes, device, **kwargs):
         super().__init__(criterion=criterion, n_classes=n_classes, device=device, **kwargs)
-        self.memory_size = kwargs["memory_size"] - 32*3 # yolov9-s 모델 하나당 이미지 32장과 동일
-        self.memory = ClassBalancedDataset(self.args, self.dataset, self.exposed_classes, device=self.device, memory_size=self.memory_size, mosaic_prob=kwargs['mosaic_prob'],mixup_prob=kwargs['mixup_prob'])
         self.sdp_mean = 10000 #kwargs['sdp_mean']
         self.sdp_varcoeff = 0.75 #kwargs['sdp_var']
         assert 0.5 - 1 / self.sdp_mean < self.sdp_varcoeff < 1 - 1 / self.sdp_mean
@@ -37,93 +36,32 @@ class SDP(ER):
         self.reweight_ratio = 0.0
         self.det_loss_ema = 0.0
         self.det_loss_decay = 0.5
+
+    def initialize_memory_buffer(self, memory_size):
+        self.memory_size = memory_size - 32*3
+        data_args = self.damo_cfg.get_data(self.damo_cfg.dataset.train_ann[0])
+        self.memory = ClassBalancedDataset(ann_file=data_args['args']['ann_file'], root=data_args['args']['root'], transforms=None,class_names=self.damo_cfg.dataset.class_names,
+            dataset=self.dataset, cls_list=self.exposed_classes, device=self.device, memory_size=self.memory_size, image_size=self.img_size, aug=self.damo_cfg.train.augment)
         
-        # self.feature_layers = kwargs.get("feature_layers", [15,18,21])
-        self.feature_layers = kwargs.get("feature_layers", [0,1,2])
-        # put hook
-        self.put_hook()
         self.new_exposed_classes = ['pretrained']
 
-    def put_hook(self):
-        self.features_per_layer = {}
-        for layer in self.feature_layers:
-            self.features_per_layer[layer] = []
-        
-        self.sdp_features_per_layer = {}
-        for layer in self.feature_layers:
-            self.sdp_features_per_layer[layer] = []
-        self.hooks = []
-        for layer in self.feature_layers:
-            # hook = self.model.model[layer].register_forward_hook(
-            #     lambda m, x, y, layer=layer: self.features_per_layer[layer].append(y))
-            # hook2 = self.sdp_model.model[layer].register_forward_hook(
-            #     lambda m, x, y, layer=layer: self.sdp_features_per_layer[layer].append(y))
-            hook = self.model.model[22].heads[layer].class_conv[1].register_forward_hook(
-                lambda m, x, y, layer=layer: self.features_per_layer[layer].append(y))
-            hook2 = self.sdp_model.model[22].heads[layer].class_conv[1].register_forward_hook(
-                lambda m, x, y, layer=layer: self.sdp_features_per_layer[layer].append(y))
-            self.hooks.append(hook)
-            self.hooks.append(hook2)
-
-    def update_memory(self, sample):
-        self.balanced_replace_memory(sample)
-
-    def balanced_replace_memory(self, sample):
-        if len(self.memory) >= self.memory_size:
-            label_frequency = copy.deepcopy(self.memory.cls_count)
-            if sample.get('klass', None):
-                sample_category = sample['klass']
-            elif sample.get('domain', None):
-                sample_category = sample['domain']
-            else:
-                sample_category = 'pretrained'
-            
-            label_frequency[self.new_exposed_classes.index(sample_category)] += 1
-            cls_to_replace = np.random.choice(
-                np.flatnonzero(np.array(label_frequency) == np.array(label_frequency).max()))
-            idx_to_replace = np.random.choice(self.memory.cls_idx[cls_to_replace])
-            self.memory.replace_sample(sample, idx_to_replace)
-            
-            self.memory.cls_count[cls_to_replace] -= 1
-            self.memory.cls_idx[cls_to_replace].remove(idx_to_replace)
-            self.memory.cls_idx[self.new_exposed_classes.index(sample_category)].append(idx_to_replace)
-        else:
-            self.memory.replace_sample(sample)
-
     def copy_model_head(self):
-        self.sdp_model.model[22].heads[0].class_conv[2] = copy.deepcopy(self.model.model[22].heads[0].class_conv[2])
-        self.sdp_model.model[22].heads[1].class_conv[2] = copy.deepcopy(self.model.model[22].heads[1].class_conv[2])
-        self.sdp_model.model[22].heads[2].class_conv[2] = copy.deepcopy(self.model.model[22].heads[2].class_conv[2])
-        self.sdp_model.model[30].heads[0].class_conv[2] = copy.deepcopy(self.model.model[30].heads[0].class_conv[2])
-        self.sdp_model.model[30].heads[1].class_conv[2] = copy.deepcopy(self.model.model[30].heads[1].class_conv[2])
-        self.sdp_model.model[30].heads[2].class_conv[2] = copy.deepcopy(self.model.model[30].heads[2].class_conv[2])
+        self.sdp_model.head.gfl_cls[0] = copy.deepcopy(self.model.head.gfl_cls[0])
+        self.sdp_model.head.gfl_cls[1] = copy.deepcopy(self.model.head.gfl_cls[1])
+        self.sdp_model.head.gfl_cls[2] = copy.deepcopy(self.model.head.gfl_cls[2])
         
-        self.ema_model_1.model[22].heads[0].class_conv[2] = copy.deepcopy(self.model.model[22].heads[0].class_conv[2])
-        self.ema_model_1.model[22].heads[1].class_conv[2] = copy.deepcopy(self.model.model[22].heads[1].class_conv[2])
-        self.ema_model_1.model[22].heads[2].class_conv[2] = copy.deepcopy(self.model.model[22].heads[2].class_conv[2])
-        self.ema_model_1.model[30].heads[0].class_conv[2] = copy.deepcopy(self.model.model[30].heads[0].class_conv[2])
-        self.ema_model_1.model[30].heads[1].class_conv[2] = copy.deepcopy(self.model.model[30].heads[1].class_conv[2])
-        self.ema_model_1.model[30].heads[2].class_conv[2] = copy.deepcopy(self.model.model[30].heads[2].class_conv[2])
+        self.ema_model_1.head.gfl_cls[0] = copy.deepcopy(self.model.head.gfl_cls[0])
+        self.ema_model_1.head.gfl_cls[1] = copy.deepcopy(self.model.head.gfl_cls[1])
+        self.ema_model_1.head.gfl_cls[2] = copy.deepcopy(self.model.head.gfl_cls[2])
         
-        self.ema_model_2.model[22].heads[0].class_conv[2] = copy.deepcopy(self.model.model[22].heads[0].class_conv[2])
-        self.ema_model_2.model[22].heads[1].class_conv[2] = copy.deepcopy(self.model.model[22].heads[1].class_conv[2])
-        self.ema_model_2.model[22].heads[2].class_conv[2] = copy.deepcopy(self.model.model[22].heads[2].class_conv[2])
-        self.ema_model_2.model[30].heads[0].class_conv[2] = copy.deepcopy(self.model.model[30].heads[0].class_conv[2])
-        self.ema_model_2.model[30].heads[1].class_conv[2] = copy.deepcopy(self.model.model[30].heads[1].class_conv[2])
-        self.ema_model_2.model[30].heads[2].class_conv[2] = copy.deepcopy(self.model.model[30].heads[2].class_conv[2])
-
+        self.ema_model_2.head.gfl_cls[0] = copy.deepcopy(self.model.head.gfl_cls[0])
+        self.ema_model_2.head.gfl_cls[1] = copy.deepcopy(self.model.head.gfl_cls[1])
+        self.ema_model_2.head.gfl_cls[2] = copy.deepcopy(self.model.head.gfl_cls[2])
+        
     def add_new_class(self, class_name):
         super().add_new_class(class_name)
         
         self.copy_model_head()
-        
-        args_copied = copy.deepcopy(self.args)
-        args_copied.task.loss.aux = 0.0
-        self.sdp_model.set_loss_function(args_copied, self.vec2box, self.num_learned_class)
-        
-        self.new_exposed_classes.append(class_name)
-        
-        self.memory.new_exposed_classes = self.new_exposed_classes
 
     def online_step(self, sample, sample_num, n_worker):
         if sample.get('klass',None) and sample['klass'] not in self.exposed_classes:
@@ -206,7 +144,7 @@ class SDP(ER):
 
         for name, buffer in model_buffers.items():
             shadow_buffers[name].copy_(buffer)
-    
+
     def online_train(self, sample, batch_size, n_worker, iterations=1, stream_batch_size=1):
         total_loss = 0.0
         if len(sample) > 0:
@@ -214,17 +152,10 @@ class SDP(ER):
         for i in range(iterations):
             self.model.train()
             data = self.memory.get_batch(batch_size, stream_batch_size)
-
-            batch = {
-                "img": data[1],         # images
-                "cls": data[2],         # labels
-                "reverse": data[3],     # reverse tensors
-                "img_path": data[4],    # image paths
-            }
-
+            
             self.optimizer.zero_grad()
 
-            loss, loss_item = self.model_forward(batch)
+            loss, loss_item = self.model_forward(data)
 
             if self.use_amp:
                 self.scaler.scale(loss).backward()
@@ -246,10 +177,7 @@ class SDP(ER):
     def model_forward(self, batch):
         batch = self.preprocess_batch(batch)
 
-        for layer in self.feature_layers:
-            self.features_per_layer[layer].clear()
-            self.sdp_features_per_layer[layer].clear()
-        with torch.cuda.amp.autocast(enabled=self.use_amp):
+        with torch.cuda.amp.autocast(enabled=False):
             # 모델 실행: output = {"AUX": ..., "Main": ...}
             outputs = self.model(batch["img"])
             aux_raw = outputs["AUX"]
@@ -289,16 +217,6 @@ class SDP(ER):
 
             return loss, loss_item
 
-    def online_evaluate(self, sample_num, data_time):
-        for hook in self.hooks:
-            hook.remove()
-        
-        eval_dict = super().online_evaluate(sample_num, data_time)
-        
-        self.put_hook()  # Re-register hooks after evaluation
-        
-        return eval_dict
-    
     @torch.no_grad()
     def get_grad(self, loss: torch.Tensor, param_list):
         # autograd will return *None* when the param is unused

@@ -23,7 +23,7 @@ class LWF_Logit(ER):
     def __init__(self, criterion, n_classes, device, **kwargs):
         super().__init__(criterion, n_classes, device, **kwargs)
         self.old_model = None
-        self.lambda_old = 0.1#kwargs.get("lambda_old", 0.1)
+        self.lambda_old = 0.01#kwargs.get("lambda_old", 0.1)
         logger.info(f"[LWF INIT] lambda_old: {self.lambda_old}")
         
     def model_forward(self, batch):

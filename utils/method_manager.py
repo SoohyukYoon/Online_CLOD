@@ -20,6 +20,7 @@ from methods.baseline2_freq_balanced import BASELINE2FreqBalanced
 from methods.er_freq_balanced import ERFreqBalanced
 from methods.er_frequency import ERFrequency
 from methods.er_balanced import ERBalanced
+from methods.er_freq_balanced2 import ERFreqBalanced2
 
 from methods.finetune import FINETUNE
 from methods.sdp import SDP
@@ -98,6 +99,13 @@ def select_method(args, criterion, n_classes, device):
         )
     elif args.mode == "er_freq_balanced":
         method = ERFreqBalanced(
+            criterion=criterion,
+            device=device,
+            n_classes=n_classes,
+            **kwargs,
+        )
+    elif args.mode == "er_freq_balanced2":
+        method = ERFreqBalanced2(
             criterion=criterion,
             device=device,
             n_classes=n_classes,

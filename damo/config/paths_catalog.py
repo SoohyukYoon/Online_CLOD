@@ -21,6 +21,24 @@ class DatasetCatalog(object):
             'ann_file': 'coco/annotations/image_info_test-dev2017.json'
         },
         
+        'coco_60_train': {
+            'img_dir': 'coco_60/images/train2017',
+            'ann_file': 'coco_60/annotations/instances_train2017.json'
+        },
+        'coco_60_val': {
+            'img_dir': 'coco_60/images/val2017',
+            'ann_file': 'coco_60/annotations/instances_val2017.json'
+        },
+        
+        'coco_70_train': {
+            'img_dir': 'coco_70/images/train2017',
+            'ann_file': 'coco_70/annotations/instances_train2017.json'
+        },
+        'coco_70_val': {
+            'img_dir': 'coco_70/images/val2017',
+            'ann_file': 'coco_70/annotations/instances_val2017.json'
+        },
+        
         # --- VOC 데이터셋 ---
         'voc_10_train': {
             'img_dir': 'voc_10/images/train_merged',

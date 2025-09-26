@@ -13,16 +13,133 @@ damo_yolo_s_block_list = [
     ['neck.merge_4'], 
     ['neck.merge_3'],
     # PAN
-    ['neck.bu_conv13', 'neck.bu_conv24', 'neck.merge_7', 'neck.bu_conv57', 'neck.merge_6', 'neck.bu_conv46', 'neck.bu_conv76'],
+    ['neck.bu_conv13'], 
+    ['neck.bu_conv24'], 
+    ['neck.merge_7'], 
+    ['neck.bu_conv57'], 
+    ['neck.merge_6'], 
+    ['neck.bu_conv46'], 
+    ['neck.bu_conv76'],
     
     # Head
-    ['head.gfl_reg'],
-    ['head.gfl_cls']
+    # ['head.gfl_reg'],
+    # ['head.gfl_cls']
+    ['head.gfl_reg','head.gfl_cls']
 ]
 
+damo_yolo_s_block_list2 = [
+    # Backbone
+    ['backbone.block_list.0'],
+    ['backbone.block_list.1'],
+    ['backbone.block_list.2'],
+    ['backbone.block_list.3'],
+    ['backbone.block_list.4'],
+    ['backbone.block_list.5'],
+    
+    # Neck
+    # FPN
+    ['neck.merge_5'], 
+    ['neck.merge_4'], 
+    ['neck.merge_3'],
+    # PAN
+    ['neck.bu_conv13', 
+    'neck.bu_conv24', 
+    'neck.merge_7', 
+    'neck.bu_conv57', 
+    'neck.merge_6', 
+    'neck.bu_conv46', 
+    'neck.bu_conv76'],
+    
+    # Head
+    # ['head.gfl_reg'],
+    # ['head.gfl_cls']
+    ['head.gfl_reg','head.gfl_cls']
+]
+
+damo_yolo_s_block_list3 = [
+    # Backbone
+    ['backbone.block_list.0'],
+    ['backbone.block_list.1'],
+    ['backbone.block_list.2'],
+    ['backbone.block_list.3'],
+    ['backbone.block_list.4'],
+    ['backbone.block_list.5'],
+    
+    # Neck
+    # FPN
+    ['neck.merge_5'], 
+    ['neck.merge_4'], 
+    ['neck.merge_3'],
+    # PAN
+    ['neck.bu_conv13', 
+    'neck.bu_conv24',], 
+    ['neck.merge_7'], 
+    ['neck.bu_conv57'], 
+    ['neck.merge_6'], 
+    ['neck.bu_conv46', 
+    'neck.bu_conv76'],
+    
+    # Head
+    # ['head.gfl_reg'],
+    # ['head.gfl_cls']
+    ['head.gfl_reg','head.gfl_cls']
+]
+
+damo_yolo_s_block_list4 = [
+    # Backbone
+    ['backbone.block_list.0'],
+    ['backbone.block_list.1'],
+    ['backbone.block_list.2'],
+    ['backbone.block_list.3'],
+    ['backbone.block_list.4'],
+    ['backbone.block_list.5'],
+    
+    # Neck
+    # FPN
+    ['neck.bu_conv13'],
+    ['neck.merge_3'],
+    ['neck.bu_conv24'],
+    ['neck.merge_4'],
+    ['neck.merge_5'],
+    ['neck.bu_conv57'],
+    ['neck.merge_7'],
+    ['neck.merge_6'],
+    
+    # Head
+    # ['head.gfl_reg'],
+    # ['head.gfl_cls']
+    ['head.gfl_reg','head.gfl_cls']
+]
+
+damo_yolo_s_block_list5 = [
+    # Backbone
+    ['backbone.block_list.0'],
+    ['backbone.block_list.1'],
+    ['backbone.block_list.2'],
+    ['backbone.block_list.3'],
+    ['backbone.block_list.4'],
+    ['backbone.block_list.5'],
+    
+    # Neck
+    # FPN
+    ['neck.bu_conv13', 'neck.merge_3'],
+    ['neck.bu_conv24','neck.merge_4'],
+    ['neck.merge_5'],
+    ['neck.bu_conv57','neck.merge_7'],
+    ['neck.bu_conv46','neck.bu_conv76','neck.merge_6'],
+    
+    # Head
+    # ['head.gfl_reg'],
+    # ['head.gfl_cls']
+    ['head.gfl_reg','head.gfl_cls']
+]
 
 MODEL_BLOCK_DICT = {
     'damo': damo_yolo_s_block_list,
+    'damo2': damo_yolo_s_block_list2,
+    'damo3': damo_yolo_s_block_list3,
+    'damo4': damo_yolo_s_block_list4,
+    'damo5': damo_yolo_s_block_list5,
 }
 
 def get_blockwise_flops(flops_dict, model_name, method=None):
