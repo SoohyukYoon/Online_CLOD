@@ -43,7 +43,7 @@ def select_model(dataset, cfg):
             state_dict = torch.load(pretrained_path, map_location='cpu')
             model.load_state_dict(state_dict['model'])
     elif dataset == 'SHIFT_domain' or dataset == 'SHIFT_domain_small':
-        pretrained_path = "./damo_pretrain_shift.pth"
+        pretrained_path = "./damo_pretrain_outputs_w/shift/pretrain_shift/damo_pretrain_shift_w_newnew.pth"
         if os.path.exists(pretrained_path):
             state_dict = torch.load(pretrained_path, map_location='cpu')
             model.load_state_dict(state_dict['model'])
