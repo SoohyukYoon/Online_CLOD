@@ -46,9 +46,9 @@ def get_statistics(dataset: str):
     """
     if dataset == 'VOC_10_10':
         return 20, 'data/voc/images', 'data/voc/annotations' ## 경로 수정
-    elif dataset == 'BDD_domain':
+    elif dataset == 'BDD_domain' or dataset == 'BDD_domain_small':
         return 13, 'data/bdd100k/images', 'data/bdd100k/annotations'
-    elif dataset == 'SHIFT_domain':
+    elif dataset == 'SHIFT_domain' or dataset == 'SHIFT_domain_small':
         return 6, 'data/shift/images', 'data/shift/annotations'
     elif 'MILITARY_SYNTHETIC_domain' in dataset:
         return 9, 'data/military_synthetic/images', 'data/military_synthetic/annotations'
@@ -58,9 +58,9 @@ def get_statistics(dataset: str):
 def get_pretrained_statistics(dataset: str):
     if dataset == 'VOC_10_10':
         return 10, 'data/voc_10/images', 'data/voc_10/annotations' ## 경로 수정
-    elif dataset == 'BDD_domain':
+    elif dataset == 'BDD_domain' or dataset == 'BDD_domain_small':
         return 13, 'data/bdd100k_source/images', 'data/bdd100k_source/annotations'
-    elif dataset == 'SHIFT_domain':
+    elif dataset == 'SHIFT_domain' or dataset == 'SHIFT_domain_small':
         return 6, 'data/shift_source/images', 'data/shift_source/annotations'
     elif 'MILITARY_SYNTHETIC_domain' in dataset:
         return 9, 'data/military_synthetic_domain_source/images', 'data/military_synthetic_domain_source/annotations'
@@ -70,9 +70,9 @@ def get_pretrained_statistics(dataset: str):
 def get_exposed_classes(dataset: str):
     if dataset == 'VOC_10_10':
         return ['aeroplane', 'bicycle', 'bird', 'boat', 'bottle', 'bus', 'car', 'cat', 'chair', 'cow']
-    elif dataset == 'BDD_domain':
+    elif dataset == 'BDD_domain' or dataset == 'BDD_domain_small':
         return ['pedestrian', 'rider', 'car', 'bus', 'truck', 'bicycle', 'motorcycle', 'traffic light', 'traffic sign', 'train', 'trailer', 'other person', 'other vehicle']
-    elif dataset == 'SHIFT_domain':
+    elif dataset == 'SHIFT_domain' or dataset == 'SHIFT_domain_small':
         return ['pedestrian', 'car', 'truck', 'bus', 'motorcycle', 'bicycle']
     elif 'MILITARY_SYNTHETIC_domain' in dataset:
         return ['fishing vessel', 'warship', 'merchant vessel', 'fixed-wing aircraft', 'rotary-wing aircraft', 'Unmanned Aerial Vehicle', 'bird', 'leaflet', 'waste bomb']

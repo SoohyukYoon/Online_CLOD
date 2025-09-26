@@ -430,7 +430,7 @@ class ER:
         self.model.eval()
         print("evaluate")
 
-        if self.dataset=='BDD_domain':
+        if self.dataset=='BDD_domain' or self.dataset=='BDD_domain_small':
             eval_dict = {"avg_mAP50":0, "classwise_mAP50":[]}
             for data_name in self.exposed_domains:
                 datasets = build_dataset(
@@ -453,7 +453,7 @@ class ER:
                 eval_dict['avg_mAP50'] += average / len(self.exposed_domains)
                 eval_dict["classwise_mAP50"].append(average)
 
-        elif self.dataset=='SHIFT_domain':
+        elif self.dataset=='SHIFT_domain' or self.dataset=='SHIFT_domain_small':
             eval_dict = {"avg_mAP50":0, "classwise_mAP50":[]}
             for data_name in self.exposed_domains:
                 datasets = build_dataset(self.damo_cfg, [data_name], is_train=False)
