@@ -28,6 +28,7 @@ from methods.sdp_only import SDPOnly
 from methods.lwf_logit import LWF_Logit
 from methods.lwf_feature_extraction import LWF_Feature
 # from methods.abr import ABR
+from methods.er_pseudo import ERPseudo
 
 logger = logging.getLogger()
 
@@ -113,6 +114,13 @@ def select_method(args, criterion, n_classes, device):
         )
     elif args.mode == "er_balanced":
         method = ERBalanced(
+            criterion=criterion,
+            device=device,
+            n_classes=n_classes,
+            **kwargs,
+        )
+    elif args.mode == "er_pseudo":
+        method = ERPseudo(
             criterion=criterion,
             device=device,
             n_classes=n_classes,
