@@ -64,7 +64,7 @@ class ERPseudo(ER):
         if len(sample) > 0:
             self.memory.register_stream(sample)
         for i in range(iterations):
-            data = self.memory.get_batch(batch_size, stream_batch_size, model=self.model, score_thresh=0.5)
+            data = self.memory.get_batch(batch_size, stream_batch_size, model=self.model, score_thresh=0.8)
             self.model.train()
             self.optimizer.zero_grad()
 

@@ -154,7 +154,7 @@ class MemoryDataset(COCODataset):
             mosaic_scale=aug.mosaic_mixup.mosaic_scale,
             keep_ratio=True,
         )
-        self.use_mosaic_mixup=True 
+        self.use_mosaic_mixup=False
         
         self.batch_collator = BatchCollator(size_divisible=32)
     
@@ -425,18 +425,17 @@ def get_test_datalist(dataset) -> List:
 
 ##############################################################################################
 # MemoryPseudoDataset
-
-def generate_pseudo_labels(model, img, score_thresh=0.7, image_sizes=(640,640),device='cuda'):
+from damo.dataset.datasets.mosaic_wrapper import PseudoMosaicWrapper
+from damo.dataset.transforms import transforms as T
+def generate_pseudo_labels(model, img, score_thresh=0.7, transform=None,image_sizes=(640,640),device='cuda'):
     # generate pseudo labels
     model.eval()
     img_cv = np.asarray(img)
-    img_cv = cv2.cvtColor(img_cv, cv2.COLOR_RGB2BGR)
     height, width = img_cv.shape[:2]
-    img_resized = cv2.resize(img_cv, (image_sizes[1], image_sizes[0]))
-    img_normalized = img_resized / 255.0
-    img_transposed = np.transpose(img_normalized, (2, 0, 1))
-    img_tensor = torch.from_numpy(img_transposed).float().unsqueeze(0).to(device)
-
+    if transform is not None:
+        img_tensor = transform(img_cv)[0].unsqueeze(0).to(device)
+    else:
+        img_tensor = T.ToTensor()(img_cv)[0].unsqueeze(0).to(device)
     with torch.no_grad():
         outputs = model(img_tensor)[0]
 
@@ -449,16 +448,15 @@ def generate_pseudo_labels(model, img, score_thresh=0.7, image_sizes=(640,640),d
     boxes[:, 1] = boxes[:, 1] * height / image_sizes[0]
     boxes[:, 2] = boxes[:, 2] * width / image_sizes[1]
     boxes[:, 3] = boxes[:, 3] * height / image_sizes[0]
-    breakpoint()
+    
     # filter boxes by score threshold
     keep_indices = np.where(scores >= score_thresh)[0]
     boxes = boxes[keep_indices]
     scores = scores[keep_indices]
     labels = labels[keep_indices]
-    breakpoint()
     return boxes, labels, scores
 
-from damo.dataset.datasets.mosaic_wrapper import PseudoMosaicWrapper
+
 class MemoryPseudoDataset(MemoryDataset):
     def __init__(self, ann_file, root, transforms=None, class_names=None,
                  dataset=None, cls_list=None, device=None, data_dir=None, memory_size=None, 
@@ -477,6 +475,14 @@ class MemoryPseudoDataset(MemoryDataset):
             translate=aug.mosaic_mixup.translate,
             mosaic_scale=aug.mosaic_mixup.mosaic_scale,
             keep_ratio=True,
+        )
+        
+        self.test_transform = T.Compose(
+            [
+                T.Resize(image_size, keep_ratio=False),
+                T.ToTensor(),
+                T.Normalize(mean=[0.0, 0.0, 0.0], std=[1.0, 1.0, 1.0]),
+            ]
         )
     def register_stream(self, datalist):
         self.stream_data = []
@@ -541,7 +547,7 @@ class MemoryPseudoDataset(MemoryDataset):
                         img = np.asarray(img)
                         img, label = self._transforms(img, target)
                     else:
-                        boxes, labels, scores = generate_pseudo_labels(model, img, score_thresh=score_thresh, image_sizes=self.image_sizes, device=self.device)
+                        boxes, labels, scores = generate_pseudo_labels(model, img, score_thresh=score_thresh, transform=self.test_transform, image_sizes=self.image_sizes, device=self.device)
 
                         if len(boxes) > 0:
                             target = BoxList(torch.tensor(boxes), img.size, mode='xyxy')
@@ -552,7 +558,9 @@ class MemoryPseudoDataset(MemoryDataset):
                         else:
                             # no valid boxes
                             # create empty label
-                            img, label = self._transforms(np.asarray(img), BoxList(torch.zeros((0,4)), img.size, mode='xyxy'))
+                            target = BoxList(torch.zeros((0,4)), img.size, mode='xyxy')
+                            target.add_field('labels', torch.tensor([]))
+                            img, label = self._transforms(np.asarray(img), target)
                 
                 data.append((img, label, img_id))
 
@@ -564,13 +572,13 @@ class MemoryPseudoDataset(MemoryDataset):
                 else:
                     img, label, img_id = self.buffer[i]
                     if label is not None:
-                        anno = [obj for obj in anno if obj['iscrowd'] == 0]
+                        label = [obj for obj in label if obj['iscrowd'] == 0]
 
-                        boxes = [obj['bbox'] for obj in anno]
+                        boxes = [obj['bbox'] for obj in label]
                         boxes = torch.as_tensor(boxes).reshape(-1, 4)  # guard against no boxes
                         target = BoxList(boxes, img.size, mode='xywh').convert('xyxy')
 
-                        classes = [obj['category_id'] for obj in anno]
+                        classes = [obj['category_id'] for obj in label]
                         classes = [self.contiguous_class2id[self.ori_id2class[c]] 
                                 for c in classes]
 
@@ -583,7 +591,7 @@ class MemoryPseudoDataset(MemoryDataset):
                         img = np.asarray(img)
                         img, label = self._transforms(img, target)
                     else:
-                        boxes, labels, scores = generate_pseudo_labels(model, img, score_thresh=score_thresh, image_sizes=self.image_sizes, device=self.device)
+                        boxes, labels, scores = generate_pseudo_labels(model, img, score_thresh=score_thresh,transform=self.test_transform, image_sizes=self.image_sizes, device=self.device)
 
                         if len(boxes) > 0:
                             target = BoxList(torch.tensor(boxes), img.size, mode='xyxy')
@@ -594,7 +602,9 @@ class MemoryPseudoDataset(MemoryDataset):
                         else:
                             # no valid boxes
                             # create empty label
-                            img, label = self._transforms(np.asarray(img), BoxList(torch.zeros((0,4)), img.size, mode='xyxy'))
+                            target = BoxList(torch.zeros((0,4)), img.size, mode='xyxy')
+                            target.add_field('labels', torch.tensor([]))
+                            img, label = self._transforms(np.asarray(img), target)
                 
                 data.append((img, label, img_id))
 
@@ -607,7 +617,7 @@ class MemoryPseudoDataset(MemoryDataset):
         img, anno, img_id = self.buffer[idx]
         
         if anno is None:
-            boxes, labels, scores = generate_pseudo_labels(model, img, score_thresh=score_thresh, image_sizes=self.image_sizes, device=self.device)
+            boxes, labels, scores = generate_pseudo_labels(model, img, score_thresh=score_thresh, transform=self.test_transform, image_sizes=self.image_sizes, device=self.device)
             anno = []
             for box, label in zip(boxes, labels):
                 anno.append({'bbox': box.tolist(), 'category_id': int(label), 'iscrowd': 0})
@@ -651,7 +661,7 @@ class MemoryPseudoDataset(MemoryDataset):
     def load_anno(self, idx, model=None, score_thresh=0.7):
         img, anno, _ = self.buffer[idx]
         if anno is None:
-            boxes, labels, scores = generate_pseudo_labels(model, img, score_thresh=score_thresh, image_sizes=self.image_sizes, device=self.device)
+            boxes, labels, scores = generate_pseudo_labels(model, img, score_thresh=score_thresh, transform=self.test_transform, image_sizes=self.image_sizes, device=self.device)
             anno = []
             for box, label in zip(boxes, labels):
                 anno.append({'bbox': box.tolist(), 'category_id': int(label), 'iscrowd': 0})
