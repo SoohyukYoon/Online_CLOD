@@ -29,6 +29,7 @@ from methods.lwf_logit import LWF_Logit
 from methods.lwf_feature_extraction import LWF_Feature
 # from methods.abr import ABR
 from methods.er_pseudo import ERPseudo
+from methods.er_freq_balanced_pseudo import ERFreqBalancedPseudo
 
 logger = logging.getLogger()
 
@@ -121,6 +122,13 @@ def select_method(args, criterion, n_classes, device):
         )
     elif args.mode == "er_pseudo":
         method = ERPseudo(
+            criterion=criterion,
+            device=device,
+            n_classes=n_classes,
+            **kwargs,
+        )
+    elif args.mode == "er_freq_balanced_pseudo":
+        method = ERFreqBalancedPseudo(
             criterion=criterion,
             device=device,
             n_classes=n_classes,
