@@ -31,6 +31,8 @@ from methods.lwf_feature_extraction import LWF_Feature
 from methods.er_pseudo import ERPseudo
 from methods.er_freq_balanced_pseudo import ERFreqBalancedPseudo
 
+from methods.baseline2_freq_balanced_pseudo_tia import BASELINEFreqBalancedPseudoGRAM
+
 logger = logging.getLogger()
 
 
@@ -129,6 +131,13 @@ def select_method(args, criterion, n_classes, device):
         )
     elif args.mode == "er_freq_balanced_pseudo":
         method = ERFreqBalancedPseudo(
+            criterion=criterion,
+            device=device,
+            n_classes=n_classes,
+            **kwargs,
+        )
+    elif args.mode == "pseudo_ours":
+        method = BASELINEFreqBalancedPseudoGRAM(
             criterion=criterion,
             device=device,
             n_classes=n_classes,

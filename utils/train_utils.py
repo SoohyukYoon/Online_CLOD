@@ -51,7 +51,7 @@ def select_model(dataset, cfg):
         pretrained_path = "./damo_pretrain_outputs_w/shift/pretrain_shift/damo_pretrain_shift_w_newnew.pth"
         if os.path.exists(pretrained_path):
             state_dict = torch.load(pretrained_path, map_location='cpu')
-            model.load_state_dict(state_dict['model'])
+            model.load_state_dict(state_dict['model'], strict=False)
     elif dataset=='MILITARY_SYNTHETIC_domain_1' or dataset=='MILITARY_SYNTHETIC_domain_2' or dataset=='MILITARY_SYNTHETIC_domain_3':
         pretrained_path = "./damo_pretrain_military_synthetic.pth"
         if os.path.exists(pretrained_path):

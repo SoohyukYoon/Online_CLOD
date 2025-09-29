@@ -28,7 +28,7 @@ from torch import Tensor
 from pathlib import Path
 from damo.dataset.datasets.mosaic_wrapper import MosaicWrapper
 from damo.dataset.datasets.coco import COCODataset
-from damo.dataset.collate_batch import BatchCollator
+from damo.dataset.collate_batch import BatchCollator, BatchCollator2
 from damo.dataset.transforms import build_transforms, build_transforms_memorydataset
 from damo.structures.bounding_box import BoxList
 
@@ -440,12 +440,14 @@ from damo.dataset.transforms import transforms as T
 def generate_pseudo_labels(model, img, score_thresh=0.7, transform=None,image_sizes=(640,640),device='cuda'):
     # generate pseudo labels
     model.eval()
-    img_cv = np.asarray(img)
-    height, width = img_cv.shape[:2]
     if transform is not None:
+        img_cv = np.asarray(img)
+        height, width = img_cv.shape[:2]
         img_tensor = transform(img_cv)[0].unsqueeze(0).to(device)
     else:
-        img_tensor = T.ToTensor()(img_cv)[0].unsqueeze(0).to(device)
+        breakpoint()
+        height, width = img.shape[1], img.shape[2]
+        img_tensor = img.unsqueeze(0).to(device)
     with torch.no_grad():
         outputs = model(img_tensor)[0]
 
@@ -1733,6 +1735,7 @@ class FreqClsBalancedPseudoDataset(MemoryDataset):
 
 #################################################################################################
 # Frequency-based Dataset
+from damo.utils.boxes import bboxes_iou
 class FreqClsBalancedPseudoDomainDataset(MemoryDataset):
     def __init__(self, ann_file, root, transforms=None, class_names=None,
                  dataset=None, cls_list=None, device=None, data_dir=None, memory_size=None,
@@ -1819,7 +1822,7 @@ class FreqClsBalancedPseudoDomainDataset(MemoryDataset):
         )
         self.use_mosaic_mixup=False 
         
-        self.batch_collator = BatchCollator(size_divisible=32)
+        self.batch_collator = BatchCollator2(size_divisible=32)
         
         self.alpha = 1.0                  # smoothing constant in 1/(usage+α)
         self.beta = 1.0
@@ -1924,9 +1927,12 @@ class FreqClsBalancedPseudoDomainDataset(MemoryDataset):
             self.stream_data.append(entry)
 
     @torch.no_grad()
-    def get_src_batch(self, batch_size, weight_method="cls_usage"):
+    def get_src_batch(self, batch_size, weight_method="cls_usage", tgt_batch=None,
+                      model=None, score_thres=0.5):
         batch_size = min(batch_size, len(self.buffer_source))
         data = []
+        data_with_mixup = []
+        data_with_obj_mixup = []
         
         if batch_size > 0 and len(self.buffer_source):
             for e in self.buffer_source:
@@ -1995,22 +2001,126 @@ class FreqClsBalancedPseudoDomainDataset(MemoryDataset):
 
                     target = target.clip_to_image(remove_empty=True)
                     
-                    img = np.asarray(img)
-                    img, label = self._transforms(img, target)
-      
-                data.append((img, label, img_id))
+                    img_np = np.asarray(img)
+                    img_np_obj = copy.deepcopy(img_np)
+                    img_np = img_np.copy()
+                    if tgt_batch is not None and len(tgt_batch) > 0:
+                        # tgt domain data mixup
+                        # let domain classifier label to be the ratio of target in source img
+                        target_ratio = 0
+                        inst_lambda_ = max(np.random.beta(alpha, alpha), 0.4)
+                        alpha = 1.0 # 0.2 5.0 20.0
+
+                        # preparing for target image mixup
+                        model.eval()
+                        random_tgt_idx = np.random.randint(0, len(tgt_batch))
+                        tgt_img = tgt_batch[random_tgt_idx]
+                        pseudo_boxes, _, _ = generate_pseudo_labels(model, tgt_img, score_thresh=score_thres, transform=self.test_transform, image_sizes=self.image_sizes, device=self.device)
+                        
+                        src_y, src_x = img_np.shape[:2]
+                        # tgt mixup on src obj
+                        for box_idx in range(len(boxes)): # For number of boxes in the image
+                            cur_box = boxes[box_idx]
+                            x,y,w,h = cur_box.round().int()
+                            x1,y1,x2,y2 = x,y,x+w,y+h
+                            dx = min(x2-x1,tgt_img.shape[1]-1)
+                            dy = min(y2-y1,tgt_img.shape[0]-1)
+                            patched = False
+                            trial_cnt = 0
+                            iou_thres = 0.1
+                            while not patched:
+                                iou_thres += 0.1
+                                y_list = torch.Tensor(np.random.randint(tgt_img.shape[0]-dy, size=20))
+                                x_list = torch.Tensor(np.random.randint(tgt_img.shape[1]-dx, size=20))
+                                patch = torch.cat((x_list.unsqueeze(-1), y_list.unsqueeze(-1), (x_list+dx).unsqueeze(-1), (y_list+dy).unsqueeze(-1)), dim=1).to(self.device)
+                                # calculate iou
+                                match_quality_matrix = bboxes_iou(patch, torch.from_numpy(pseudo_boxes).to(self.device))
+                                match_quality_matrix = match_quality_matrix < iou_thres
+                                indices = torch.nonzero(torch.all(match_quality_matrix == True, dim=1), as_tuple=True)[0]
+                                if len(indices) > 0:
+                                    # mixup
+                                # if x1 < src_x and y1 < src_y:
+                                    # lambda_ = np.random.beta(alpha, alpha)
+                                    # lambda_ = max(np.random.beta(alpha, alpha), 0.4)
+                                    # x2 = min(x1+dx,src_x)
+                                    # y2 = min(y1+dy,src_y)
+                                    x = int(x_list[indices[0]])
+                                    y = int(y_list[indices[0]])
+                                    img_np_obj[y1:y1+dy,x1:x1+dx] = inst_lambda_*img_np_obj[y1:y1+dy,x1:x1+dx] + (1-inst_lambda_)*tgt_img[y:y+dy, x:x+dx]
+                                    # mixup_batch[0]['image'][:,y1:y2,x1:x2] = lambda_*mixup_batch[0]['image'][:,y1:y2,x1:x2] + (1-lambda_)*tgt_img[:,y1:y2,x1:x2]
+                                    patched = True
+                                    # area_ratio = ((x2-x1)*(y2-y1)) / (src_x*src_y)
+                                    # target_ratio += area_ratio*(1-lambda_)
+
+                        # # Visualize the pseudo boxes
+                        # img_save = Image.fromarray(tgt_memory[0]['image'].permute(1,2,0).detach().cpu().numpy())
+                        # draw = ImageDraw.Draw(img_save)
+                        # for box in pseudo_boxes:
+                        #     x1, y1, x2, y2 = box
+                        #     draw.rectangle([x1, y1, x2, y2], outline=(255, 0, 0), width=3)
+                        
+                        # img_save.save('pseudo_boxes.png')
+                        # breakpoint()
+                        
+                        # lambda_ = np.random.beta(alpha, alpha)
+                        
+
+                        prob = 1.0
+                        while prob > 0.2:
+                            patched = False
+                            trial_cnt = 0
+                            iou_thres = 0.2
+                            while not patched:
+                                if trial_cnt >= 10:
+                                    iou_thres += 0.1
+                                    trial_cnt = 0
+                                y1 = np.random.randint(tgt_img.shape[0]-100)
+                                x1 = np.random.randint(tgt_img.shape[1]-100)
+                                dy = min(np.random.randint(30, 500), tgt_img.shape[0]-y1)
+                                dx = min(np.random.randint(30, 500), tgt_img.shape[1]-x1)
+                                patch = torch.Tensor([[x1,y1,x1+dx,y1+dy]]).to(self.device)
+
+                                match_quality_matrix = bboxes_iou(patch, torch.from_numpy(pseudo_boxes).to(self.device))
+
+                                if not (False in (match_quality_matrix < iou_thres)): # if all iou < 0.3
+                                    if x1 < src_x and y1 < src_y:
+                                        lambda_ = max(np.random.beta(alpha, alpha), 0.4)
+                                        x2 = min(x1+dx,src_x)
+                                        y2 = min(y1+dy,src_y)
+                                        img_np[y1:y2,x1:x2] = lambda_*img_np[y1:y2,x1:x2] + (1-lambda_)*tgt_img[y1:y2,x1:x2]
+                                        patched = True
+                                        area_ratio = ((x2-x1)*(y2-y1)) / (src_x*src_y)
+                                        target_ratio += area_ratio*(1-lambda_)
+                                trial_cnt+=1
+                            prob = np.random.random()
+                            # print(lambda_)
+                            # im = Image.fromarray(src_memory_batch[0]['image'].permute(1,2,0).detach().cpu().numpy())
+                            # im.save('mix_src.png')
+                            # im = Image.fromarray(tgt_memory[0]['image'].permute(1,2,0).detach().cpu().numpy())
+                            # im.save('mix_tgt.png')
+                            # im = Image.fromarray(mixup_batch[0]['image'].permute(1,2,0).detach().cpu().numpy())
+                            # im.save('mix_up.png')
+                    else:
+                        target_ratio = 0
+                    img_mixup, label = self._transforms(img_np, copy.deepcopy(target))
+                    img_obj_mixup, label_obj_mixup = self._transforms(img_np_obj, copy.deepcopy(target))
+                    img_pure, label_pure = self._transforms(np.asarray(img), target)
+
+                data.append((img_pure, label_pure, img_id, img_np, 0))
+                data_with_mixup.append((img_mixup, label, img_id, 0, target_ratio))
+                data_with_obj_mixup.append((img_obj_mixup, label_obj_mixup, img_id, 0, target_ratio))
         
-        return self.batch_collator(data)
+        return self.batch_collator(data), self.batch_collator(data_with_mixup), self.batch_collator(data_with_obj_mixup)
 
 
     @torch.no_grad()
-    def get_tgt_batch(self, batch_size, stream_batch_size=0, use_weight=None, transform=None, weight_method="cls_usage",
+    def get_tgt_batch(self, memory_batch_size, stream_batch_size=0, use_weight=None, transform=None, weight_method="cls_usage",
                   model=None, score_thresh=0.7
                   ):
-        assert batch_size >= stream_batch_size
+        # assert batch_size >= stream_batch_size
         stream_batch_size = min(stream_batch_size, len(self.stream_data))
-        batch_size = min(batch_size, stream_batch_size + len(self.buffer))
-        memory_batch_size = batch_size - stream_batch_size
+        memory_batch_size = min(memory_batch_size, len(self.buffer))
+        # memory_batch_size = batch_size - stream_batch_size
 
         data = []
         
@@ -2044,25 +2154,25 @@ class FreqClsBalancedPseudoDomainDataset(MemoryDataset):
 
                         target = target.clip_to_image(remove_empty=True)
                         
-                        img = np.asarray(img)
-                        img, label = self._transforms(img, target)
+                        img_np = np.asarray(img)
+                        img, label = self._transforms(img_np, target)
                     else:
                         boxes, labels, scores = generate_pseudo_labels(model, img, score_thresh=score_thresh, transform=self.test_transform, image_sizes=self.image_sizes, device=self.device)
-
+                        img_np = np.asarray(img)
                         if len(boxes) > 0:
                             target = BoxList(torch.tensor(boxes), img.size, mode='xyxy')
                             target.add_field('labels', torch.tensor(labels))
                             target = target.clip_to_image(remove_empty=True)
 
-                            img, label = self._transforms(np.asarray(img), target)
+                            img, label = self._transforms(img_np, target)
                         else:
                             # no valid boxes
                             # create empty label
                             target = BoxList(torch.zeros((0,4)), img.size, mode='xyxy')
                             target.add_field('labels', torch.tensor([]))
-                            img, label = self._transforms(np.asarray(img), target)
+                            img, label = self._transforms(img_np, target)
                 
-                data.append((img, label, img_id))
+                data.append((img, label, img_id, img_np, 0))
 
         # ───── Memory part ──────────────────────────────────────────────
         if memory_batch_size > 0 and len(self.buffer):
@@ -2132,25 +2242,25 @@ class FreqClsBalancedPseudoDomainDataset(MemoryDataset):
 
                         target = target.clip_to_image(remove_empty=True)
                         
-                        img = np.asarray(img)
-                        img, label = self._transforms(img, target)
+                        img_np = np.asarray(img)
+                        img, label = self._transforms(img_np, target)
                     else:
                         boxes, labels, scores = generate_pseudo_labels(model, img, score_thresh=score_thresh,transform=self.test_transform, image_sizes=self.image_sizes, device=self.device)
-
+                        img_np = np.asarray(img)
                         if len(boxes) > 0:
                             target = BoxList(torch.tensor(boxes), img.size, mode='xyxy')
                             target.add_field('labels', torch.tensor(labels))
                             target = target.clip_to_image(remove_empty=True)
 
-                            img, label = self._transforms(np.asarray(img), target)
+                            img, label = self._transforms(img_np, target)
                         else:
                             # no valid boxes
                             # create empty label
                             target = BoxList(torch.zeros((0,4)), img.size, mode='xyxy')
                             target.add_field('labels', torch.tensor([]))
-                            img, label = self._transforms(np.asarray(img), target)
+                            img, label = self._transforms(img_np, target)
                 
-                data.append((img, label, img_id))
+                data.append((img, label, img_id, img_np, 0))
 
          # remove stream data from buffer
         self.buffer = self.buffer[:buffer_size]
