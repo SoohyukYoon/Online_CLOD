@@ -46,6 +46,8 @@ def get_statistics(dataset: str):
     """
     if dataset == 'VOC_10_10':
         return 20, 'data/voc/images', 'data/voc/annotations' ## 경로 수정
+    elif dataset == 'VOC_15_5':
+        return 20, 'data/voc/images', 'data/voc/annotations' ## 경로 수정
     elif dataset == 'BDD_domain':
         return 13, 'data/bdd100k/images', 'data/bdd100k/annotations'
     elif dataset == 'SHIFT_domain':
@@ -58,6 +60,8 @@ def get_statistics(dataset: str):
 def get_pretrained_statistics(dataset: str):
     if dataset == 'VOC_10_10':
         return 10, 'data/voc_10/images', 'data/voc_10/annotations' ## 경로 수정
+    elif dataset == 'VOC_15_5':
+        return 10, 'data/voc_15/images', 'data/voc_15/annotations' ## 경로 수정
     elif dataset == 'BDD_domain':
         return 13, 'data/bdd100k_source/images', 'data/bdd100k_source/annotations'
     elif dataset == 'SHIFT_domain':
@@ -70,6 +74,8 @@ def get_pretrained_statistics(dataset: str):
 def get_exposed_classes(dataset: str):
     if dataset == 'VOC_10_10':
         return ['aeroplane', 'bicycle', 'bird', 'boat', 'bottle', 'bus', 'car', 'cat', 'chair', 'cow']
+    elif dataset == 'VOC_15_5':
+        return ['aeroplane', 'bicycle', 'bird', 'boat', 'bottle', 'bus', 'car', 'cat', 'chair', 'cow', 'diningtable', 'dog', 'horse', 'motorbike', 'person']
     elif dataset == 'BDD_domain':
         return ['pedestrian', 'rider', 'car', 'bus', 'truck', 'bicycle', 'motorcycle', 'traffic light', 'traffic sign', 'train', 'trailer', 'other person', 'other vehicle']
     elif dataset == 'SHIFT_domain':
@@ -188,7 +194,7 @@ class MemoryDataset(COCODataset):
         
         for i in range(len(label)):
             if is_stream:
-                if self.dataset == 'VOC_10_10':
+                if self.dataset == 'VOC_10_10' or self.dataset == 'VOC_15_5':
                     if self.contiguous_class2id[self.ori_id2class[label[i]['category_id']]] == data_class: # VOC_10_10 labels start from 0
                         indices_to_keep.append(i)
                     # if self.contiguous_class2id[self.ori_id2class[label[i]['category_id']]] < len(self.cls_list): # VOC_10_10 labels start from 0
@@ -198,6 +204,9 @@ class MemoryDataset(COCODataset):
             else:
                 if self.dataset == 'VOC_10_10':
                     if self.contiguous_class2id[self.ori_id2class[label[i]['category_id']]] < 10:
+                        indices_to_keep.append(i)
+                elif self.dataset == 'VOC_15_5':
+                    if self.contiguous_class2id[self.ori_id2class[label[i]['category_id']]] < 15:
                         indices_to_keep.append(i)
                 else:
                     indices_to_keep.append(i)
@@ -209,7 +218,8 @@ class MemoryDataset(COCODataset):
         n_classes, images_dir, label_path = get_pretrained_statistics(self.dataset)
         self.image_dir = images_dir
         self.label_path = label_path
-        if self.dataset == 'VOC_10_10':
+        
+        if self.dataset == 'VOC_10_10' or self.dataset == 'VOC_15_5':
             image_files = glob.glob(os.path.join(images_dir, "train","*/*.jpg"))
         else:
             image_files = glob.glob(os.path.join(images_dir, "train","*.jpg"))

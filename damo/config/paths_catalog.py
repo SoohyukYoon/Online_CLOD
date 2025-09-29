@@ -31,6 +31,15 @@ class DatasetCatalog(object):
             'ann_file': 'voc_10/annotations/instances_test2007.json'
         },
         
+        'voc_15_train': {
+            'img_dir': 'voc_15/images/train',
+            'ann_file': 'voc_15/annotations/instances_train.json'
+        },
+        'voc_15_val': {
+            'img_dir': 'voc_15/images/val',
+            'ann_file': 'voc_15/annotations/instances_val.json'
+        },
+        
         'voc_train': {
             'img_dir': 'voc/images/train_merged',
             'ann_file': 'voc/annotations/instances_train.json'

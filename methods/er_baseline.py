@@ -77,10 +77,12 @@ class ER:
         self.exposed_classes = get_exposed_classes(self.dataset)
         self.num_learned_class = len(self.exposed_classes)
         self.num_learning_class = self.num_learned_class + 1
-        
-        if 'VOC' in self.dataset:
+        if 'VOC_10_10' in self.dataset:
             data_name = 'voc'
             config_file = 'configs/damoyolo_tinynasL25_S_VOC_10_10.py'
+        elif 'VOC_15_5' in self.dataset:
+            data_name = 'voc'
+            config_file = 'configs/damoyolo_tinynasL25_S_VOC_15_5.py'
         elif 'BDD' in self.dataset:
             data_name = 'bdd100k'
             config_file = 'configs/damoyolo_tinynasL25_S_BDD100K.py'

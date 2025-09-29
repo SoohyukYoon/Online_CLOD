@@ -37,6 +37,11 @@ def select_model(dataset, cfg):
         if os.path.exists(pretrained_path):
             state_dict = torch.load(pretrained_path, map_location='cpu')
             model.load_state_dict(state_dict['model'])
+    elif dataset=='VOC_15_5':
+        pretrained_path = "./damo_pretrain_outputs_w/voc_15/pretrain_voc_15/epoch_300_bs16_ckpt.pth"
+        if os.path.exists(pretrained_path):
+            state_dict = torch.load(pretrained_path, map_location='cpu')
+            model.load_state_dict(state_dict['model'])        
     elif dataset=='BDD_domain':
         pretrained_path = "./damo_pretrain_bdd100k.pth"
         if os.path.exists(pretrained_path):
