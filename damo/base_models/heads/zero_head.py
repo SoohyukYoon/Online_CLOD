@@ -546,3 +546,201 @@ class ZeroHead(nn.Module):
         return pos_inds, neg_inds, pos_gt_bboxes, pos_assigned_gt_inds
 
 
+    # ours own function for other uses
+
+    def forward_single_with_and_without_sigmoid(self, x, cls_convs, reg_convs, gfl_cls, gfl_reg, scale):
+        """Forward feature of a single scale level.
+
+        """
+        cls_feat = x
+        reg_feat = x
+
+        for cls_conv, reg_conv in zip(cls_convs, reg_convs):
+            cls_feat = cls_conv(cls_feat)
+            reg_feat = reg_conv(reg_feat)
+
+        bbox_pred = scale(gfl_reg(reg_feat)).float()
+        cls_score_without_sigmoid = gfl_cls(cls_feat)
+        cls_score = cls_score_without_sigmoid.sigmoid()
+        N, C, H, W = bbox_pred.size()
+        if self.training:
+            bbox_before_softmax = bbox_pred.reshape(N, 4, self.reg_max + 1, H,
+                                                    W)
+            bbox_before_softmax = bbox_before_softmax.flatten(
+                start_dim=3).permute(0, 3, 1, 2)
+
+            bbox_pred = F.softmax(bbox_pred.reshape(N, 4, self.reg_max + 1, H, W),
+                                 dim=2)
+
+            bbox_pred = bbox_pred.reshape(N, 4, self.reg_max + 1, H, W)
+
+            cls_score = cls_score.flatten(start_dim=2).permute(
+                0, 2, 1)  # N, h*w, self.num_classes+1
+            bbox_pred = bbox_pred.flatten(start_dim=3).permute(
+                0, 3, 1, 2)  # N, h*w, 4, self.reg_max+1
+            cls_score_without_sigmoid = cls_score_without_sigmoid.flatten(start_dim=2).permute(
+                0, 2, 1)  # N, h*w, self.num_classes+1
+
+        if self.training:
+            return cls_score, bbox_pred, bbox_before_softmax, cls_score_without_sigmoid
+        else:
+            return cls_score, bbox_pred
+        
+    def get_head_outputs(self, xin, labels=None, drop_bg=False, pos_inds=None):
+        # prepare labels during training
+        b, c, h, w = xin[0].shape
+        if labels is not None:
+            gt_bbox_list = []
+            gt_cls_list = []
+            for label in labels:
+                gt_bbox_list.append(label.bbox)
+                gt_cls_list.append((label.get_field('labels')).long())
+
+        # prepare priors for label assignment and bbox decode
+        mlvl_priors_list = [
+            self.get_single_level_center_priors(xin[i].shape[0],
+                                                xin[i].shape[-2:],
+                                                stride,
+                                                dtype=torch.float32,
+                                                device=xin[0].device)
+            for i, stride in enumerate(self.strides)
+        ]
+        mlvl_priors = torch.cat(mlvl_priors_list, dim=1)
+        
+        # forward for bboxes and classification prediction
+        cls_scores, bbox_preds, bbox_before_softmax, cls_scores_without_sigmoid = multi_apply(
+            self.forward_single_with_and_without_sigmoid,
+            xin,
+            self.cls_convs,
+            self.reg_convs,
+            self.gfl_cls,
+            self.gfl_reg,
+            self.scales,
+        )
+        cls_scores = torch.cat(cls_scores, dim=1)
+        bbox_preds = torch.cat(bbox_preds, dim=1)
+        bbox_before_softmax = torch.cat(bbox_before_softmax, dim=1)
+        cls_scores_without_sigmoid = torch.cat(cls_scores_without_sigmoid, dim=1)
+        
+        device = cls_scores[0].device
+
+        # get decoded bboxes for label assignment
+        dis_preds = self.integral(bbox_preds) * mlvl_priors[..., 2,
+                                                                   None]
+        decoded_bboxes = distance2bbox(mlvl_priors[..., :2], dis_preds)
+        cls_reg_targets = self.get_targets(cls_scores,
+                                           decoded_bboxes,
+                                           gt_bbox_list,
+                                           mlvl_priors,
+                                           gt_labels_list=gt_cls_list)
+
+        if cls_reg_targets is None:
+            return None
+
+        (labels_list, label_scores_list, label_weights_list, bbox_targets_list,
+         bbox_weights_list, dfl_targets_list, num_pos) = cls_reg_targets
+
+        num_total_pos = max(
+            reduce_mean(torch.tensor(num_pos).type(
+                torch.float).to(device)).item(), 1.0)
+
+        labels = torch.cat(labels_list, dim=0)
+        label_scores = torch.cat(label_scores_list, dim=0)
+        bbox_targets = torch.cat(bbox_targets_list, dim=0)
+        dfl_targets = torch.cat(dfl_targets_list, dim=0)
+
+        cls_scores = cls_scores.reshape(-1, self.cls_out_channels)
+        cls_scores_without_sigmoid = cls_scores_without_sigmoid.reshape(-1, self.cls_out_channels)
+        # bbox_preds = bbox_preds.reshape(-1, 4 * (self.reg_max + 1))
+        bbox_before_softmax = bbox_before_softmax.reshape(
+            -1, 4 * (self.reg_max + 1))
+        decoded_bboxes = decoded_bboxes.reshape(-1, 4)
+        if pos_inds is None:
+            pos_inds = torch.nonzero((labels >= 0) & (labels < self.num_classes),
+                                as_tuple=False).squeeze(1)
+        bbox_before_softmax = bbox_before_softmax[pos_inds]
+        decoded_bboxes = decoded_bboxes[pos_inds]
+        if drop_bg:
+            cls_scores = cls_scores[pos_inds]
+            cls_scores_without_sigmoid = cls_scores_without_sigmoid[pos_inds]
+        return cls_scores, cls_scores_without_sigmoid, bbox_before_softmax, decoded_bboxes, pos_inds
+
+    def get_head_outputs_with_label(self, xin, labels=None, drop_bg=False, pos_inds=None):
+        # prepare labels during training
+        b, c, h, w = xin[0].shape
+        if labels is not None:
+            gt_bbox_list = []
+            gt_cls_list = []
+            for label in labels:
+                gt_bbox_list.append(label.bbox)
+                gt_cls_list.append((label.get_field('labels')).long())
+
+        # prepare priors for label assignment and bbox decode
+        mlvl_priors_list = [
+            self.get_single_level_center_priors(xin[i].shape[0],
+                                                xin[i].shape[-2:],
+                                                stride,
+                                                dtype=torch.float32,
+                                                device=xin[0].device)
+            for i, stride in enumerate(self.strides)
+        ]
+        mlvl_priors = torch.cat(mlvl_priors_list, dim=1)
+        
+        # forward for bboxes and classification prediction
+        cls_scores, bbox_preds, bbox_before_softmax, cls_scores_without_sigmoid = multi_apply(
+            self.forward_single_with_and_without_sigmoid,
+            xin,
+            self.cls_convs,
+            self.reg_convs,
+            self.gfl_cls,
+            self.gfl_reg,
+            self.scales,
+        )
+        cls_scores = torch.cat(cls_scores, dim=1)
+        bbox_preds = torch.cat(bbox_preds, dim=1)
+        bbox_before_softmax = torch.cat(bbox_before_softmax, dim=1)
+        cls_scores_without_sigmoid = torch.cat(cls_scores_without_sigmoid, dim=1)
+        
+        device = cls_scores[0].device
+
+        # get decoded bboxes for label assignment
+        dis_preds = self.integral(bbox_preds) * mlvl_priors[..., 2,
+                                                                   None]
+        decoded_bboxes = distance2bbox(mlvl_priors[..., :2], dis_preds)
+        cls_reg_targets = self.get_targets(cls_scores,
+                                           decoded_bboxes,
+                                           gt_bbox_list,
+                                           mlvl_priors,
+                                           gt_labels_list=gt_cls_list)
+
+        if cls_reg_targets is None:
+            return None
+
+        (labels_list, label_scores_list, label_weights_list, bbox_targets_list,
+         bbox_weights_list, dfl_targets_list, num_pos) = cls_reg_targets
+
+        num_total_pos = max(
+            reduce_mean(torch.tensor(num_pos).type(
+                torch.float).to(device)).item(), 1.0)
+
+        labels = torch.cat(labels_list, dim=0)
+        label_scores = torch.cat(label_scores_list, dim=0)
+        bbox_targets = torch.cat(bbox_targets_list, dim=0)
+        dfl_targets = torch.cat(dfl_targets_list, dim=0)
+
+        cls_scores = cls_scores.reshape(-1, self.cls_out_channels)
+        cls_scores_without_sigmoid = cls_scores_without_sigmoid.reshape(-1, self.cls_out_channels)
+        bbox_preds = bbox_preds.reshape(-1, 4, (self.reg_max + 1))
+        bbox_before_softmax = bbox_before_softmax.reshape(
+            -1, 4 * (self.reg_max + 1))
+        # decoded_bboxes = decoded_bboxes.reshape(-1, 4)
+        if pos_inds is None:
+            pos_inds = torch.nonzero((labels >= 0) & (labels < self.num_classes),
+                                as_tuple=False).squeeze(1)
+        bbox_preds = bbox_preds[pos_inds]
+        bbox_before_softmax = bbox_before_softmax[pos_inds]
+        # decoded_bboxes = decoded_bboxes[pos_inds]
+        if drop_bg:
+            cls_scores = cls_scores[pos_inds]
+            cls_scores_without_sigmoid = cls_scores_without_sigmoid[pos_inds]
+        return cls_scores, cls_scores_without_sigmoid, bbox_before_softmax, bbox_preds, pos_inds, labels, label_scores, num_total_pos

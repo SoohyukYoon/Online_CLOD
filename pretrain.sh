@@ -1,0 +1,1 @@
+CUDA_VISIBLE_DEVICES=4,5,6,7 torchrun --nproc_per_node=4 -m tools.train -f configs/pretrain_coco_70.py

@@ -42,13 +42,13 @@ def select_model(dataset, cfg):
         if os.path.exists(pretrained_path):
             state_dict = torch.load(pretrained_path, map_location='cpu')
             model.load_state_dict(state_dict['model'])        
-    elif dataset=='BDD_domain':
+    elif dataset=='BDD_domain' or dataset=='BDD_domain_small':
         pretrained_path = "./damo_pretrain_bdd100k.pth"
         if os.path.exists(pretrained_path):
             state_dict = torch.load(pretrained_path, map_location='cpu')
             model.load_state_dict(state_dict['model'])
-    elif dataset=='SHIFT_domain':
-        pretrained_path = "./damo_pretrain_shift.pth"
+    elif dataset == 'SHIFT_domain' or dataset == 'SHIFT_domain_small':
+        pretrained_path = "./damo_pretrain_outputs_w/shift/pretrain_shift/damo_pretrain_shift_w_newnew.pth"
         if os.path.exists(pretrained_path):
             state_dict = torch.load(pretrained_path, map_location='cpu')
             model.load_state_dict(state_dict['model'])
