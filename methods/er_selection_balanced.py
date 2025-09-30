@@ -103,7 +103,7 @@ class SampleSelection(ER):
                             else:
                                 loss += loss_item
                                 
-ws                      loss /= len(batch[1])
+                        loss /= len(batch[1])
             
                     elif "entropy" in self.selection_method:
                         loss_item = self.model(batch[0], batch[1])
