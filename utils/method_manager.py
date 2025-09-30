@@ -32,6 +32,7 @@ from methods.er_pseudo import ERPseudo
 from methods.er_freq_balanced_pseudo import ERFreqBalancedPseudo
 
 from methods.baseline2_freq_balanced_pseudo_tia import BASELINEFreqBalancedPseudoGRAM
+from methods.baseline2_freq_balanced_pseudo_tia_gram import BASELINEFreqBalancedPseudoGRAM2
 
 from methods.er_selection_balanced import SampleSelection
 
@@ -140,6 +141,13 @@ def select_method(args, criterion, n_classes, device):
         )
     elif args.mode == "pseudo_ours":
         method = BASELINEFreqBalancedPseudoGRAM(
+            criterion=criterion,
+            device=device,
+            n_classes=n_classes,
+            **kwargs,
+        )
+    elif args.mode == "pseudo_gram_ours":
+        method = BASELINEFreqBalancedPseudoGRAM2(
             criterion=criterion,
             device=device,
             n_classes=n_classes,
