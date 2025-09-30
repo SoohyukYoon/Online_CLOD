@@ -77,10 +77,12 @@ class ER:
         self.exposed_classes = get_exposed_classes(self.dataset)
         self.num_learned_class = len(self.exposed_classes)
         self.num_learning_class = self.num_learned_class + 1
-        
-        if 'VOC' in self.dataset:
+        if 'VOC_10_10' in self.dataset:
             data_name = 'voc'
             config_file = 'configs/damoyolo_tinynasL25_S_VOC_10_10.py'
+        elif 'VOC_15_5' in self.dataset:
+            data_name = 'voc'
+            config_file = 'configs/damoyolo_tinynasL25_S_VOC_15_5.py'
         elif 'BDD' in self.dataset:
             data_name = 'bdd100k'
             config_file = 'configs/damoyolo_tinynasL25_S_BDD100K.py'
@@ -431,9 +433,9 @@ class ER:
         self.model.eval()
         print("evaluate")
 
-        if self.dataset=='BDD_domain':
+        if self.dataset=='BDD_domain' or self.dataset=='BDD_domain_small':
             eval_dict = {"avg_mAP50":0, "classwise_mAP50":[]}
-            for data_name in self.exposed_domains:
+            for data_name in ['bdd100k_source','bdd100k_cloudy', 'bdd100k_rainy', 'bdd100k_dawndusk', 'bdd100k_night']: #self.exposed_domains:
                 datasets = build_dataset(
                     cfg=self.damo_cfg,
                     ann_files=[data_name],
@@ -441,7 +443,7 @@ class ER:
                 )
                 dataloaders = build_dataloader(
                     datasets=datasets,
-                    augment=self.damo_cfg.augment,
+                    augment=self.damo_cfg.test.augment,
                     batch_size=self.damo_cfg.train.batch_size,
                     is_train=False,
                     num_workers=self.damo_cfg.train.get('num_workers', 8)
@@ -451,16 +453,16 @@ class ER:
                 eval_dict_sub = self.evaluate()
                 clean = [v for v in eval_dict_sub['classwise_mAP50'] if v != -1]
                 average = sum(clean) / len(clean) if clean else 0.0
-                eval_dict['avg_mAP50'] += average / len(self.exposed_domains)
+                eval_dict['avg_mAP50'] += average / 5 #len(self.exposed_domains)
                 eval_dict["classwise_mAP50"].append(average)
 
-        elif self.dataset=='SHIFT_domain':
+        elif self.dataset=='SHIFT_domain' or self.dataset=='SHIFT_domain_small':
             eval_dict = {"avg_mAP50":0, "classwise_mAP50":[]}
-            for data_name in self.exposed_domains:
-                datasets = build_dataset(self.damo_cfg, [data_name], is_train=False)
+            for data_name in ['shift_source', 'shift_overcast', 'shift_cloudy', 'shift_rainy', 'shift_foggy', 'shift_dawndusk', 'shift_night']: #self.exposed_domains:
+                datasets = build_dataset(self.damo_cfg, [data_name + '_val'], is_train=False)
                 dataloaders = build_dataloader(
                     datasets,
-                    self.damo_cfg.augment,
+                    self.damo_cfg.test.augment,
                     batch_size=self.damo_cfg.train.batch_size,
                     is_train=False,
                     num_workers=self.damo_cfg.train.get('num_workers', 8)
@@ -470,7 +472,7 @@ class ER:
                 eval_dict_sub = self.evaluate()
                 clean = [v for v in eval_dict_sub['classwise_mAP50'] if v != -1]
                 average = sum(clean) / len(clean) if clean else 0.0
-                eval_dict['avg_mAP50'] += average / len(self.exposed_domains)
+                eval_dict['avg_mAP50'] += average / 7 #len(self.exposed_domains)
                 eval_dict["classwise_mAP50"].append(average)
 
         elif 'MILITARY_SYNTHETIC_domain' in self.dataset:
@@ -480,7 +482,7 @@ class ER:
                 datasets = build_dataset(self.damo_cfg, [data_name], is_train=False)
                 dataloaders = build_dataloader(
                     datasets,
-                    self.damo_cfg.augment,
+                    self.damo_cfg.test.augment,
                     batch_size=self.damo_cfg.train.batch_size,
                     is_train=False,
                     num_workers=self.damo_cfg.train.get('num_workers', 8)

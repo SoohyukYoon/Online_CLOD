@@ -1,9 +1,9 @@
 #/bin/bash
 
 # CIL CONFIG
-NOTE="er_freq_balanced2" # Short description of the experiment. (WARNING: logs/results with the same note will be overwritten!)
-MODE="er_freq_balanced2"
-DATASET="VOC_10_10" # VOC_10_10 BDD_domain SHIFT_domain MILITARY_SYNTHETIC_domain_1 MILITARY_SYNTHETIC_domain_2 MILITARY_SYNTHETIC_domain_3
+NOTE="er" # Short description of the experiment. (WARNING: logs/results with the same note will be overwritten!)
+MODE="er"
+DATASET="VOC_15_5" # VOC_10_10 BDD_domain SHIFT_domain MILITARY_SYNTHETIC_domain_1 MILITARY_SYNTHETIC_domain_2 MILITARY_SYNTHETIC_domain_3
 SIGMA=10
 REPEAT=1
 INIT_CLS=100
@@ -14,9 +14,13 @@ MIXUP=0.0
 SEEDS="1"
 
 if [ "$DATASET" == "VOC_10_10" ]; then
-    MEM_SIZE=1000 ONLINE_ITER=1
-    MODEL_NAME="damo5" EVAL_PERIOD=500
-    BATCHSIZE=16; LR=1e-4 OPT_NAME="SGD" SCHED_NAME="default" IMP_UPDATE_PERIOD=1
+    MEM_SIZE=500 ONLINE_ITER=1
+    MODEL_NAME="damo" EVAL_PERIOD=100
+    BATCHSIZE=16; LR=3e-4 OPT_NAME="SGD" SCHED_NAME="default" IMP_UPDATE_PERIOD=1
+elif [ "$DATASET" == "VOC_15_5" ]; then
+    MEM_SIZE=500 ONLINE_ITER=1
+    MODEL_NAME="damo" EVAL_PERIOD=100
+    BATCHSIZE=16; LR=1e-5 OPT_NAME="SGD" SCHED_NAME="default" IMP_UPDATE_PERIOD=1
 elif [ "$DATASET" == "BDD_domain" ]; then
     MEM_SIZE=10 ONLINE_ITER=1
     MODEL_NAME="yolov9-s" EVAL_PERIOD=1000
@@ -49,5 +53,5 @@ do
     --lr $LR --batchsize $BATCHSIZE \
     --memory_size $MEM_SIZE $GPU_TRANSFORM --online_iter $ONLINE_ITER \
     --mosaic_prob $MOSAIC --mixup_prob $MIXUP \
-    --note $NOTE --eval_period $EVAL_PERIOD --imp_update_period $IMP_UPDATE_PERIOD $USE_AMP > damo_useall_${DATASET}_${MODE}_balance05_hard_9_mem${MEM_SIZE}_lr${LR}_online_iter${ONLINE_ITER}_seed${RND_SEED}_mosaic${MOSAIC}_mixup${MIXUP}.out 2>&1 &
+    --note $NOTE --eval_period $EVAL_PERIOD --imp_update_period $IMP_UPDATE_PERIOD $USE_AMP # > new_${MODE}_${DATASET}_mem${MEM_SIZE}_lr${LR}_online_iter${ONLINE_ITER}_seed${RND_SEED}_mosaic${MOSAIC}_mixup${MIXUP}.out 2>&1 &
 done
