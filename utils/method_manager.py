@@ -9,7 +9,7 @@ from methods.er_baseline import ER
 from methods.sdp import *
 from methods.erd import *
 from methods.ld import LD
-from methods.ours_min import OursMin
+
 from methods.adaptive_freeze import AdaptiveFreeze
 
 from methods.baseline import BASELINE
@@ -28,6 +28,8 @@ from methods.sdp_only import SDPOnly
 from methods.lwf_logit import LWF_Logit
 from methods.lwf_feature_extraction import LWF_Feature
 # from methods.abr import ABR
+
+from methods.er_selection_balanced import SampleSelection
 
 logger = logging.getLogger()
 
@@ -55,8 +57,8 @@ def select_method(args, criterion, n_classes, device):
             n_classes=n_classes,
             **kwargs,
         )
-    elif args.mode == "ours_min":
-        method = OursMin(
+    elif args.mode == "er_selection_balanced2":
+        method = SampleSelection(
             criterion=criterion,
             device=device,
             n_classes=n_classes,
