@@ -66,7 +66,7 @@ class Config(MyConfig):
         self.model.neck = GiraffeNeckV2
 
         ZeroHead = {
-            'name': 'ZeroPseudoHead',
+            'name': 'ZeroHead',
             'num_classes': 6,
             'in_channels': [128, 256, 512],
             'stacked_convs': 0,
