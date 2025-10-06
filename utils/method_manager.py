@@ -11,7 +11,7 @@ from methods.erd import *
 from methods.ld import LD
 from methods.ours_min import OursMin
 from methods.adaptive_freeze import AdaptiveFreeze
-
+from methods.er_freq_adaptive import ERFreqAdaptive
 from methods.baseline import BASELINE
 from methods.baseline2 import BASELINE2
 from methods.baseline2_balanced import BASELINE2Balanced
@@ -21,6 +21,7 @@ from methods.er_freq_balanced import ERFreqBalanced
 from methods.er_frequency import ERFrequency
 from methods.er_balanced import ERBalanced
 from methods.er_freq_balanced2 import ERFreqBalanced2
+from methods.harmonious import Harmonious
 
 from methods.finetune import FINETUNE
 from methods.sdp import SDP
@@ -141,6 +142,13 @@ def select_method(args, criterion, n_classes, device):
             n_classes=n_classes,
             **kwargs,
         )
+    elif args.mode == "er_frequency_adaptive":
+        method = ERFreqAdaptive(
+            criterion=criterion,
+            device=device,
+            n_classes=n_classes,
+            **kwargs,
+        )
     elif args.mode == "sdp":
         method = SDP(
             criterion=criterion,
@@ -178,6 +186,13 @@ def select_method(args, criterion, n_classes, device):
         )
     elif args.mode == "erd":
         method = ERD(
+            criterion=criterion,
+            device=device,
+            n_classes=n_classes,
+            **kwargs,
+        )
+    elif args.mode == "harmonious":
+        method = Harmonious(
             criterion=criterion,
             device=device,
             n_classes=n_classes,

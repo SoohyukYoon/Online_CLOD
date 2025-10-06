@@ -1,9 +1,10 @@
 #/bin/bash
 
 # CIL CONFIG
-NOTE="er" # Short description of the experiment. (WARNING: logs/results with the same note will be overwritten!)
-MODE="er"
-DATASET="VOC_15_5" # VOC_10_10 BDD_domain SHIFT_domain MILITARY_SYNTHETIC_domain_1 MILITARY_SYNTHETIC_domain_2 MILITARY_SYNTHETIC_domain_3
+NOTE="er_freq_balanced2" # Short description of the experiment. (WARNING: logs/results with the same note will be overwritten!)
+MODE="er_freq_balanced2"
+# DATASET="SHIFT_domain_small" # VOC_10_10 BDD_domain SHIFT_domain MILITARY_SYNTHETIC_domain_1 MILITARY_SYNTHETIC_domain_2 MILITARY_SYNTHETIC_domain_3
+DATASET="VOC_15_5"
 SIGMA=10
 REPEAT=1
 INIT_CLS=100
@@ -16,21 +17,19 @@ SEEDS="1"
 if [ "$DATASET" == "VOC_10_10" ]; then
     MEM_SIZE=500 ONLINE_ITER=1
     MODEL_NAME="damo" EVAL_PERIOD=100
-    BATCHSIZE=16; LR=3e-4 OPT_NAME="SGD" SCHED_NAME="default" IMP_UPDATE_PERIOD=1
-elif [ "$DATASET" == "VOC_15_5" ]; then
-    MEM_SIZE=500 ONLINE_ITER=1
-    MODEL_NAME="damo" EVAL_PERIOD=100
     BATCHSIZE=16; LR=1e-5 OPT_NAME="SGD" SCHED_NAME="default" IMP_UPDATE_PERIOD=1
+elif [ "$DATASET" == "VOC_15_5" ]; then
+    MEM_SIZE=1000 ONLINE_ITER=1
+    MODEL_NAME="damo5" EVAL_PERIOD=1000
+    BATCHSIZE=16; LR=5e-4 OPT_NAME="SGD" SCHED_NAME="default" IMP_UPDATE_PERIOD=1
 elif [ "$DATASET" == "BDD_domain" ]; then
     MEM_SIZE=10 ONLINE_ITER=1
     MODEL_NAME="yolov9-s" EVAL_PERIOD=1000
     BATCHSIZE=16; LR=3e-4 OPT_NAME="SGD" SCHED_NAME="default" IMP_UPDATE_PERIOD=1
-
-elif [ "$DATASET" == "SHIFT_domain" ]; then
-    MEM_SIZE=500 ONLINE_ITER=0.5
-    MODEL_NAME="yolov9-s" EVAL_PERIOD=4000
-    BATCHSIZE=16; LR=1e-4 OPT_NAME="SGD" SCHED_NAME="default" IMP_UPDATE_PERIOD=1
-
+elif [ "$DATASET" == "SHIFT_domain_small" ]; then
+    MEM_SIZE=500 ONLINE_ITER=1
+    MODEL_NAME="damo5" EVAL_PERIOD=1000
+    BATCHSIZE=16; LR=1e-5 OPT_NAME="SGD" SCHED_NAME="default" IMP_UPDATE_PERIOD=1
 elif [[ "$DATASET" == "MILITARY_SYNTHETIC_domain_1" || \
         "$DATASET" == "MILITARY_SYNTHETIC_domain_2" || \
         "$DATASET" == "MILITARY_SYNTHETIC_domain_3" ]]; then

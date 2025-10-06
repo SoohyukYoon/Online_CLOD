@@ -105,6 +105,8 @@ class ER:
         self.optimizer = select_optimizer(self.opt_name, self.model, lr=self.lr, cfg=self.damo_cfg.train.optimizer)
         self.scheduler = None  # optional
 
+
+
         val_dataset_names = self.damo_cfg.dataset.val_ann
         val_datasets = build_dataset(self.damo_cfg, val_dataset_names, is_train=False)
         
@@ -116,6 +118,12 @@ class ER:
             is_train=False
         )
         self.val_loader = val_dataloaders[0]
+        
+        
+        
+        
+        
+        
         
         # self.vec2box = create_converter(
         #     self.args.model.name, self.model, self.args.model.anchor, self.args.image_size, self.device

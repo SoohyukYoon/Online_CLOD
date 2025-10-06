@@ -28,7 +28,7 @@ from torch import Tensor
 from pathlib import Path
 from damo.dataset.datasets.mosaic_wrapper import MosaicWrapper
 from damo.dataset.datasets.coco import COCODataset
-from damo.dataset.collate_batch import BatchCollator
+from damo.dataset.collate_batch import BatchCollator, HarmoniousBatchCollator
 from damo.dataset.transforms import build_transforms, build_transforms_memorydataset
 from damo.structures.bounding_box import BoxList
 
@@ -51,7 +51,8 @@ def get_statistics(dataset: str):
     elif dataset == 'BDD_domain' or dataset == 'BDD_domain_small':
         return 13, 'data/bdd100k/images', 'data/bdd100k/annotations'
     elif dataset == 'SHIFT_domain' or dataset == 'SHIFT_domain_small':
-        return 6, 'data/shift/images', 'data/shift/annotations'
+        # return 6, 'data/shift/images', 'data/shift/annotations'
+        return 6, '/disk1/jhpark/clod/data/shift/images', 'data/shift/annotations'
     elif 'MILITARY_SYNTHETIC_domain' in dataset:
         return 9, 'data/military_synthetic/images', 'data/military_synthetic/annotations'
     else:
@@ -65,7 +66,8 @@ def get_pretrained_statistics(dataset: str):
     elif dataset == 'BDD_domain' or dataset == 'BDD_domain_small':
         return 13, 'data/bdd100k_source/images', 'data/bdd100k_source/annotations'
     elif dataset == 'SHIFT_domain' or dataset == 'SHIFT_domain_small':
-        return 6, 'data/shift_source/images', 'data/shift_source/annotations'
+        # return 6, 'data/shift_source/images', 'data/shift_source/annotations'
+        return 6, '/disk1/jhpark/clod/data/shift/images', 'data/shift_source/annotations'
     elif 'MILITARY_SYNTHETIC_domain' in dataset:
         return 9, 'data/military_synthetic_domain_source/images', 'data/military_synthetic_domain_source/annotations'
     else:
@@ -160,7 +162,7 @@ class MemoryDataset(COCODataset):
             mosaic_scale=aug.mosaic_mixup.mosaic_scale,
             keep_ratio=True,
         )
-        self.use_mosaic_mixup=False
+        self.use_mosaic_mixup=True
         
         self.batch_collator = BatchCollator(size_divisible=32)
     
@@ -223,6 +225,21 @@ class MemoryDataset(COCODataset):
             image_files = glob.glob(os.path.join(images_dir, "train","*/*.jpg"))
         else:
             image_files = glob.glob(os.path.join(images_dir, "train","*.jpg"))
+            
+        if 'SHIFT' in self.dataset:
+            cleaned_files = []
+            for i in image_files:
+                key = re.sub(r'\.(jpg|jpeg|png)$', '', i, flags=re.IGNORECASE)
+                try:
+                    temp = self.name2id[key]
+                except KeyError:
+                    try:
+                        temp = self.name2id[key.split('/')[-1]]
+                    except KeyError:
+                        continue  # skip this file
+                cleaned_files.append(i)
+            image_files = cleaned_files
+                    
 
         indices = np.random.choice(range(len(image_files)), size=buffer_size or self.memory_size, replace=False)
 
@@ -1003,7 +1020,7 @@ class ClassBalancedDataset(MemoryDataset):
             mosaic_scale=aug.mosaic_mixup.mosaic_scale,
             keep_ratio=True,
         )
-        self.use_mosaic_mixup=True 
+        self.use_mosaic_mixup=False
         
         self.batch_collator = BatchCollator(size_divisible=32)
 
@@ -1136,13 +1153,13 @@ class FreqClsBalancedDataset(MemoryDataset):
             mosaic_scale=aug.mosaic_mixup.mosaic_scale,
             keep_ratio=True,
         )
-        self.use_mosaic_mixup=True 
+        self.use_mosaic_mixup=False 
         
         self.batch_collator = BatchCollator(size_divisible=32)
         
         self.alpha = 1.0                  # smoothing constant in 1/(usage+α)
         self.beta = 1.0
-        self.usage_decay = 0.9
+        self.usage_decay = 0.995
     
         
     def replace_sample(self, sample, idx=None, images_dir=None,label_path=None):
@@ -2156,6 +2173,511 @@ class FreqClsBalancedPseudoDomainDataset(MemoryDataset):
         self.buffer = self.buffer[:buffer_size]
         
         return self.batch_collator(data)
+
+
+
+
+
+# Harmonious Dataset
+
+import matplotlib.pyplot as plt
+import matplotlib.patches as patches
+from PIL import Image
+
+def draw_boxes_on_image(img, boxes, labels, scores=None, save_path="output.jpg"):
+    """
+    img: PIL.Image or numpy array
+    boxes: [N, 4] numpy array, (x1, y1, x2, y2)
+    labels: [N] numpy array
+    scores: [N] numpy array or None
+    save_path: str, where to save the image
+    """
+    # PIL 변환
+    if isinstance(img, np.ndarray):
+        img = Image.fromarray(img)
+    
+    fig, ax = plt.subplots(1, figsize=(12, 8))
+    ax.imshow(img)
+
+    for i, box in enumerate(boxes):
+        x1, y1, x2, y2 = box
+        w, h = x2 - x1, y2 - y1
+
+        # 박스 그리기
+        rect = patches.Rectangle((x1, y1), w, h, linewidth=2,
+                                 edgecolor='red', facecolor='none')
+        ax.add_patch(rect)
+
+        # 텍스트(label + score)
+        caption = f"{labels[i]}"
+        if scores is not None:
+            caption += f" ({scores[i]:.2f})"
+        ax.text(x1, y1 - 5, caption, color='yellow',
+                fontsize=10, weight='bold',
+                bbox=dict(facecolor='black', alpha=0.5, pad=1, edgecolor='none'))
+
+    plt.axis("off")
+    plt.tight_layout()
+    plt.savefig(save_path, bbox_inches="tight", pad_inches=0)
+    plt.close()
+    print(f"Saved with boxes at {save_path}")
+
+
+def generate_pseudo_labels_harmonious(model, img, score_thresh=0.7, transform=None,image_sizes=(640,640),device='cuda'):
+    # generate pseudo labels
+    model.eval()
+    img_cv = np.asarray(img)
+    height, width = img_cv.shape[:2]
+    if transform is not None:
+        img_tensor = transform(img_cv)[0].unsqueeze(0).to(device)
+    else:
+        img_tensor = T.ToTensor()(img_cv)[0].unsqueeze(0).to(device)
+    with torch.no_grad():
+        outputs = model(img_tensor)[0]
+
+    boxes = outputs.bbox.detach().to('cpu').float().numpy()
+    labels = outputs.extra_fields['labels'].detach().to('cpu').long().numpy()
+    scores = outputs.extra_fields.get('scores').detach().to('cpu').float().numpy()
+    
+    
+    # rescale boxes to original image size
+    boxes[:, 0] = boxes[:, 0] * width / image_sizes[1]
+    boxes[:, 1] = boxes[:, 1] * height / image_sizes[0]
+    boxes[:, 2] = boxes[:, 2] * width / image_sizes[1]
+    boxes[:, 3] = boxes[:, 3] * height / image_sizes[0]
+    
+    # filter boxes by score threshold
+    keep_indices = np.where(scores >= score_thresh)[0]
+    boxes = boxes[keep_indices]
+    scores = scores[keep_indices]
+    labels = labels[keep_indices]
+    
+    return boxes, labels, scores
+
+
+
+class HarmoniousDataset(MemoryDataset):
+    def __init__(self, ann_file, root, transforms=None, class_names=None,
+                 dataset=None, cls_list=None, device=None, data_dir=None, memory_size=None, 
+                 init_buffer_size=None, image_size=(640, 640), aug=None
+                 ):
+        super(MemoryDataset, self).__init__(ann_file, root, transforms, class_names)
+        # self.args = args
+        if isinstance(image_size, int):
+            image_size = (image_size, image_size)
+        self.image_sizes = [int(image_size[0]), int(image_size[1])]
+        self.memory_size = memory_size
+
+        self.buffer = []
+        self.stream_data = []
+        self.logits = []
+
+        self.dataset = dataset
+        self.device = device
+        self.data_dir = data_dir
+
+        self.counts = []
+        self.class_usage_cnt = []
+        self.tasks = []
+        
+        # FIXME: fix for object detection class counting
+        self.cls_list = cls_list if cls_list else []
+        self.cls_used_times = []
+        self.cls_dict = {}
+        self.cls_count = [0]
+        self.cls_idx = [[]]
+        
+        self.new_exposed_classes = ['pretrained']
+        # self.cls_train_cnt = np.array([0,]*len(cls_list)) if cls_list else np.array([])
+        self.cls_train_cnt = np.array([])
+        self.score = []
+        self.others_loss_decrease = np.array([])
+        self.previous_idx = np.array([], dtype=int)
+        self.usage_cnt = []
+        self.sample_weight = []
+        self.data = {}
+        
+        with open(ann_file, 'r') as f:
+            annotations = json.load(f)
+            self.name2id = {ann['file_name'].split('.')[0]: ann['id'] for ann in annotations['images']}
+        
+        self.build_initial_buffer(init_buffer_size)
+
+        n_classes, image_dir, label_path = get_statistics(dataset=self.dataset)
+        self.image_dir = image_dir
+        self.label_path = label_path
+        
+        # set transform
+        transforms = aug.transform
+        transforms = build_transforms_memorydataset(**transforms)
+        self._transforms = transforms
+        
+        # aug.mosaic_mixup.mosaic_prob = 0
+        # aug.mosaic_mixup.mixup_prob = 0
+        # aug.mosaic_mixup.degrees = 0
+        # aug.mosaic_mixup.translate = 0
+        # aug.mosaic_mixup.mosaic_scale = (0.8, 1.2)
+        
+        print("mosaic_prob", aug.mosaic_mixup.mosaic_prob)
+        print("mixup_prob", aug.mosaic_mixup.mixup_prob)
+        print("degrees", aug.mosaic_mixup.degrees)
+        print("translate", aug.mosaic_mixup.translate)
+        print("mosaic_scale", aug.mosaic_mixup.mosaic_scale)
+        
+        self.mosaic_wrapper = MosaicWrapper(
+            dataset=self,                      # <-- this class will provide pull_item/load_anno
+            img_size=image_size,
+            mosaic_prob=aug.mosaic_mixup.mosaic_prob,                   # always “allowed”; actual apply is still random inside wrapper
+            mixup_prob=aug.mosaic_mixup.mixup_prob,
+            transforms=self._transforms,                   # we'll run your own transforms after mosaic
+            degrees=aug.mosaic_mixup.degrees,
+            translate=aug.mosaic_mixup.translate,
+            mosaic_scale=aug.mosaic_mixup.mosaic_scale,
+            keep_ratio=True,
+        )
+        self.use_mosaic_mixup=False 
+        
+        
+        self.test_transform = T.Compose(
+            [
+                T.Resize(image_size, keep_ratio=False),
+                T.ToTensor(),
+                T.Normalize(mean=[0.0, 0.0, 0.0], std=[1.0, 1.0, 1.0]),
+            ]
+        )
+        
+        
+        self.batch_collator = HarmoniousBatchCollator(size_divisible=32)
+        
+        self.alpha = 1.0                  # smoothing constant in 1/(usage+α)
+        self.beta = 1.0
+        self.usage_decay = 0.995
+        
+        
+    def load_valid_labels(self, label, is_stream, data_class):
+        indices_to_keep = []
+        
+        for i in range(len(label)):
+            if is_stream:
+                pass
+            else:
+                if self.dataset == 'VOC_10_10':
+                    if self.contiguous_class2id[self.ori_id2class[label[i]['category_id']]] < 10:
+                        indices_to_keep.append(i)
+                elif self.dataset == 'VOC_15_5':
+                    if self.contiguous_class2id[self.ori_id2class[label[i]['category_id']]] < 15:
+                        indices_to_keep.append(i)
+                else:
+                    indices_to_keep.append(i)
+                    
+                    
+        label = [label[i] for i in indices_to_keep]
+        
+        if len(label) == 0:
+            return None
+        else:
+            return label
+        
+    def load_data(self, img_path, is_stream, data_class=None):
+        img_path = re.sub(r'\.(jpg|jpeg|png|JPG|JPEG|PNG)$', '', img_path)
+        try:
+            image_id = self.name2id[img_path]
+        except:
+            image_id = self.name2id[img_path.split('/')[-1]]
+        idx = self.ids.index(image_id)
+        img, label, img_id = self.__getitem__(idx)
+    
+        label = self.load_valid_labels(label, is_stream, data_class=data_class)
+        
+        return img, label, img_id
+    
+        
+    def replace_sample(self, sample, idx=None, images_dir=None,label_path=None):
+        data_class = sample.get('label', None)
+        img, labels, img_id = self.load_data(sample['file_name'], is_stream=True,data_class=data_class)
+        classes = []
+        if labels is not None: # if data is not stream  
+            classes = [obj['category_id'] for obj in labels]
+            classes = [self.contiguous_class2id[self.ori_id2class[c]] 
+                    for c in classes]
+        ### BEGIN USAGE
+        entry = {
+            "img": img,
+            "labels": labels,
+            "img_id": img_id,
+            "usage": sample.get("usage", 0),
+            "classes": list(set(classes)) if len(classes) else [],
+            "stream": True
+        }
+        ### END USAGE
+
+        if sample.get('klass', None):
+            self.cls_count[self.new_exposed_classes.index(sample['klass'])] += 1
+            sample_category = sample['klass']
+        elif sample.get('domain', None):
+            self.cls_count[self.new_exposed_classes.index(sample['domain'])] += 1
+            sample_category = sample['domain']
+        else:
+            self.cls_count[self.new_exposed_classes.index('pretrained')] += 1
+            sample_category = 'pretrained'
+        # self.cls_count[self.new_exposed_classes.index(sample.get('klass', 'pretrained'))] += 1
+        if idx is None:
+            self.cls_idx[self.new_exposed_classes.index(sample_category)].append(len(self.buffer))
+            self.buffer.append(entry)
+        else:
+            self.buffer[idx] = entry
+    
+    def register_sample_for_initial_buffer(self, sample, idx=None, images_dir=None,label_path=None):
+        img, labels, img_id = self.load_data(sample['file_name'], is_stream=False)
+        
+        
+        ### BEGIN USAGE
+        
+        classes = []
+        if labels is not None: # if data is not stream  
+            classes = [obj['category_id'] for obj in labels]
+            classes = [self.contiguous_class2id[self.ori_id2class[c]] 
+                    for c in classes]
+            
+        entry = {
+            "img": img,
+            "labels": labels,
+            "img_id": img_id,
+            "usage": sample.get("usage", 0),
+            "classes": list(set(classes)) if len(classes) else [],
+            "stream": False
+        }
+        ### END USAGE
+
+        if sample.get('klass', None):
+            self.cls_count[self.new_exposed_classes.index(sample['klass'])] += 1
+            sample_category = sample['klass']
+        elif sample.get('domain', None):
+            self.cls_count[self.new_exposed_classes.index(sample['domain'])] += 1
+            sample_category = sample['domain']
+        else:
+            self.cls_count[self.new_exposed_classes.index('pretrained')] += 1
+            sample_category = 'pretrained'
+        # self.cls_count[self.new_exposed_classes.index(sample.get('klass', 'pretrained'))] += 1
+        if idx is None:
+            self.cls_idx[self.new_exposed_classes.index(sample_category)].append(len(self.buffer))
+            self.buffer.append(entry)
+            
+        else:
+            self.buffer[idx] = entry
+    
+    def register_stream(self, datalist):
+        self.stream_data = []
+        for data in datalist:
+            data_class = data.get('label', None)
+            img_path = data.get('file_name', data.get('filepath'))
+            
+            img, labels, img_id = self.load_data(img_path, is_stream=True, data_class=data_class)
+            
+            classes = []
+            if labels is not None: # if data is not stream
+                classes = [obj['category_id'] for obj in labels]
+                classes = [self.contiguous_class2id[self.ori_id2class[c]] 
+                        for c in classes]
+                
+            entry = {
+                "img": img,
+                "labels": labels,
+                "img_id": img_id,
+                "usage": 0,
+                "classes": list(set(classes)) if len(classes) else [],
+                "stream": True
+            }
+            self.stream_data.append(entry)
+
+    @torch.no_grad()
+    def get_batch(self, batch_size, stream_batch_size=0, use_weight=None, transform=None, weight_method= "cls_usage", model=None, score_thresh=0.7):
+        assert batch_size >= stream_batch_size
+        stream_batch_size = min(stream_batch_size, len(self.stream_data))
+        batch_size = min(batch_size, stream_batch_size + len(self.buffer))
+        memory_batch_size = batch_size - stream_batch_size
+
+        data = []
+        
+        # append stream data to buffer for batch creation
+        buffer_size = len(self.buffer)
+        self.buffer.extend(self.stream_data)
+ 
+        if stream_batch_size > 0:
+            stream_indices = np.random.choice(range(len(self.stream_data)), size=stream_batch_size, replace=False)
+            for i in stream_indices:
+                if self.use_mosaic_mixup:
+                    img, label, img_id = self.mosaic_wrapper.__getitem__((True, i + buffer_size))
+                else:
+                    entry = self.buffer[i + buffer_size]
+                    img, anno, img_id = entry['img'], entry['labels'], entry['img_id']
+                    
+                    if anno is not None: # will not be executed as target data is unlabeled
+                        
+                        anno = [obj for obj in anno if obj['iscrowd'] == 0]
+
+                        boxes = [obj['bbox'] for obj in anno]
+                        boxes = torch.as_tensor(boxes).reshape(-1, 4)  # guard against no boxes
+                        target = BoxList(boxes, img.size, mode='xywh').convert('xyxy')
+
+                        classes = [obj['category_id'] for obj in anno]
+                        classes = [self.contiguous_class2id[self.ori_id2class[c]] 
+                                for c in classes]
+
+                        classes = torch.tensor(classes)
+                        target.add_field('labels', classes)
+
+                        target = target.clip_to_image(remove_empty=True)
+                        
+                        img = np.asarray(img)
+                        img, label = self._transforms(img, target)
+                        
+                        
+                    else:
+                        boxes, labels, scores = generate_pseudo_labels_harmonious(model, img, score_thresh=score_thresh, transform=self.test_transform, image_sizes=self.image_sizes, device=self.device)
+
+                        if len(boxes) > 0:
+                            target = BoxList(torch.tensor(boxes), img.size, mode='xyxy')
+                            target.add_field('labels', torch.tensor(labels))
+                            target = target.clip_to_image(remove_empty=True)
+
+                            img, label = self._transforms(np.asarray(img), target)
+                        else:
+                            # no valid boxes
+                            # create empty label
+                            target = BoxList(torch.zeros((0,4)), img.size, mode='xyxy')
+                            target.add_field('labels', torch.tensor([]))
+                            img, label = self._transforms(np.asarray(img), target)
+                            
+                        score_weight = torch.tensor(scores)
+                
+                # data.append((img, label, img_id))
+                data.append((img, label, img_id, score_weight))
+
+        # ───── Memory part ──────────────────────────────────────────────
+        if memory_batch_size > 0 and len(self.buffer):
+            indices = np.random.choice(range(buffer_size), size=memory_batch_size, replace=False)
+            for i in indices:
+                if self.use_mosaic_mixup:
+                    img, label, img_id = self.mosaic_wrapper.__getitem__((True, i, model, score_thresh))
+                else:
+                    entry = self.buffer[i]
+                    img, anno, img_id = entry['img'], entry['labels'], entry['img_id']
+                    
+                    if anno is not None:
+                        anno = [obj for obj in anno if obj['iscrowd'] == 0]
+
+                        boxes = [obj['bbox'] for obj in anno]
+                        boxes = torch.as_tensor(boxes).reshape(-1, 4)  # guard against no boxes
+                        
+                        target = BoxList(boxes, img.size, mode='xywh').convert('xyxy')
+
+                        classes = [obj['category_id'] for obj in anno]
+                        classes = [self.contiguous_class2id[self.ori_id2class[c]] 
+                                for c in classes]
+
+                        classes = torch.tensor(classes)
+                        target.add_field('labels', classes)
+
+                        target = target.clip_to_image(remove_empty=True)
+                        
+                        img = np.asarray(img)
+                        img, label = self._transforms(img, target)
+                        
+                        score_weight = torch.ones(len(boxes))
+
+                        
+                    else: 
+                        boxes, labels, scores = generate_pseudo_labels_harmonious(model, img, score_thresh=score_thresh, transform=self.test_transform, image_sizes=self.image_sizes, device=self.device)
+
+                        if len(boxes) > 0:
+                            target = BoxList(torch.tensor(boxes), img.size, mode='xyxy')
+                            target.add_field('labels', torch.tensor(labels))
+                            target = target.clip_to_image(remove_empty=True)
+
+                            img, label = self._transforms(np.asarray(img), target)
+                        else:
+                            # no valid boxes
+                            # create empty label
+                            target = BoxList(torch.zeros((0,4)), img.size, mode='xyxy')
+                            target.add_field('labels', torch.tensor([]))
+                            img, label = self._transforms(np.asarray(img), target)
+                            
+                        score_weight = torch.tensor(scores)
+                
+                # data.append((img, label, img_id))    
+                data.append((img, label, img_id, score_weight))
+
+                            
+
+         # remove stream data from buffer
+        self.buffer = self.buffer[:buffer_size]
+        
+        return self.batch_collator(data)
+
+    # # might need to modify for pseudolabel
+    # def pull_item(self, idx):
+    #     entry = self.buffer[idx]
+    #     img, anno, img_id = entry['img'], entry['labels'], entry['img_id']
+    #     # filter crowd annotations
+    #     # TODO might be better to add an extra field
+    #     anno = [obj for obj in anno if obj['iscrowd'] == 0]
+
+    #     boxes = [obj['bbox'] for obj in anno]
+    #     boxes = torch.as_tensor(boxes).reshape(-1, 4)  # guard against no boxes
+    #     target = BoxList(boxes, img.size, mode='xywh').convert('xyxy')
+        
+    #     target = target.clip_to_image(remove_empty=True)
+
+    #     classes = [obj['category_id'] for obj in anno]
+    #     classes = [self.contiguous_class2id[self.ori_id2class[c]] 
+    #                for c in classes]
+
+    #     obj_masks = []
+    #     for obj in anno:
+    #         obj_mask = []
+    #         if 'segmentation' in obj:
+    #             for mask in obj['segmentation']:
+    #                 obj_mask += mask
+    #             if len(obj_mask) > 0:
+    #                 obj_masks.append(obj_mask)
+    #     seg_masks = [
+    #         np.array(obj_mask, dtype=np.float32).reshape(-1, 2)
+    #         for obj_mask in obj_masks
+    #     ]
+
+    #     res = np.zeros((len(target.bbox), 5))
+    #     for idx in range(len(target.bbox)):
+    #         res[idx, 0:4] = target.bbox[idx]
+    #         res[idx, 4] = classes[idx]
+
+    #     img = np.asarray(img)  # rgb
+
+    #     return img, res, seg_masks, img_id
+    
+    def load_anno(self, idx):
+        entry = self.buffer[idx]
+        anno = entry['labels']
+        anno = [obj for obj in anno if obj['iscrowd'] == 0]
+        classes = [obj['category_id'] for obj in anno]
+        classes = [self.contiguous_class2id[self.ori_id2class[c]] 
+                   for c in classes]
+        return classes
+    
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 #################################################################################################
 ########## Below is original code that we don't use now
