@@ -28,7 +28,7 @@ from torch import Tensor
 from pathlib import Path
 from damo.dataset.datasets.mosaic_wrapper import MosaicWrapper
 from damo.dataset.datasets.coco import COCODataset
-from damo.dataset.collate_batch import BatchCollator, HarmoniousBatchCollator
+from damo.dataset.collate_batch import BatchCollator, BatchCollator2, HarmoniousBatchCollator
 from damo.dataset.transforms import build_transforms, build_transforms_memorydataset
 from damo.structures.bounding_box import BoxList
 
@@ -449,6 +449,375 @@ def get_test_datalist(dataset) -> List:
     except:
         print("test name", f"collections/{dataset}/{dataset}_val2.json")
         return pd.read_json(f"collections/{dataset}/{dataset}_val2.json").to_dict(orient="records")
+    
+    
+# Selection-Based Retrieval + Cls Balanced
+class SelectionClsBalancedDataset(MemoryDataset):
+    def __init__(self, ann_file, root, transforms=None, class_names=None,
+                 dataset=None, cls_list=None, device=None, data_dir=None, memory_size=None, 
+                 init_buffer_size=None, image_size=(640, 640), aug=None, selection_method=None
+                 ):
+        super(MemoryDataset, self).__init__(ann_file, root, transforms, class_names)
+        # self.args = args
+        if isinstance(image_size, int):
+            image_size = (image_size, image_size)
+        self.image_sizes = [int(image_size[0]), int(image_size[1])]
+        self.memory_size = memory_size
+
+        self.buffer = []
+        self.stream_data = []
+        self.logits = []
+
+        self.dataset = dataset
+        self.device = device
+        self.data_dir = data_dir
+
+        self.counts = []
+        self.tasks = []
+        
+        # FIXME: fix for object detection class counting
+        self.cls_list = cls_list if cls_list else []
+        self.cls_used_times = []
+        self.cls_dict = {}
+        self.cls_count = [0]
+        self.cls_idx = [[]]
+        
+        self.new_exposed_classes = ['pretrained']
+        self.score = []
+        self.cls_train_cnt = np.array([])
+        self.others_loss_decrease = np.array([])
+        self.previous_idx = np.array([], dtype=int)
+        self.sample_weight = []
+        self.data = {}
+        
+        self.selection_method = selection_method
+        
+        with open(ann_file, 'r') as f:
+            annotations = json.load(f)
+            self.name2id = {ann['file_name'].split('.')[0]: ann['id'] for ann in annotations['images']}
+        
+        self.build_initial_buffer(init_buffer_size)
+
+        n_classes, image_dir, label_path = get_statistics(dataset=self.dataset)
+        self.image_dir = image_dir
+        self.label_path = label_path
+        
+        # set transform
+        transforms = aug.transform
+        transforms = build_transforms_memorydataset(**transforms)
+        self._transforms = transforms
+        
+        # aug.mosaic_mixup.mosaic_prob = 0
+        # aug.mosaic_mixup.mixup_prob = 0
+        # aug.mosaic_mixup.degrees = 0
+        # aug.mosaic_mixup.translate = 0
+        # aug.mosaic_mixup.mosaic_scale = (0.8, 1.2)
+        
+        print("mosaic_prob", aug.mosaic_mixup.mosaic_prob)
+        print("mixup_prob", aug.mosaic_mixup.mixup_prob)
+        print("degrees", aug.mosaic_mixup.degrees)
+        print("translate", aug.mosaic_mixup.translate)
+        print("mosaic_scale", aug.mosaic_mixup.mosaic_scale)
+        
+        
+        self.mosaic_wrapper = MosaicWrapper(
+            dataset=self,                      # <-- this class will provide pull_item/load_anno
+            img_size=image_size,
+            mosaic_prob=aug.mosaic_mixup.mosaic_prob,                   # always “allowed”; actual apply is still random inside wrapper
+            mixup_prob=aug.mosaic_mixup.mixup_prob,
+            transforms=self._transforms,                   # we'll run your own transforms after mosaic
+            degrees=aug.mosaic_mixup.degrees,
+            translate=aug.mosaic_mixup.translate,
+            mosaic_scale=aug.mosaic_mixup.mosaic_scale,
+            keep_ratio=True,
+        )
+        self.use_mosaic_mixup=True 
+        
+        self.batch_collator = BatchCollator(size_divisible=32)
+        
+        self.alpha = 1.0                  # smoothing constant in 1/(usage+α)
+        self.beta = 1.0
+        # self.usage_decay = 0.9
+    
+    def add_new_class(self, cls_list, sample=None):
+        self.cls_list = cls_list
+        self.cls_count.append(0)
+        # self.cls_loss.append(None)
+        # if sample is not None:
+            # self.cls_times.append(sample['time'])
+        # else:
+            # self.cls_times.append(None)
+        #self.cls_used_times.append(max(self.cls_times))
+        # self.cls_weight.append(1)
+        self.cls_idx.append([])
+        self.cls_dict = {self.cls_list[i]:i for i in range(len(self.cls_list))}
+        self.cls_train_cnt = np.append(self.cls_train_cnt, 0)
+    
+    def update_initialinfo(self, info_list):
+        assert len(info_list) == len(self.buffer)
+        for i, info in enumerate(info_list):
+            self.buffer[i]["score"] = info
+            
+    def update_info(self, infos):
+        assert len(infos) == len(self.selected_indices)
+        for i, info in enumerate(infos):
+            self.buffer[selected_indices]["score"] = info
+    
+    def replace_sample(self, sample, info=0, idx=None, images_dir=None,label_path=None):
+        data_class = sample.get('label', None)
+        img, labels, img_id = self.load_data(sample['file_name'], is_stream=True,data_class=data_class)
+        classes = [obj['category_id'] for obj in labels]
+        classes = [self.contiguous_class2id[self.ori_id2class[c]] 
+                   for c in classes]
+        ### BEGIN USAGE
+        entry = {
+            "img": img,
+            "labels": labels,
+            "img_id": img_id,
+            "score": info,
+            "classes": list(set(classes)) if len(classes) else []
+        }
+        ### END USAGE
+
+        if sample.get('klass', None):
+            self.cls_count[self.new_exposed_classes.index(sample['klass'])] += 1
+            sample_category = sample['klass']
+        elif sample.get('domain', None):
+            self.cls_count[self.new_exposed_classes.index(sample['domain'])] += 1
+            sample_category = sample['domain']
+        else:
+            self.cls_count[self.new_exposed_classes.index('pretrained')] += 1
+            sample_category = 'pretrained'
+        if idx is None:
+            self.cls_idx[self.new_exposed_classes.index(sample_category)].append(len(self.buffer))
+            self.buffer.append(entry)
+        else:
+            self.buffer[idx] = entry
+    
+    def register_sample_for_initial_buffer(self, sample, idx=None, images_dir=None,label_path=None):
+        img, labels, img_id = self.load_data(sample['file_name'], is_stream=False)
+        ### BEGIN USAGE
+        classes = [obj['category_id'] for obj in labels]
+        classes = [self.contiguous_class2id[self.ori_id2class[c]] 
+                   for c in classes]
+        entry = {
+            "img": img,
+            "labels": labels,
+            "img_id": img_id,
+            "score": 0,
+            "classes": list(set(classes)) if len(classes) else []
+        }
+        ### END USAGE
+
+        if sample.get('klass', None):
+            self.cls_count[self.new_exposed_classes.index(sample['klass'])] += 1
+            sample_category = sample['klass']
+        elif sample.get('domain', None):
+            self.cls_count[self.new_exposed_classes.index(sample['domain'])] += 1
+            sample_category = sample['domain']
+        else:
+            self.cls_count[self.new_exposed_classes.index('pretrained')] += 1
+            sample_category = 'pretrained'
+        if idx is None:
+            self.cls_idx[self.new_exposed_classes.index(sample_category)].append(len(self.buffer))
+            self.buffer.append(entry)
+        else:
+            self.buffer[idx] = entry
+            
+    
+    def register_stream(self, datalist):
+        self.stream_data = []
+        for data in datalist:
+            data_class = data.get('label', None)
+            img_path = data.get('file_name', data.get('filepath'))
+            
+            img, labels, img_id = self.load_data(img_path, is_stream=True, data_class=data_class)
+            classes = [obj['category_id'] for obj in labels]
+            classes = [self.contiguous_class2id[self.ori_id2class[c]] 
+                    for c in classes]
+            entry = {
+                "img": img,
+                "labels": labels,
+                "img_id": img_id,
+                "score": 0,
+                "classes": list(set(classes)) if len(classes) else []
+            }
+            
+            self.stream_data.append(entry)
+
+    def get_buffer_data(self, ind, batch_size):
+        data = []
+        
+        batch = self.buffer[ind:ind+batch_size]
+        
+        for i, entry in enumerate(batch):
+            # img, bboxes, img_id = entry['img'], entry['labels'], entry['img_id']
+            # valid_mask = labels[:, 0] != -1
+            # bboxes = labels[valid_mask]
+            if self.use_mosaic_mixup:
+                img, label, img_id = self.mosaic_wrapper.__getitem__((True, i))
+            else:
+                entry = self.buffer[i]
+                img, anno, img_id = entry['img'], entry['labels'], entry['img_id']
+                anno = [obj for obj in anno if obj['iscrowd'] == 0]
+
+                boxes = [obj['bbox'] for obj in anno]
+                boxes = torch.as_tensor(boxes).reshape(-1, 4)  # guard against no boxes
+                target = BoxList(boxes, img.size, mode='xywh').convert('xyxy')
+
+                classes = [obj['category_id'] for obj in anno]
+                classes = [self.contiguous_class2id[self.ori_id2class[c]] 
+                        for c in classes]
+
+                classes = torch.tensor(classes)
+                target.add_field('labels', classes)
+
+
+                target = target.clip_to_image(remove_empty=True)
+                
+                img = np.asarray(img)
+                img, label = self._transforms(img, target)
+            data.append((img, label, img_id))
+            
+        return self.batch_collator(data)
+    
+    
+    @torch.no_grad()
+    def get_batch(self, batch_size, stream_batch_size=0, use_weight=None, transform=None, weight_method=None):
+        assert batch_size >= stream_batch_size
+        stream_batch_size = min(stream_batch_size, len(self.stream_data))
+        batch_size = min(batch_size, stream_batch_size + len(self.buffer))
+        memory_batch_size = batch_size - stream_batch_size
+
+        data = []
+        
+        # append stream data to buffer for batch creation
+        buffer_size = len(self.buffer)
+        self.buffer.extend(self.stream_data)
+ 
+        if stream_batch_size > 0:
+            stream_indices = np.random.choice(range(len(self.stream_data)), size=stream_batch_size, replace=False)
+            for i in stream_indices:
+                if self.use_mosaic_mixup:
+                    img, label, img_id = self.mosaic_wrapper.__getitem__((True, i + buffer_size))
+                else:
+                    entry = self.buffer[i + buffer_size]
+                    img, anno, img_id = entry['img'], entry['labels'], entry['img_id']
+                    anno = [obj for obj in anno if obj['iscrowd'] == 0]
+
+                    boxes = [obj['bbox'] for obj in anno]
+                    boxes = torch.as_tensor(boxes).reshape(-1, 4)  # guard against no boxes
+                    target = BoxList(boxes, img.size, mode='xywh').convert('xyxy')
+
+                    classes = [obj['category_id'] for obj in anno]
+                    classes = [self.contiguous_class2id[self.ori_id2class[c]] 
+                            for c in classes]
+
+                    classes = torch.tensor(classes)
+                    target.add_field('labels', classes)
+
+                    target = target.clip_to_image(remove_empty=True)
+                    
+                    img = np.asarray(img)
+                    img, label = self._transforms(img, target)
+                
+                data.append((img, label, img_id))
+
+        # ───── Memory part ──────────────────────────────────────────────
+        if memory_batch_size > 0 and len(self.buffer):
+            
+            w = np.array([e["score"] for e in self.buffer],
+                        dtype=np.float64)
+            w /= w.sum()
+            ### HYBRID WEIGHT END
+            print("weight", w)
+            indices = np.random.choice(
+                len(self.buffer),
+                size=memory_batch_size,
+                replace=len(self.buffer) < memory_batch_size,
+                p=w,
+            )
+
+            for i in indices:
+
+                if self.use_mosaic_mixup:
+                    img, label, img_id = self.mosaic_wrapper.__getitem__((True, i))
+                else:
+                    entry = self.buffer[i]
+                    img, anno, img_id = entry['img'], entry['labels'], entry['img_id']
+                    anno = [obj for obj in anno if obj['iscrowd'] == 0]
+
+                    boxes = [obj['bbox'] for obj in anno]
+                    boxes = torch.as_tensor(boxes).reshape(-1, 4)  # guard against no boxes
+                    target = BoxList(boxes, img.size, mode='xywh').convert('xyxy')
+
+                    classes = [obj['category_id'] for obj in anno]
+                    classes = [self.contiguous_class2id[self.ori_id2class[c]] 
+                            for c in classes]
+
+                    classes = torch.tensor(classes)
+                    target.add_field('labels', classes)
+
+
+                    target = target.clip_to_image(remove_empty=True)
+                    
+                    img = np.asarray(img)
+                    img, label = self._transforms(img, target)
+                data.append((img, label, img_id))
+
+         # remove stream data from buffer
+        self.buffer = self.buffer[:buffer_size]
+        self.selected_indices = indices
+        return self.batch_collator(data)
+
+    def pull_item(self, idx):
+        entry = self.buffer[idx]
+        img, anno, img_id = entry['img'], entry['labels'], entry['img_id']
+        # filter crowd annotations
+        # TODO might be better to add an extra field
+        anno = [obj for obj in anno if obj['iscrowd'] == 0]
+
+        boxes = [obj['bbox'] for obj in anno]
+        boxes = torch.as_tensor(boxes).reshape(-1, 4)  # guard against no boxes
+        target = BoxList(boxes, img.size, mode='xywh').convert('xyxy')
+        
+        target = target.clip_to_image(remove_empty=True)
+
+        classes = [obj['category_id'] for obj in anno]
+        classes = [self.contiguous_class2id[self.ori_id2class[c]] 
+                   for c in classes]
+
+        obj_masks = []
+        for obj in anno:
+            obj_mask = []
+            if 'segmentation' in obj:
+                for mask in obj['segmentation']:
+                    obj_mask += mask
+                if len(obj_mask) > 0:
+                    obj_masks.append(obj_mask)
+        seg_masks = [
+            np.array(obj_mask, dtype=np.float32).reshape(-1, 2)
+            for obj_mask in obj_masks
+        ]
+
+        res = np.zeros((len(target.bbox), 5))
+        for idx in range(len(target.bbox)):
+            res[idx, 0:4] = target.bbox[idx]
+            res[idx, 4] = classes[idx]
+
+        img = np.asarray(img)  # rgb
+
+        return img, res, seg_masks, img_id
+    
+    def load_anno(self, idx):
+        entry = self.buffer[idx]
+        anno = entry['labels']
+        anno = [obj for obj in anno if obj['iscrowd'] == 0]
+        classes = [obj['category_id'] for obj in anno]
+        classes = [self.contiguous_class2id[self.ori_id2class[c]] 
+                   for c in classes]
+        return classes
+
 
 ##############################################################################################
 # MemoryPseudoDataset
@@ -457,12 +826,14 @@ from damo.dataset.transforms import transforms as T
 def generate_pseudo_labels(model, img, score_thresh=0.7, transform=None,image_sizes=(640,640),device='cuda'):
     # generate pseudo labels
     model.eval()
-    img_cv = np.asarray(img)
-    height, width = img_cv.shape[:2]
     if transform is not None:
+        img_cv = np.asarray(img)
+        height, width = img_cv.shape[:2]
         img_tensor = transform(img_cv)[0].unsqueeze(0).to(device)
     else:
-        img_tensor = T.ToTensor()(img_cv)[0].unsqueeze(0).to(device)
+        breakpoint()
+        height, width = img.shape[1], img.shape[2]
+        img_tensor = img.unsqueeze(0).to(device)
     with torch.no_grad():
         outputs = model(img_tensor)[0]
 
@@ -483,6 +854,251 @@ def generate_pseudo_labels(model, img, score_thresh=0.7, transform=None,image_si
     labels = labels[keep_indices]
     return boxes, labels, scores
 
+################################# better pseudo labels ###############################3
+from ensemble_boxes import weighted_boxes_fusion
+from damo.structures.image_list import to_image_list
+SCALES = [(640, 640)]#, (704, 704), (768, 768)]
+HFLIPS = [False, True]
+def _apply_feature_dropout_to_backbone_feats(
+    feats,
+    p: float = 0.1,
+) -> List[torch.Tensor]:
+    """
+    Apply dropout to backbone feature maps.
+    Supports list/tuple/dict of tensors (common for FPN inputs).
+    Uses F.dropout(..., training=True) to force stochasticity during inference.
+    """
+    def drop_one(x):
+        if isinstance(x, torch.Tensor):
+            return F.dropout(x, p=p, training=True)
+        return x
+
+    if isinstance(feats, (list, tuple)):
+        return [drop_one(f) for f in feats]
+    elif isinstance(feats, dict):
+        return {k: drop_one(v) for k, v in feats.items()}
+    else:
+        # fallback (single tensor)
+        return drop_one(feats)
+def _forward_backbone_neck_head_eval(
+    model,
+    image_tensor: torch.Tensor,   # [1, C, H, W]
+    dropout_p: float = 0.0,
+    mc_passes: int = 0,
+):
+    """
+    Splits forward like your snippet:
+        new_feats_b = model.backbone(image_tensors)
+        new_feats_n = model.neck(new_feats_b)
+        out = model.head.forward_eval(new_feats_n, labels=None)
+    If mc_passes>0, returns a list of outputs (length mc_passes) with
+    dropout applied to backbone features before neck.
+    Otherwise returns a single output.
+    """
+    # Backbone once (deterministic)
+    with torch.no_grad():
+        feats_b = model.backbone(image_tensor)
+    img_list = to_image_list(image_tensor)
+    if mc_passes and mc_passes > 0 and dropout_p > 0.0:
+        outs = []
+        with torch.no_grad():
+            for _ in range(mc_passes):
+                feats_b_do = _apply_feature_dropout_to_backbone_feats(feats_b, p=dropout_p)
+                feats_n = model.neck(feats_b_do)
+                out = model.head.forward_eval(feats_n, labels=None,imgs=img_list)[0]
+                outs.append(out)
+        return outs
+    else:
+        with torch.no_grad():
+            feats_n = model.neck(feats_b)
+            out = model.head.forward_eval(feats_n, labels=None,imgs=img_list)[0]
+        return out
+def _rescale_boxes_xyxy(boxes: np.ndarray, orig_w: int, orig_h: int, iw: int, ih: int):
+    """Rescale boxes predicted on (iw, ih) back to original (orig_w, orig_h)."""
+    boxes = boxes.copy()
+    sx, sy = orig_w / iw, orig_h / ih
+    boxes[:, [0, 2]] *= sx
+    boxes[:, [1, 3]] *= sy
+    return boxes
+
+def _maybe_hflip_boxes_inplace(boxes: np.ndarray, W: int):
+    # invert a horizontal flip to original orientation
+    x1 = boxes[:, 0].copy()
+    x2 = boxes[:, 2].copy()
+    boxes[:, 0] = W - x2
+    boxes[:, 2] = W - x1
+
+def _extract_np(out) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """
+    Pull YOLO-style fields from your head.forward_eval output object:
+      - out.bbox: [N,4] xyxy
+      - out.extra_fields['scores']: [N]
+      - out.extra_fields['labels']: [N]
+    Returns np arrays.
+    """
+    boxes = out.bbox.detach().float().cpu().numpy()
+    labels = out.extra_fields['labels'].detach().long().cpu().numpy()
+    scores = out.extra_fields.get('scores').detach().float().cpu().numpy()
+    return boxes, scores, labels
+
+def _to_norm_xyxy(boxes: np.ndarray, W: int, H: int) -> np.ndarray:
+    return np.stack([boxes[:,0]/W, boxes[:,1]/H, boxes[:,2]/W, boxes[:,3]/H], axis=1)
+
+def _iou_xyxy(a: np.ndarray, b: np.ndarray) -> float:
+    """
+    IoU between two boxes (xyxy).
+    """
+    inter_x1 = max(a[0], b[0])
+    inter_y1 = max(a[1], b[1])
+    inter_x2 = min(a[2], b[2])
+    inter_y2 = min(a[3], b[3])
+    iw = max(0.0, inter_x2 - inter_x1)
+    ih = max(0.0, inter_y2 - inter_y1)
+    inter = iw * ih
+    area_a = max(0.0, (a[2]-a[0])) * max(0.0, (a[3]-a[1]))
+    area_b = max(0.0, (b[2]-b[0])) * max(0.0, (b[3]-b[1]))
+    union = area_a + area_b - inter + 1e-9
+    return inter / union
+
+def generate_pseudo_labels_tta_mc(
+    model,
+    img,                              # PIL or np image
+    device='cuda',
+    scales=SCALES,
+    hflips=HFLIPS,
+    # WBF knobs
+    iou_thr=0.55,
+    skip_box_thr=0.001,
+    fusion_conf_type='avg',
+    # Global filtering (no classwise thresholds)
+    score_thresh=0.5,
+    topk_per_image: int = 200,
+    # Uncertainty (MC dropout at backbone features)
+    mc_passes: int = 5,               # 0 disables MC
+    dropout_p: float = 0.10,          # dropout prob on backbone features
+    agg_iou_match: float = 0.5,       # IoU to count a vote
+    lambda_var: float = 2.0,          # weight on variance penalty
+    beta_vote: float = 1.0,           # vote ratio exponent
+):
+    """
+    TTA + (optional) MC-dropout at backbone features + WBF + uncertainty re-scoring.
+    Returns (boxes_xyxy, labels, scores_final) in ORIGINAL image coordinates.
+    """
+    model.eval()
+    img_cv = np.asarray(img)
+    H, W = img_cv.shape[:2]
+
+    # Gather all views (TTA × MC)
+    all_view_boxes, all_view_scores, all_view_labels = [], [], []
+
+    # Also keep raw per-view predictions for uncertainty aggregation later
+    raw_views = []  # list of dicts: {'boxes': np, 'scores': np, 'labels': np}
+
+    for (ih, iw) in scales:
+        for flip in hflips:
+            # Prepare view
+            view_img = np.ascontiguousarray(img_cv[:, ::-1] if flip else img_cv)
+            # tfm = base_transform_fn(view_img, (ih, iw))
+            tfm = T.Compose(
+                [
+                    T.Resize((ih, iw), keep_ratio=False),
+                    T.ToTensor(),
+                    T.Normalize(mean=[0.0, 0.0, 0.0], std=[1.0, 1.0, 1.0]),
+                ]
+            )
+            inp = tfm(view_img)[0].unsqueeze(0).to(device)
+
+            # Forward with optional MC on backbone features
+            out = _forward_backbone_neck_head_eval(
+                model, inp, dropout_p=dropout_p, mc_passes=mc_passes
+            )
+
+            outs = out if isinstance(out, list) else [out]
+
+            for out_i in outs:
+                boxes, scores, labels = _extract_np(out_i)
+
+                # rescale to original coordinates
+                boxes = _rescale_boxes_xyxy(boxes, W, H, iw, ih)
+                if flip:
+                    _maybe_hflip_boxes_inplace(boxes, W)
+
+                # store normalized for WBF
+                all_view_boxes.append(_to_norm_xyxy(boxes, W, H).tolist())
+                all_view_scores.append(scores.tolist())
+                all_view_labels.append(labels.tolist())
+
+                raw_views.append({'boxes': boxes, 'scores': scores, 'labels': labels})
+
+    if len(all_view_scores) == 0:
+        return (np.zeros((0, 4), np.float32),
+                np.zeros((0,), np.int64),
+                np.zeros((0,), np.float32))
+
+    # Fuse across all views (TTA × MC)
+    fused_boxes_n, fused_scores_wbf, fused_labels = weighted_boxes_fusion(
+        all_view_boxes, all_view_scores, all_view_labels,
+        iou_thr=iou_thr, skip_box_thr=skip_box_thr, conf_type=fusion_conf_type
+    )
+    fused_boxes_n = np.array(fused_boxes_n, dtype=np.float32)
+    fused_boxes = fused_boxes_n.copy()
+    fused_boxes[:, [0,2]] *= W
+    fused_boxes[:, [1,3]] *= H
+    fused_labels = np.array(fused_labels, dtype=np.int64)
+    fused_scores_wbf = np.array(fused_scores_wbf, dtype=np.float32)
+
+    # ---- Uncertainty aggregation (optional) ----
+    # For each fused box, collect scores from all raw views that IoU-match it
+    # Then compute score_mean, score_var, vote_ratio
+    if mc_passes and mc_passes > 0:
+        final_scores = np.zeros_like(fused_scores_wbf)
+        total_views = len(raw_views)
+        for i, fbox in enumerate(fused_boxes):
+            matched_scores = []
+            votes = 0
+            for rv in raw_views:
+                # Find best match in this view
+                if len(rv['boxes']) == 0:
+                    continue
+                ious = np.array([_iou_xyxy(fbox, b) for b in rv['boxes']])
+                j = int(np.argmax(ious))
+                if ious[j] >= agg_iou_match:
+                    votes += 1
+                    matched_scores.append(rv['scores'][j])
+
+            if len(matched_scores) == 0:
+                # fallback to WBF score if nothing matched
+                final_scores[i] = fused_scores_wbf[i]
+            else:
+                ms = np.array(matched_scores, dtype=np.float32)
+                score_mean = float(ms.mean())
+                score_var = float(ms.var(ddof=0))
+                vote_ratio = votes / max(1, total_views)
+                # re-score
+                s_final = score_mean * np.exp(-lambda_var * score_var) * (vote_ratio ** beta_vote)
+                final_scores[i] = s_final
+    else:
+        final_scores = fused_scores_wbf
+
+    # Global filtering (no classwise thresholds)
+    keep = np.where(final_scores >= score_thresh)[0]
+    if keep.size == 0:
+        return (np.zeros((0, 4), np.float32),
+                np.zeros((0,), np.int64),
+                np.zeros((0,), np.float32))
+
+    fused_boxes = fused_boxes[keep]
+    fused_labels = fused_labels[keep]
+    final_scores = final_scores[keep]
+
+    # Optional per-image topK
+    if topk_per_image and len(final_scores) > topk_per_image:
+        order = np.argsort(-final_scores)[:topk_per_image]
+        fused_boxes = fused_boxes[order]
+        fused_labels = fused_labels[order]
+        final_scores = final_scores[order]
+
+    return fused_boxes.astype(np.float32), fused_labels.astype(np.int64), final_scores.astype(np.float32)    
 
 class MemoryPseudoDataset(MemoryDataset):
     def __init__(self, ann_file, root, transforms=None, class_names=None,
@@ -503,7 +1119,7 @@ class MemoryPseudoDataset(MemoryDataset):
             mosaic_scale=aug.mosaic_mixup.mosaic_scale,
             keep_ratio=True,
         )
-        
+        self.use_mosaic_mixup=False
         self.test_transform = T.Compose(
             [
                 T.Resize(image_size, keep_ratio=False),
@@ -574,7 +1190,8 @@ class MemoryPseudoDataset(MemoryDataset):
                         img = np.asarray(img)
                         img, label = self._transforms(img, target)
                     else:
-                        boxes, labels, scores = generate_pseudo_labels(model, img, score_thresh=score_thresh, transform=self.test_transform, image_sizes=self.image_sizes, device=self.device)
+                        # boxes, labels, scores = generate_pseudo_labels(model, img, score_thresh=score_thresh, transform=self.test_transform, image_sizes=self.image_sizes, device=self.device)
+                        boxes, labels, scores = generate_pseudo_labels_tta_mc(model, img, score_thresh=score_thresh, device=self.device)
 
                         if len(boxes) > 0:
                             target = BoxList(torch.tensor(boxes), img.size, mode='xyxy')
@@ -618,7 +1235,8 @@ class MemoryPseudoDataset(MemoryDataset):
                         img = np.asarray(img)
                         img, label = self._transforms(img, target)
                     else:
-                        boxes, labels, scores = generate_pseudo_labels(model, img, score_thresh=score_thresh,transform=self.test_transform, image_sizes=self.image_sizes, device=self.device)
+                        # boxes, labels, scores = generate_pseudo_labels(model, img, score_thresh=score_thresh,transform=self.test_transform, image_sizes=self.image_sizes, device=self.device)
+                        boxes, labels, scores = generate_pseudo_labels_tta_mc(model, img, score_thresh=score_thresh, device=self.device)
 
                         if len(boxes) > 0:
                             target = BoxList(torch.tensor(boxes), img.size, mode='xyxy')
@@ -1637,7 +2255,8 @@ class FreqClsBalancedPseudoDataset(MemoryDataset):
                         img = np.asarray(img)
                         img, label = self._transforms(img, target)
                     else:
-                        boxes, labels, scores = generate_pseudo_labels(model, img, score_thresh=score_thresh, transform=self.test_transform, image_sizes=self.image_sizes, device=self.device)
+                        # boxes, labels, scores = generate_pseudo_labels(model, img, score_thresh=score_thresh, transform=self.test_transform, image_sizes=self.image_sizes, device=self.device)
+                        boxes, labels, scores = generate_pseudo_labels_tta_mc(model, img, score_thresh=score_thresh, device=self.device)
 
                         if len(boxes) > 0:
                             target = BoxList(torch.tensor(boxes), img.size, mode='xyxy')
@@ -1725,7 +2344,8 @@ class FreqClsBalancedPseudoDataset(MemoryDataset):
                         img = np.asarray(img)
                         img, label = self._transforms(img, target)
                     else:
-                        boxes, labels, scores = generate_pseudo_labels(model, img, score_thresh=score_thresh,transform=self.test_transform, image_sizes=self.image_sizes, device=self.device)
+                        # boxes, labels, scores = generate_pseudo_labels(model, img, score_thresh=score_thresh,transform=self.test_transform, image_sizes=self.image_sizes, device=self.device)
+                        boxes, labels, scores = generate_pseudo_labels_tta_mc(model, img, score_thresh=score_thresh, device=self.device)
 
                         if len(boxes) > 0:
                             target = BoxList(torch.tensor(boxes), img.size, mode='xyxy')
@@ -1750,6 +2370,7 @@ class FreqClsBalancedPseudoDataset(MemoryDataset):
 
 #################################################################################################
 # Frequency-based Dataset
+from damo.utils.boxes import bboxes_iou
 class FreqClsBalancedPseudoDomainDataset(MemoryDataset):
     def __init__(self, ann_file, root, transforms=None, class_names=None,
                  dataset=None, cls_list=None, device=None, data_dir=None, memory_size=None,
@@ -1836,7 +2457,7 @@ class FreqClsBalancedPseudoDomainDataset(MemoryDataset):
         )
         self.use_mosaic_mixup=False 
         
-        self.batch_collator = BatchCollator(size_divisible=32)
+        self.batch_collator = BatchCollator2(size_divisible=32)
         
         self.alpha = 1.0                  # smoothing constant in 1/(usage+α)
         self.beta = 1.0
@@ -1941,9 +2562,12 @@ class FreqClsBalancedPseudoDomainDataset(MemoryDataset):
             self.stream_data.append(entry)
 
     @torch.no_grad()
-    def get_src_batch(self, batch_size, weight_method="cls_usage"):
+    def get_src_batch(self, batch_size, weight_method="cls_usage", tgt_batch=None,
+                      model=None, score_thres=0.5):
         batch_size = min(batch_size, len(self.buffer_source))
         data = []
+        data_with_mixup = []
+        data_with_obj_mixup = []
         
         if batch_size > 0 and len(self.buffer_source):
             for e in self.buffer_source:
@@ -2012,22 +2636,126 @@ class FreqClsBalancedPseudoDomainDataset(MemoryDataset):
 
                     target = target.clip_to_image(remove_empty=True)
                     
-                    img = np.asarray(img)
-                    img, label = self._transforms(img, target)
-      
-                data.append((img, label, img_id))
+                    img_np = np.asarray(img)
+                    img_np_obj = copy.deepcopy(img_np)
+                    img_np = img_np.copy()
+                    if tgt_batch is not None and len(tgt_batch) > 0:
+                        # tgt domain data mixup
+                        # let domain classifier label to be the ratio of target in source img
+                        target_ratio = 0
+                        inst_lambda_ = max(np.random.beta(alpha, alpha), 0.4)
+                        alpha = 1.0 # 0.2 5.0 20.0
+
+                        # preparing for target image mixup
+                        model.eval()
+                        random_tgt_idx = np.random.randint(0, len(tgt_batch))
+                        tgt_img = tgt_batch[random_tgt_idx]
+                        pseudo_boxes, _, _ = generate_pseudo_labels(model, tgt_img, score_thresh=score_thres, transform=self.test_transform, image_sizes=self.image_sizes, device=self.device)
+                        
+                        src_y, src_x = img_np.shape[:2]
+                        # tgt mixup on src obj
+                        for box_idx in range(len(boxes)): # For number of boxes in the image
+                            cur_box = boxes[box_idx]
+                            x,y,w,h = cur_box.round().int()
+                            x1,y1,x2,y2 = x,y,x+w,y+h
+                            dx = min(x2-x1,tgt_img.shape[1]-1)
+                            dy = min(y2-y1,tgt_img.shape[0]-1)
+                            patched = False
+                            trial_cnt = 0
+                            iou_thres = 0.1
+                            while not patched:
+                                iou_thres += 0.1
+                                y_list = torch.Tensor(np.random.randint(tgt_img.shape[0]-dy, size=20))
+                                x_list = torch.Tensor(np.random.randint(tgt_img.shape[1]-dx, size=20))
+                                patch = torch.cat((x_list.unsqueeze(-1), y_list.unsqueeze(-1), (x_list+dx).unsqueeze(-1), (y_list+dy).unsqueeze(-1)), dim=1).to(self.device)
+                                # calculate iou
+                                match_quality_matrix = bboxes_iou(patch, torch.from_numpy(pseudo_boxes).to(self.device))
+                                match_quality_matrix = match_quality_matrix < iou_thres
+                                indices = torch.nonzero(torch.all(match_quality_matrix == True, dim=1), as_tuple=True)[0]
+                                if len(indices) > 0:
+                                    # mixup
+                                # if x1 < src_x and y1 < src_y:
+                                    # lambda_ = np.random.beta(alpha, alpha)
+                                    # lambda_ = max(np.random.beta(alpha, alpha), 0.4)
+                                    # x2 = min(x1+dx,src_x)
+                                    # y2 = min(y1+dy,src_y)
+                                    x = int(x_list[indices[0]])
+                                    y = int(y_list[indices[0]])
+                                    img_np_obj[y1:y1+dy,x1:x1+dx] = inst_lambda_*img_np_obj[y1:y1+dy,x1:x1+dx] + (1-inst_lambda_)*tgt_img[y:y+dy, x:x+dx]
+                                    # mixup_batch[0]['image'][:,y1:y2,x1:x2] = lambda_*mixup_batch[0]['image'][:,y1:y2,x1:x2] + (1-lambda_)*tgt_img[:,y1:y2,x1:x2]
+                                    patched = True
+                                    # area_ratio = ((x2-x1)*(y2-y1)) / (src_x*src_y)
+                                    # target_ratio += area_ratio*(1-lambda_)
+
+                        # # Visualize the pseudo boxes
+                        # img_save = Image.fromarray(tgt_memory[0]['image'].permute(1,2,0).detach().cpu().numpy())
+                        # draw = ImageDraw.Draw(img_save)
+                        # for box in pseudo_boxes:
+                        #     x1, y1, x2, y2 = box
+                        #     draw.rectangle([x1, y1, x2, y2], outline=(255, 0, 0), width=3)
+                        
+                        # img_save.save('pseudo_boxes.png')
+                        # breakpoint()
+                        
+                        # lambda_ = np.random.beta(alpha, alpha)
+                        
+
+                        prob = 1.0
+                        while prob > 0.2:
+                            patched = False
+                            trial_cnt = 0
+                            iou_thres = 0.2
+                            while not patched:
+                                if trial_cnt >= 10:
+                                    iou_thres += 0.1
+                                    trial_cnt = 0
+                                y1 = np.random.randint(tgt_img.shape[0]-100)
+                                x1 = np.random.randint(tgt_img.shape[1]-100)
+                                dy = min(np.random.randint(30, 500), tgt_img.shape[0]-y1)
+                                dx = min(np.random.randint(30, 500), tgt_img.shape[1]-x1)
+                                patch = torch.Tensor([[x1,y1,x1+dx,y1+dy]]).to(self.device)
+
+                                match_quality_matrix = bboxes_iou(patch, torch.from_numpy(pseudo_boxes).to(self.device))
+
+                                if not (False in (match_quality_matrix < iou_thres)): # if all iou < 0.3
+                                    if x1 < src_x and y1 < src_y:
+                                        lambda_ = max(np.random.beta(alpha, alpha), 0.4)
+                                        x2 = min(x1+dx,src_x)
+                                        y2 = min(y1+dy,src_y)
+                                        img_np[y1:y2,x1:x2] = lambda_*img_np[y1:y2,x1:x2] + (1-lambda_)*tgt_img[y1:y2,x1:x2]
+                                        patched = True
+                                        area_ratio = ((x2-x1)*(y2-y1)) / (src_x*src_y)
+                                        target_ratio += area_ratio*(1-lambda_)
+                                trial_cnt+=1
+                            prob = np.random.random()
+                            # print(lambda_)
+                            # im = Image.fromarray(src_memory_batch[0]['image'].permute(1,2,0).detach().cpu().numpy())
+                            # im.save('mix_src.png')
+                            # im = Image.fromarray(tgt_memory[0]['image'].permute(1,2,0).detach().cpu().numpy())
+                            # im.save('mix_tgt.png')
+                            # im = Image.fromarray(mixup_batch[0]['image'].permute(1,2,0).detach().cpu().numpy())
+                            # im.save('mix_up.png')
+                    else:
+                        target_ratio = 0
+                    img_mixup, label = self._transforms(img_np, copy.deepcopy(target))
+                    img_obj_mixup, label_obj_mixup = self._transforms(img_np_obj, copy.deepcopy(target))
+                    img_pure, label_pure = self._transforms(np.asarray(img), target)
+
+                data.append((img_pure, label_pure, img_id, img_np, 0))
+                data_with_mixup.append((img_mixup, label, img_id, 0, target_ratio))
+                data_with_obj_mixup.append((img_obj_mixup, label_obj_mixup, img_id, 0, target_ratio))
         
-        return self.batch_collator(data)
+        return self.batch_collator(data), self.batch_collator(data_with_mixup), self.batch_collator(data_with_obj_mixup)
 
 
     @torch.no_grad()
-    def get_tgt_batch(self, batch_size, stream_batch_size=0, use_weight=None, transform=None, weight_method="cls_usage",
+    def get_tgt_batch(self, memory_batch_size, stream_batch_size=0, use_weight=None, transform=None, weight_method="cls_usage",
                   model=None, score_thresh=0.7
                   ):
-        assert batch_size >= stream_batch_size
+        # assert batch_size >= stream_batch_size
         stream_batch_size = min(stream_batch_size, len(self.stream_data))
-        batch_size = min(batch_size, stream_batch_size + len(self.buffer))
-        memory_batch_size = batch_size - stream_batch_size
+        memory_batch_size = min(memory_batch_size, len(self.buffer))
+        # memory_batch_size = batch_size - stream_batch_size
 
         data = []
         
@@ -2061,25 +2789,25 @@ class FreqClsBalancedPseudoDomainDataset(MemoryDataset):
 
                         target = target.clip_to_image(remove_empty=True)
                         
-                        img = np.asarray(img)
-                        img, label = self._transforms(img, target)
+                        img_np = np.asarray(img)
+                        img, label = self._transforms(img_np, target)
                     else:
                         boxes, labels, scores = generate_pseudo_labels(model, img, score_thresh=score_thresh, transform=self.test_transform, image_sizes=self.image_sizes, device=self.device)
-
+                        img_np = np.asarray(img)
                         if len(boxes) > 0:
                             target = BoxList(torch.tensor(boxes), img.size, mode='xyxy')
                             target.add_field('labels', torch.tensor(labels))
                             target = target.clip_to_image(remove_empty=True)
 
-                            img, label = self._transforms(np.asarray(img), target)
+                            img, label = self._transforms(img_np, target)
                         else:
                             # no valid boxes
                             # create empty label
                             target = BoxList(torch.zeros((0,4)), img.size, mode='xyxy')
                             target.add_field('labels', torch.tensor([]))
-                            img, label = self._transforms(np.asarray(img), target)
+                            img, label = self._transforms(img_np, target)
                 
-                data.append((img, label, img_id))
+                data.append((img, label, img_id, img_np, 0))
 
         # ───── Memory part ──────────────────────────────────────────────
         if memory_batch_size > 0 and len(self.buffer):
@@ -2149,25 +2877,25 @@ class FreqClsBalancedPseudoDomainDataset(MemoryDataset):
 
                         target = target.clip_to_image(remove_empty=True)
                         
-                        img = np.asarray(img)
-                        img, label = self._transforms(img, target)
+                        img_np = np.asarray(img)
+                        img, label = self._transforms(img_np, target)
                     else:
                         boxes, labels, scores = generate_pseudo_labels(model, img, score_thresh=score_thresh,transform=self.test_transform, image_sizes=self.image_sizes, device=self.device)
-
+                        img_np = np.asarray(img)
                         if len(boxes) > 0:
                             target = BoxList(torch.tensor(boxes), img.size, mode='xyxy')
                             target.add_field('labels', torch.tensor(labels))
                             target = target.clip_to_image(remove_empty=True)
 
-                            img, label = self._transforms(np.asarray(img), target)
+                            img, label = self._transforms(img_np, target)
                         else:
                             # no valid boxes
                             # create empty label
                             target = BoxList(torch.zeros((0,4)), img.size, mode='xyxy')
                             target.add_field('labels', torch.tensor([]))
-                            img, label = self._transforms(np.asarray(img), target)
+                            img, label = self._transforms(img_np, target)
                 
-                data.append((img, label, img_id))
+                data.append((img, label, img_id, img_np, 0))
 
          # remove stream data from buffer
         self.buffer = self.buffer[:buffer_size]

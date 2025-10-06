@@ -132,6 +132,7 @@ class ER:
         # self.img_size = self._resolve_image_size(self.damo_cfg, self.model, val_dataloaders)
         self.img_size = [640, 640]
         
+        self.selection_method = kwargs["selection_method"]
         self.initialize_memory_buffer(kwargs["memory_size"])
         
         self.temp_batch = []

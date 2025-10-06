@@ -3,7 +3,7 @@
 import copy
 
 from .zero_head import ZeroHead, ZeroHeadHarmonious
-
+from .zero_head_unsup import ZeroPseudoHead
 
 def build_head(cfg):
 
@@ -11,6 +11,8 @@ def build_head(cfg):
     name = head_cfg.pop('name')
     if name == 'ZeroHead':
         return ZeroHead(**head_cfg)
+    elif name == 'ZeroPseudoHead':
+        return ZeroPseudoHead(**head_cfg)
     else:
         raise NotImplementedError
 
