@@ -78,7 +78,7 @@ class Harmonious(ER):
         super().__init__(criterion, n_classes, device, **kwargs)
         
         
-        if self.dataset == 'SHIFT_domain' or self.dataset == 'SHIFT_domain_small':
+        if self.dataset == 'SHIFT_domain' or self.dataset == 'SHIFT_domain_small' or self.dataset == 'SHIFT_domain_small2':
             self.model = build_local_model_harmonious(self.damo_cfg, device='cuda')
             pretrained_path = "./damo_pretrain_outputs_w/shift/pretrain_shift/damo_pretrain_shift_w_newnew.pth"
             if os.path.exists(pretrained_path):

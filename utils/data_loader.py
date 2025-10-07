@@ -50,7 +50,7 @@ def get_statistics(dataset: str):
         return 20, 'data/voc/images', 'data/voc/annotations' ## 경로 수정
     elif dataset == 'BDD_domain' or dataset == 'BDD_domain_small':
         return 13, 'data/bdd100k/images', 'data/bdd100k/annotations'
-    elif dataset == 'SHIFT_domain' or dataset == 'SHIFT_domain_small':
+    elif dataset == 'SHIFT_domain' or dataset == 'SHIFT_domain_small' or dataset == 'SHIFT_domain_small2':
         # return 6, 'data/shift/images', 'data/shift/annotations'
         return 6, '/disk1/jhpark/clod/data/shift/images', 'data/shift/annotations'
     elif 'MILITARY_SYNTHETIC_domain' in dataset:
@@ -65,7 +65,7 @@ def get_pretrained_statistics(dataset: str):
         return 10, 'data/voc_15/images', 'data/voc_15/annotations' ## 경로 수정
     elif dataset == 'BDD_domain' or dataset == 'BDD_domain_small':
         return 13, 'data/bdd100k_source/images', 'data/bdd100k_source/annotations'
-    elif dataset == 'SHIFT_domain' or dataset == 'SHIFT_domain_small':
+    elif dataset == 'SHIFT_domain' or dataset == 'SHIFT_domain_small' or dataset == 'SHIFT_domain_small2':
         # return 6, 'data/shift_source/images', 'data/shift_source/annotations'
         return 6, '/disk1/jhpark/clod/data/shift/images', 'data/shift_source/annotations'
     elif 'MILITARY_SYNTHETIC_domain' in dataset:
@@ -80,7 +80,7 @@ def get_exposed_classes(dataset: str):
         return ['aeroplane', 'bicycle', 'bird', 'boat', 'bottle', 'bus', 'car', 'cat', 'chair', 'cow', 'diningtable', 'dog', 'horse', 'motorbike', 'person']
     elif dataset == 'BDD_domain' or dataset == 'BDD_domain_small':
         return ['pedestrian', 'rider', 'car', 'bus', 'truck', 'bicycle', 'motorcycle', 'traffic light', 'traffic sign', 'train', 'trailer', 'other person', 'other vehicle']
-    elif dataset == 'SHIFT_domain' or dataset == 'SHIFT_domain_small':
+    elif dataset == 'SHIFT_domain' or dataset == 'SHIFT_domain_small' or dataset == 'SHIFT_domain_small2':
         return ['pedestrian', 'car', 'truck', 'bus', 'motorcycle', 'bicycle']
     elif 'MILITARY_SYNTHETIC_domain' in dataset:
         return ['fishing vessel', 'warship', 'merchant vessel', 'fixed-wing aircraft', 'rotary-wing aircraft', 'Unmanned Aerial Vehicle', 'bird', 'leaflet', 'waste bomb']
@@ -961,20 +961,20 @@ def _iou_xyxy(a: np.ndarray, b: np.ndarray) -> float:
     return inter / union
 
 def generate_pseudo_labels_tta_mc(
-    model,
+    models,
     img,                              # PIL or np image
     device='cuda',
     scales=SCALES,
     hflips=HFLIPS,
     # WBF knobs
     iou_thr=0.55,
-    skip_box_thr=0.001,
+    skip_box_thr=0.05,
     fusion_conf_type='avg',
     # Global filtering (no classwise thresholds)
     score_thresh=0.5,
     topk_per_image: int = 200,
     # Uncertainty (MC dropout at backbone features)
-    mc_passes: int = 5,               # 0 disables MC
+    mc_passes: int = 0,               # 0 disables MC
     dropout_p: float = 0.10,          # dropout prob on backbone features
     agg_iou_match: float = 0.5,       # IoU to count a vote
     lambda_var: float = 2.0,          # weight on variance penalty
@@ -984,7 +984,7 @@ def generate_pseudo_labels_tta_mc(
     TTA + (optional) MC-dropout at backbone features + WBF + uncertainty re-scoring.
     Returns (boxes_xyxy, labels, scores_final) in ORIGINAL image coordinates.
     """
-    model.eval()
+    
     img_cv = np.asarray(img)
     H, W = img_cv.shape[:2]
 
@@ -993,42 +993,45 @@ def generate_pseudo_labels_tta_mc(
 
     # Also keep raw per-view predictions for uncertainty aggregation later
     raw_views = []  # list of dicts: {'boxes': np, 'scores': np, 'labels': np}
+    for model in models:
+        model.eval()
+        for (ih, iw) in scales:
+            for flip in hflips:
+                # Prepare view
+                view_img = np.ascontiguousarray(img_cv[:, ::-1] if flip else img_cv)
+                # tfm = base_transform_fn(view_img, (ih, iw))
+                tfm = T.Compose(
+                    [
+                        T.Resize((ih, iw), keep_ratio=False),
+                        T.ToTensor(),
+                        T.Normalize(mean=[0.0, 0.0, 0.0], std=[1.0, 1.0, 1.0]),
+                    ]
+                )
+                inp = tfm(view_img)[0].unsqueeze(0).to(device)
 
-    for (ih, iw) in scales:
-        for flip in hflips:
-            # Prepare view
-            view_img = np.ascontiguousarray(img_cv[:, ::-1] if flip else img_cv)
-            # tfm = base_transform_fn(view_img, (ih, iw))
-            tfm = T.Compose(
-                [
-                    T.Resize((ih, iw), keep_ratio=False),
-                    T.ToTensor(),
-                    T.Normalize(mean=[0.0, 0.0, 0.0], std=[1.0, 1.0, 1.0]),
-                ]
-            )
-            inp = tfm(view_img)[0].unsqueeze(0).to(device)
+                # Forward with optional MC on backbone features
+                # out = _forward_backbone_neck_head_eval(
+                #     model, inp, dropout_p=dropout_p, mc_passes=mc_passes
+                # )
+                with torch.no_grad():
+                    out = model(inp)[0]
 
-            # Forward with optional MC on backbone features
-            out = _forward_backbone_neck_head_eval(
-                model, inp, dropout_p=dropout_p, mc_passes=mc_passes
-            )
+                outs = out if isinstance(out, list) else [out]
 
-            outs = out if isinstance(out, list) else [out]
+                for out_i in outs:
+                    boxes, scores, labels = _extract_np(out_i)
 
-            for out_i in outs:
-                boxes, scores, labels = _extract_np(out_i)
+                    # rescale to original coordinates
+                    boxes = _rescale_boxes_xyxy(boxes, W, H, iw, ih)
+                    if flip:
+                        _maybe_hflip_boxes_inplace(boxes, W)
 
-                # rescale to original coordinates
-                boxes = _rescale_boxes_xyxy(boxes, W, H, iw, ih)
-                if flip:
-                    _maybe_hflip_boxes_inplace(boxes, W)
+                    # store normalized for WBF
+                    all_view_boxes.append(_to_norm_xyxy(boxes, W, H).tolist())
+                    all_view_scores.append(scores.tolist())
+                    all_view_labels.append(labels.tolist())
 
-                # store normalized for WBF
-                all_view_boxes.append(_to_norm_xyxy(boxes, W, H).tolist())
-                all_view_scores.append(scores.tolist())
-                all_view_labels.append(labels.tolist())
-
-                raw_views.append({'boxes': boxes, 'scores': scores, 'labels': labels})
+                    raw_views.append({'boxes': boxes, 'scores': scores, 'labels': labels})
 
     if len(all_view_scores) == 0:
         return (np.zeros((0, 4), np.float32),
@@ -2112,11 +2115,12 @@ class FreqClsBalancedPseudoDataset(MemoryDataset):
         )
         self.use_mosaic_mixup=False 
         
-        self.batch_collator = BatchCollator(size_divisible=32)
+        # self.batch_collator = BatchCollator(size_divisible=32)
+        self.batch_collator = HarmoniousBatchCollator(size_divisible=32)
         
         self.alpha = 1.0                  # smoothing constant in 1/(usage+α)
         self.beta = 1.0
-        self.usage_decay = 0.9
+        self.usage_decay = 0.995
         
         self.test_transform = T.Compose(
             [
@@ -2270,8 +2274,9 @@ class FreqClsBalancedPseudoDataset(MemoryDataset):
                             target = BoxList(torch.zeros((0,4)), img.size, mode='xyxy')
                             target.add_field('labels', torch.tensor([]))
                             img, label = self._transforms(np.asarray(img), target)
+                        scores = torch.tensor(scores)
                 
-                data.append((img, label, img_id))
+                data.append((img, label, img_id, scores))
 
         # ───── Memory part ──────────────────────────────────────────────
         if memory_batch_size > 0 and len(self.buffer):
@@ -2343,6 +2348,7 @@ class FreqClsBalancedPseudoDataset(MemoryDataset):
                         
                         img = np.asarray(img)
                         img, label = self._transforms(img, target)
+                        scores = torch.ones(len(boxes))
                     else:
                         # boxes, labels, scores = generate_pseudo_labels(model, img, score_thresh=score_thresh,transform=self.test_transform, image_sizes=self.image_sizes, device=self.device)
                         boxes, labels, scores = generate_pseudo_labels_tta_mc(model, img, score_thresh=score_thresh, device=self.device)
@@ -2359,8 +2365,8 @@ class FreqClsBalancedPseudoDataset(MemoryDataset):
                             target = BoxList(torch.zeros((0,4)), img.size, mode='xyxy')
                             target.add_field('labels', torch.tensor([]))
                             img, label = self._transforms(np.asarray(img), target)
-                
-                data.append((img, label, img_id))
+                        scores = torch.tensor(scores)
+                data.append((img, label, img_id, scores))
 
          # remove stream data from buffer
         self.buffer = self.buffer[:buffer_size]
