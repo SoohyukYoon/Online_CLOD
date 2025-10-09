@@ -105,6 +105,8 @@ class ER:
         self.optimizer = select_optimizer(self.opt_name, self.model, lr=self.lr, cfg=self.damo_cfg.train.optimizer)
         self.scheduler = None  # optional
 
+
+
         val_dataset_names = self.damo_cfg.dataset.val_ann
         val_datasets = build_dataset(self.damo_cfg, val_dataset_names, is_train=False)
         
@@ -116,6 +118,12 @@ class ER:
             is_train=False
         )
         self.val_loader = val_dataloaders[0]
+        
+        
+        
+        
+        
+        
         
         # self.vec2box = create_converter(
         #     self.args.model.name, self.model, self.args.model.anchor, self.args.image_size, self.device
@@ -474,6 +482,24 @@ class ER:
                 clean = [v for v in eval_dict_sub['classwise_mAP50'] if v != -1]
                 average = sum(clean) / len(clean) if clean else 0.0
                 eval_dict['avg_mAP50'] += average / 7 #len(self.exposed_domains)
+                eval_dict["classwise_mAP50"].append(average)
+        elif self.dataset=='SHIFT_domain_small2':
+            eval_dict = {"avg_mAP50":0, "classwise_mAP50":[]}
+            for data_name in ['shift_source', 'shift_dawndusk', 'shift_night','shift_foggy']: #self.exposed_domains:
+                datasets = build_dataset(self.damo_cfg, [data_name + '_val'], is_train=False)
+                dataloaders = build_dataloader(
+                    datasets,
+                    self.damo_cfg.test.augment,
+                    batch_size=self.damo_cfg.train.batch_size,
+                    is_train=False,
+                    num_workers=self.damo_cfg.train.get('num_workers', 8)
+                )
+                self.val_loader = dataloaders[0]
+
+                eval_dict_sub = self.evaluate()
+                clean = [v for v in eval_dict_sub['classwise_mAP50'] if v != -1]
+                average = sum(clean) / len(clean) if clean else 0.0
+                eval_dict['avg_mAP50'] += average / 4 #len(self.exposed_domains)
                 eval_dict["classwise_mAP50"].append(average)
 
         elif 'MILITARY_SYNTHETIC_domain' in self.dataset:

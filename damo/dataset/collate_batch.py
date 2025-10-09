@@ -37,6 +37,23 @@ class BatchCollator2(object):
         # scores = transposed_batch[4]
         return images, targets, img_ids, img_nps, target_ratios
 
+class HarmoniousBatchCollator(object):
+    """
+    From a list of samples from the dataset,
+    returns the batched images and targets.
+    This should be passed to the DataLoader
+    """
+    def __init__(self, size_divisible=0):
+        self.size_divisible = size_divisible
+
+    def __call__(self, batch):
+        transposed_batch = list(zip(*batch))
+        images = to_image_list(transposed_batch[0], self.size_divisible)
+        targets = transposed_batch[1]
+        img_ids = transposed_batch[2]
+        score_weights = transposed_batch[3]
+        return images, targets, img_ids, score_weights
+
 
 class TTACollator(object):
     """
