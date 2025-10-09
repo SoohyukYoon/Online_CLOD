@@ -225,7 +225,6 @@ class MemoryDataset(COCODataset):
             image_files = glob.glob(os.path.join(images_dir, "train","*.jpg"))
 
         indices = np.random.choice(range(len(image_files)), size=buffer_size or self.memory_size, replace=False)
-
         for idx in indices:
             image_path = image_files[idx]
             split_name = image_path.split('/')[-2]
@@ -433,12 +432,13 @@ def get_test_datalist(dataset) -> List:
         print("test name", f"collections/{dataset}/{dataset}_val2.json")
         return pd.read_json(f"collections/{dataset}/{dataset}_val2.json").to_dict(orient="records")
     
+
     
 # Selection-Based Retrieval + Cls Balanced
 class SelectionClsBalancedDataset(MemoryDataset):
     def __init__(self, ann_file, root, transforms=None, class_names=None,
                  dataset=None, cls_list=None, device=None, data_dir=None, memory_size=None, 
-                 init_buffer_size=None, image_size=(640, 640), aug=None, selection_method=None
+                 init_buffer_size=None, image_size=(640, 640), aug=None, selection_method=None, priority_selection=None
                  ):
         super(MemoryDataset, self).__init__(ann_file, root, transforms, class_names)
         # self.args = args
@@ -474,6 +474,7 @@ class SelectionClsBalancedDataset(MemoryDataset):
         self.data = {}
         
         self.selection_method = selection_method
+        self.priority_selection = priority_selection
         
         with open(ann_file, 'r') as f:
             annotations = json.load(f)
@@ -544,7 +545,7 @@ class SelectionClsBalancedDataset(MemoryDataset):
     def update_info(self, infos):
         assert len(infos) == len(self.selected_indices)
         for i, info in enumerate(infos):
-            self.buffer[selected_indices]["score"] = info
+            self.buffer[self.selected_indices[i]]["score"] = info
     
     def replace_sample(self, sample, info=0, idx=None, images_dir=None,label_path=None):
         data_class = sample.get('label', None)
@@ -713,13 +714,17 @@ class SelectionClsBalancedDataset(MemoryDataset):
                         dtype=np.float64)
             w /= w.sum()
             ### HYBRID WEIGHT END
-            print("weight", w)
-            indices = np.random.choice(
-                len(self.buffer),
-                size=memory_batch_size,
-                replace=len(self.buffer) < memory_batch_size,
-                p=w,
-            )
+            if self.priority_selection == "high":
+                indices = np.argpartition(w, -memory_batch_size)[-memory_batch_size:]
+            elif self.priority_selection == "low":
+                indices = np.argpartition(w, memory_batch_size)[:memory_batch_size] 
+            elif self.priority_selection == "prob":
+                indices = np.random.choice(
+                    len(self.buffer),
+                    size=memory_batch_size,
+                    replace=len(self.buffer) < memory_batch_size,
+                    p=w,
+                )
 
             for i in indices:
 

@@ -62,7 +62,7 @@ def select_method(args, criterion, n_classes, device):
             n_classes=n_classes,
             **kwargs,
         )
-    elif args.mode == "er_selection_balanced2":
+    elif args.mode == "er_selection_balanced":
         method = SampleSelection(
             criterion=criterion,
             device=device,

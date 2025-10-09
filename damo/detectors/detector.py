@@ -50,7 +50,7 @@ class Detector(nn.Module):
 
         self.load_state_dict(new_state_dict, strict=True)
 
-    def forward(self, x, targets=None, tea=False, stu=False):
+    def forward(self, x, targets=None, tea=False, stu=False, get_features=False):
         images = to_image_list(x)
         feature_outs = self.backbone(images.tensors)  # list of tensor
         fpn_outs = self.neck(feature_outs)
@@ -58,11 +58,21 @@ class Detector(nn.Module):
         if tea:
             return fpn_outs
         else:
-            outputs = self.head(
+            if get_features:
+                outputs, features = self.head(
                 fpn_outs,
                 targets,
                 imgs=images,
-            )
+                get_features=get_features
+                )
+                return outputs, features
+            else:
+                outputs = self.head(
+                    fpn_outs,
+                    targets,
+                    imgs=images
+                )
+            
             if stu:
                 return outputs, fpn_outs
             else:
