@@ -46,7 +46,7 @@ class ModelEMA:
         self.decay = decay
         for p in self.model.parameters():
             p.requires_grad_(False)
-
+            
     def update(self, model, decay=None):
         if decay is None:
             decay = self.decay
@@ -61,7 +61,9 @@ class ModelEMA:
                     v *= decay
                     v += (1.0 - decay) * msd[k].detach()
                         
-                        
+            # self.model.head.gfl_cls[0] = copy.deepcopy(model.head.gfl_cls[0])
+            # self.model.head.gfl_cls[1] = copy.deepcopy(model.head.gfl_cls[1])
+            # self.model.head.gfl_cls[2] = copy.deepcopy(model.head.gfl_cls[2])
                         
             model_buffers = OrderedDict(model.named_buffers())
             shadow_buffers = OrderedDict(self.model.named_buffers())
@@ -97,8 +99,8 @@ class Harmonious(ER):
         self.optimizer = select_optimizer(self.opt_name, self.model, lr=self.lr, cfg=self.damo_cfg.train.optimizer)
                     
         
-        self.decay_factor = 0.95
-        self.score_thresh = 0.5
+        self.score_thresh = 0.25
+        self.decay_factor = 1
         self.ema_model = ModelEMA(self.model, self.decay_factor)
         
     

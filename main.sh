@@ -1,10 +1,10 @@
 #/bin/bash
 
 # CIL CONFIG
-NOTE="er_freq_balanced2" # Short description of the experiment. (WARNING: logs/results with the same note will be overwritten!)
-MODE="er_freq_balanced2"
-# DATASET="SHIFT_domain_small" # VOC_10_10 BDD_domain SHIFT_domain MILITARY_SYNTHETIC_domain_1 MILITARY_SYNTHETIC_domain_2 MILITARY_SYNTHETIC_domain_3
-DATASET="VOC_15_5"
+NOTE="harmonious" # Short description of the experiment. (WARNING: logs/results with the same note will be overwritten!)
+MODE="harmonious"
+DATASET="SHIFT_domain_small" # VOC_10_10 BDD_domain SHIFT_domain MILITARY_SYNTHETIC_domain_1 MILITARY_SYNTHETIC_domain_2 MILITARY_SYNTHETIC_domain_3
+# DATASET="VOC_15_5"
 SIGMA=10
 REPEAT=1
 INIT_CLS=100
@@ -29,7 +29,11 @@ elif [ "$DATASET" == "BDD_domain" ]; then
 elif [ "$DATASET" == "SHIFT_domain_small" ]; then
     MEM_SIZE=500 ONLINE_ITER=1
     MODEL_NAME="damo5" EVAL_PERIOD=1000
-    BATCHSIZE=16; LR=1e-5 OPT_NAME="SGD" SCHED_NAME="default" IMP_UPDATE_PERIOD=1
+    BATCHSIZE=16; LR=1e-6 OPT_NAME="SGD" SCHED_NAME="default" IMP_UPDATE_PERIOD=1
+elif [ "$DATASET" == "SHIFT_domain_small2" ]; then
+    MEM_SIZE=500 ONLINE_ITER=1
+    MODEL_NAME="damo5" EVAL_PERIOD=1000
+    BATCHSIZE=16; LR=1e-6 OPT_NAME="SGD" SCHED_NAME="default" IMP_UPDATE_PERIOD=1
 elif [[ "$DATASET" == "MILITARY_SYNTHETIC_domain_1" || \
         "$DATASET" == "MILITARY_SYNTHETIC_domain_2" || \
         "$DATASET" == "MILITARY_SYNTHETIC_domain_3" ]]; then

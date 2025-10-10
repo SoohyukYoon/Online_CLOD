@@ -1081,6 +1081,7 @@ class ZeroHeadHarmonious(nn.Module):
         label_scores = torch.cat(label_scores_list, dim=0)
         bbox_targets = torch.cat(bbox_targets_list, dim=0)
         dfl_targets = torch.cat(dfl_targets_list, dim=0)
+        label_weights = torch.cat(label_weights_list, dim=0)
         
         
         bbox_weights = torch.cat(bbox_weights_list, dim=0) # torch.Size([134400, 4])
@@ -1095,6 +1096,7 @@ class ZeroHeadHarmonious(nn.Module):
         decoded_bboxes = decoded_bboxes.reshape(-1, 4)
 
         loss_qfl = self.loss_cls(cls_scores, (labels, label_scores),
+                                 weight=label_weights,
                                  avg_factor=num_total_pos)
 
         pos_inds = torch.nonzero((labels >= 0) & (labels < self.num_classes),
@@ -1238,11 +1240,14 @@ class ZeroHeadHarmonious(nn.Module):
             
             labels[pos_inds] = gt_labels[pos_assign_gt_inds]
             label_scores[pos_inds] = pos_ious
-            label_weights[pos_inds] = 1.0
-
             bbox_targets[pos_inds, :] = pos_bbox_targets
+
+            # label_weights[pos_inds] = 1.0
             # bbox_weights[pos_inds, :] = 1.0
+            
+            label_weights[pos_inds] = bbox_w[:, 0]
             bbox_weights[pos_inds, :] = bbox_w
+            
             dfl_targets[pos_inds, :] = (bbox2distance(
                 center_priors[pos_inds, :2] / center_priors[pos_inds, None, 2],
                 pos_bbox_targets / center_priors[pos_inds, None, 2],
