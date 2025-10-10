@@ -192,13 +192,13 @@ class ZeroHead(nn.Module):
             normal_init(self.gfl_cls[i], std=0.01, bias=bias_cls)
             normal_init(self.gfl_reg[i], std=0.01)
 
-    def forward(self, xin, labels=None, imgs=None, aux_targets=None):
+    def forward(self, xin, labels=None, imgs=None, aux_targets=None, get_features=False):
         if self.training:
-            return self.forward_train(xin=xin, labels=labels, imgs=imgs)
+            return self.forward_train(xin=xin, labels=labels, imgs=imgs, get_features=get_features)
         else:
             return self.forward_eval(xin=xin, labels=labels, imgs=imgs)
 
-    def forward_train(self, xin, labels=None, imgs=None, aux_targets=None):
+    def forward_train(self, xin, labels=None, imgs=None, aux_targets=None, get_features=False):
 
         # prepare labels during training
         b, c, h, w = xin[0].shape
@@ -243,7 +243,10 @@ class ZeroHead(nn.Module):
             gt_cls_list,
             mlvl_priors,
         )
-        return loss
+        if get_features:
+            return loss, bbox_before_softmax
+        else:
+            return loss
 
     def forward_eval(self, xin, labels=None, imgs=None):
 
