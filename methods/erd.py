@@ -127,7 +127,7 @@ class ERD(ER):
             return torch.tensor(0.0, device=teacher_dist.device)
         teacher_soft = F.softmax(teacher_dist, dim=-1)
         student_soft = F.log_softmax(student_dist, dim=-1)
-        return F.kl_div(student_soft, teacher_soft, reduction='batchmean', log_target=True)
+        return F.kl_div(student_soft, teacher_soft, reduction='batchmean')
 
     def online_step(self, sample, sample_num, n_worker):
         # self.temp_batchsize = self.batch_size
