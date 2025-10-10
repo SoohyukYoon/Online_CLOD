@@ -117,15 +117,15 @@ class ERD(ER):
     def distill_cls_loss(self, teacher_logits, student_logits, mask):
         if teacher_logits.numel() == 0:
             return torch.tensor(0.0, device=teacher_logits.device)
-        t = 2.0
-        teacher_probs = F.softmax(teacher_logits / t, dim=-1)
-        student_probs = F.softmax(student_logits / t, dim=-1)
-        return F.mse_loss(student_probs, teacher_probs)
+        # t = 2.0
+        # teacher_probs = F.softmax(teacher_logits / t, dim=-1)
+        # student_probs = F.softmax(student_logits / t, dim=-1)
+        return F.mse_loss(student_logits, teacher_logits)
 
     def distill_bbox_loss(self, teacher_dist, student_dist, mask):
         if teacher_dist.numel() == 0:
             return torch.tensor(0.0, device=teacher_dist.device)
-        teacher_soft = F.log_softmax(teacher_dist, dim=-1)
+        teacher_soft = F.softmax(teacher_dist, dim=-1)
         student_soft = F.log_softmax(student_dist, dim=-1)
         return F.kl_div(student_soft, teacher_soft, reduction='batchmean', log_target=True)
 
