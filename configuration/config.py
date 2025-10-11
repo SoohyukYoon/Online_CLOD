@@ -225,6 +225,7 @@ def base_parser():
     parser.add_argument("--curriculum_option", type=str, default="class_loss", choices=['class_loss', 'class_acc'])
     
     parser.add_argument("--selection_method", type=str, default="loss")
+    parser.add_argument("--priority_selection", type=str, default="high")
 
     # ASER
     parser.add_argument('--k', dest='k', default=5,

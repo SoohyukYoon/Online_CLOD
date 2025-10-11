@@ -36,6 +36,7 @@ from methods.baseline2_freq_balanced_pseudo_tia import BASELINEFreqBalancedPseud
 from methods.baseline2_freq_balanced_pseudo_tia_gram import BASELINEFreqBalancedPseudoGRAM2
 
 from methods.er_selection_balanced import SampleSelection
+from methods.er_selection import SampleSelectionBase
 
 logger = logging.getLogger()
 
@@ -65,6 +66,13 @@ def select_method(args, criterion, n_classes, device):
         )
     elif args.mode == "er_selection_balanced":
         method = SampleSelection(
+            criterion=criterion,
+            device=device,
+            n_classes=n_classes,
+            **kwargs,
+        )  
+    elif args.mode == "er_selection":
+        method = SampleSelectionBase(
             criterion=criterion,
             device=device,
             n_classes=n_classes,

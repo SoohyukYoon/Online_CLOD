@@ -16,7 +16,7 @@ from scipy.stats import chi2, norm
 from flops_counter.ptflops import get_model_complexity_info
 from methods.er_baseline import ER
 from methods.baseline2 import BASELINE2
-from utils.data_loader import SelectionClsBalancedDataset
+from utils.data_loader import SelectionMemoryDataset
 from utils.train_utils import select_model, select_optimizer, select_scheduler
 import torch.nn.functional as F
 
@@ -34,7 +34,7 @@ def cycle(iterable):
             yield i
 
 
-class SampleSelection(ER):
+class SampleSelectionBase(ER):
     def __init__(self, criterion, n_classes, device, **kwargs):
         super().__init__(criterion, n_classes, device, **kwargs)
     
@@ -45,11 +45,13 @@ class SampleSelection(ER):
         self.use_hardlabel = True
         
         data_args = self.damo_cfg.get_data(self.damo_cfg.dataset.train_ann[0])
-        self.memory = SelectionClsBalancedDataset(ann_file=data_args['args']['ann_file'], root=data_args['args']['root'], transforms=None,class_names=self.damo_cfg.dataset.class_names,
+        self.memory = SelectionMemoryDataset(ann_file=data_args['args']['ann_file'], root=data_args['args']['root'], transforms=None,class_names=self.damo_cfg.dataset.class_names,
             dataset=self.dataset, cls_list=self.exposed_classes, device=self.device, memory_size=self.memory_size, image_size=self.img_size, aug=self.damo_cfg.train.augment, selection_method=self.selection_method, priority_selection=self.priority_selection)
-
+        print("begin cal_initial_info")
         buffer_initial_info = self.cal_initial_info()
+        print("attained buffer_initial_info", len(buffer_initial_info))
         assert len(self.memory.buffer) == len(buffer_initial_info), "Buffer size and initial info size mismatch."
+        print("end cal_initial_info")
         self.memory.update_initialinfo(buffer_initial_info)
         
 
@@ -95,15 +97,21 @@ class SampleSelection(ER):
                 
                 elif "fisher" in self.selection_method:
                     for ind in range(len(targets)):
+                        self.optimizer.zero_grad()
                         loss = self.model(inputs[ind],[targets[ind]])["total_loss"]
-                        for n, p in self.model.neck.named_parameters():
-                            if p.requires_grad == True:
-                                grad = torch.autograd.grad(loss, p, retain_graph=True)[0].clone().detach().clamp(-1, 1)
-                        info = (grad**2).sum().cpu()
+                        loss.backward()
+                        # for n, p in self.model.neck.named_parameters():
+                        #     if p.requires_grad == True:
+                        #         grad = torch.autograd.grad(loss, p, retain_graph=True)[0].clone().detach().clamp(-1, 1)
+                        info = 0
+                        for n, p in self.model.named_parameters():
+                            if "neck" in n and p.requires_grad == True:
+                                grad = p.grad.detach().cpu().numpy()
+                                info += (grad**2).sum()
                         infos.append(info)
                         self.optimizer.zero_grad()
                 
-            buffer_initial_info.extend(infos)          
+            buffer_initial_info.extend(infos)      
         return buffer_initial_info
     
     
@@ -150,6 +158,7 @@ class SampleSelection(ER):
             elif "entropy" in self.selection_method:
                 for ind in range(len(targets)):
                     loss_item, sample_logit = self.model(image_tensors[ind], [targets[ind]], get_features=True)
+                    
                     sample_logit = sample_logit[-1]
                     sample_loss = loss_item["total_loss"]
                     probs = F.softmax(sample_logit, dim=0)
@@ -163,14 +172,21 @@ class SampleSelection(ER):
                         
                 loss /= len(image_tensors)
             
-            elif self.selection_method == "fisher":
+            elif "fisher" in self.selection_method:
                 for ind in range(len(targets)):
-                    loss_item = self.model(image_tensors[ind], [targets[ind]])["total_loss"]
+                    self.optimizer.zero_grad()
+                    loss_item = self.model(image_tensors[ind], [targets[ind]])
                     sample_loss = loss_item["total_loss"]
-                    for n, p in self.model.neck.named_parameters():
-                        if p.requires_grad == True:
-                            grad = torch.autograd.grad(sample_loss, p, retain_graph=True)[0].clone().detach().clamp(-1, 1)
-                    info = (grad**2).sum().cpu()
+                    sample_loss.backward(retain_graph=True)
+                    # for n, p in self.model.neck.named_parameters():
+                    #     if p.requires_grad == True:
+                    #         grad = torch.autograd.grad(sample_loss, p, retain_graph=True)[0].clone().detach().clamp(-1, 1)
+                    # info = (grad**2).sum().cpu()
+                    info = 0
+                    for n, p in self.model.named_parameters():
+                        if "neck" in n and p.requires_grad == True:
+                            grad = p.grad.detach().cpu().numpy()
+                            info += (grad**2).sum()
                     infos.append(info)
                     
                     if loss == None:
@@ -271,29 +287,17 @@ class SampleSelection(ER):
                 self.num_updates -= int(self.num_updates)
     
     def update_memory(self, sample, info):
-        self.balanced_replace_memory(sample, info)
+        self.reservoir_memory(sample, info)
 
-    def balanced_replace_memory(self, sample, info):
+    def reservoir_memory(self, sample, info):
+        self.seen += 1
         if len(self.memory) >= self.memory_size:
-            label_frequency = copy.deepcopy(self.memory.cls_count)
-            if sample.get('klass', None):
-                sample_category = sample['klass']
-            elif sample.get('domain', None):
-                sample_category = sample['domain']
-            else:
-                sample_category = 'pretrained'
-            
-            label_frequency[self.new_exposed_classes.index(sample_category)] += 1
-            cls_to_replace = np.random.choice(
-                np.flatnonzero(np.array(label_frequency) == np.array(label_frequency).max()))
-            idx_to_replace = np.random.choice(self.memory.cls_idx[cls_to_replace])
-            self.memory.replace_sample(sample, info, idx_to_replace)
-            
-            self.memory.cls_count[cls_to_replace] -= 1
-            self.memory.cls_idx[cls_to_replace].remove(idx_to_replace)
-            self.memory.cls_idx[self.new_exposed_classes.index(sample_category)].append(idx_to_replace)
+            j = np.random.randint(0, self.seen)
+            if j < self.memory_size:
+                self.memory.replace_sample(sample, info, j)#, mode=self.mode, online_iter=self.online_iter)
         else:
-            self.memory.replace_sample(sample, info)
+            self.memory.replace_sample(sample, info)#, mode=self.mode, online_iter=self.online_iter)
+
 
     def model_forward(self, batch):
         inps, targets = self.preprocess_batch(batch)
