@@ -37,6 +37,7 @@ def cycle(iterable):
 class SampleSelectionBase(ER):
     def __init__(self, criterion, n_classes, device, **kwargs):
         super().__init__(criterion, n_classes, device, **kwargs)
+        print("buffer samples", len(self.memory.buffer))
     
     def initialize_memory_buffer(self, memory_size):
         self.memory_size = memory_size - self.temp_batchsize
@@ -60,44 +61,39 @@ class SampleSelectionBase(ER):
         Calculate the initial information for each sample in the buffer.
         This is a placeholder function that should be implemented based on the selection method.
         """
-        # buffer_initial_data2 = self.memory.get_buffer_data()
         buffer_initial_info = []
-        # self.model.eval()
-        # with torch.no_grad():
         for i in range(0,len(self.memory.buffer), self.batch_size):
             batch = self.memory.get_buffer_data(i, self.batch_size)
-            # batch = buffer_initial_data2[i:i+self.batch_size]
-            # data = collate_fn(batch)
-            # print("data", len(batch), self.batch_size)
-            # batch = {
-            #     "img": data[0],         # images
-            #     "cls": data[1],         # labels
-            #     "img_id": data[2],    # image paths
-            # }
-            self.optimizer.zero_grad()
             inps, targets = self.preprocess_batch(batch)
+            inputs = inps.tensors
+            self.optimizer.zero_grad()
             with torch.cuda.amp.autocast(enabled=False):
-                inputs = inps.tensors
                 infos = []
                 loss = None
                 if "loss" in self.selection_method:
                     for ind in range(len(targets)):
                         loss_item = self.model(inputs[ind], [targets[ind]])["total_loss"]
                         infos.append(loss_item.detach().cpu().item())
-                        self.optimizer.zero_grad()
-
                 elif "entropy" in self.selection_method:
                     for ind in range(len(targets)):
+                        # print("inputs", inputs)
+                        # print('targets', targets)
                         loss, sample_logit = self.model(inputs[ind], [targets[ind]], get_features=True)
                         sample_logit = sample_logit[-1]
                         probs = F.softmax(sample_logit, dim=0)
                         info = -torch.sum(probs * torch.log(probs + 1e-8)).item()
                         infos.append(info)
-                        self.optimizer.zero_grad()
-                
+                # elif "entropy" in self.selection_method:
+                #     for ind in range(len(targets)):
+                #         # print("inps", inps)
+                #         # print("targets", targets)
+                #         loss, sample_logit = self.model(inps, targets, get_features=True)
+                #         sample_logit = sample_logit[-1]
+                #         probs = F.softmax(sample_logit, dim=0)
+                #         info = -torch.sum(probs * torch.log(probs + 1e-8)).item()
+                #         infos.append(info)
                 elif "fisher" in self.selection_method:
                     for ind in range(len(targets)):
-                        self.optimizer.zero_grad()
                         loss = self.model(inputs[ind],[targets[ind]])["total_loss"]
                         loss.backward()
                         # for n, p in self.model.neck.named_parameters():
@@ -109,9 +105,8 @@ class SampleSelectionBase(ER):
                                 grad = p.grad.detach().cpu().numpy()
                                 info += (grad**2).sum()
                         infos.append(info)
-                        self.optimizer.zero_grad()
                 
-            buffer_initial_info.extend(infos)      
+            buffer_initial_info.extend(infos)
         return buffer_initial_info
     
     
@@ -135,66 +130,61 @@ class SampleSelectionBase(ER):
             # Vec2Box 변환: [B, A, C], [B, A, R], [B, A, 4]
             # aux_predicts = self.vec2box(aux_raw)
             # main_predicts = self.vec2box(main_raw)
-            image_tensors = inps.tensors
+            # image_tensors = inps.tensors
         
             # 손실 계산
             infos = []
             loss = None
-            
+            self.total_flops += len(targets) * self.forward_flops
             if "loss" in self.selection_method:
-                for ind in range(len(targets)):
-                    loss_item = self.model(image_tensors[ind], [targets[ind]])
-                    sample_loss = loss_item["total_loss"]
-                    infos.append(sample_loss.detach().cpu().item())
-                    
-                    # infos.append(sample_loss.detach().cpu().item())
-                    if loss == None:
-                        loss = sample_loss
-                    else:
-                        loss += sample_loss
+                # for ind in range(len(targets)):
+                loss_item = self.model(inps, targets)
+                loss = loss_item["total_loss"]
+                # infos.append(loss.detach().cpu().item())
+                infos = len(targets)*[loss.detach().cpu().item()]
+                
+                # # infos.append(sample_loss.detach().cpu().item())
+                # if loss == None:
+                #     loss = sample_loss
+                # else:
+                #     loss += sample_loss
                         
-                loss /= len(image_tensors)
+                # loss /= len(image_tensors)
                     
             elif "entropy" in self.selection_method:
-                for ind in range(len(targets)):
-                    loss_item, sample_logit = self.model(image_tensors[ind], [targets[ind]], get_features=True)
-                    
-                    sample_logit = sample_logit[-1]
-                    sample_loss = loss_item["total_loss"]
+                # for ind in range(len(targets)):
+                loss_item, sample_logits = self.model(inps, targets, get_features=True)
+                # sample_logit = sample_logit[-1]
+                loss = loss_item["total_loss"]
+                for sample_logit in sample_logits:
                     probs = F.softmax(sample_logit, dim=0)
                     info = -torch.sum(probs * torch.log(probs + 1e-8)).item()
                     infos.append(info)
-                    
-                    if loss == None:
-                        loss = sample_loss
-                    else:
-                        loss += sample_loss
-                        
-                loss /= len(image_tensors)
+                
+                # if loss == None:
+                #     loss = sample_loss
+                # else:
+                #     loss += sample_loss
+                
+                # loss /= len(image_tensors)
             
             elif "fisher" in self.selection_method:
-                for ind in range(len(targets)):
-                    self.optimizer.zero_grad()
-                    loss_item = self.model(image_tensors[ind], [targets[ind]])
-                    sample_loss = loss_item["total_loss"]
-                    sample_loss.backward(retain_graph=True)
-                    # for n, p in self.model.neck.named_parameters():
-                    #     if p.requires_grad == True:
-                    #         grad = torch.autograd.grad(sample_loss, p, retain_graph=True)[0].clone().detach().clamp(-1, 1)
-                    # info = (grad**2).sum().cpu()
-                    info = 0
-                    for n, p in self.model.named_parameters():
-                        if "neck" in n and p.requires_grad == True:
-                            grad = p.grad.detach().cpu().numpy()
-                            info += (grad**2).sum()
-                    infos.append(info)
+                # for ind in range(len(targets)):
+                self.optimizer.zero_grad()
+                loss_item = self.model(inps, targets)
+                loss = loss_item["total_loss"]
+                # for n, p in self.model.neck.named_parameters():
+                #     if p.requires_grad == True:
+                #         grad = torch.autograd.grad(sample_loss, p, retain_graph=True)[0].clone().detach().clamp(-1, 1)
+                # info = (grad**2).sum().cpu()
+                info = 0
+                
+                    # if loss == None:
+                    #     loss = sample_loss
+                    # else:
+                    #     loss += sample_loss
                     
-                    if loss == None:
-                        loss = sample_loss
-                    else:
-                        loss += sample_loss
-                    
-                loss /= len(image_tensors)
+                # loss /= len(image_tensors)
                 
             if self.use_amp:
                 self.scaler.scale(loss).backward()
@@ -203,8 +193,15 @@ class SampleSelectionBase(ER):
             else:
                 loss.backward()
                 self.optimizer.step()
+                
+            if "fisher" in self.selection_method:
+                for n, p in self.model.named_parameters():
+                    if "neck" in n and p.requires_grad == True:
+                        grad = p.grad.detach().cpu().numpy()
+                        info += (grad**2).sum()
+                infos = len(targets)*[info] 
             
-            self.total_flops += self.backward_flops
+            self.total_flops += len(targets) * self.backward_flops
             
             self.update_schedule()
                     

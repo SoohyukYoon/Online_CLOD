@@ -162,7 +162,7 @@ class MemoryDataset(COCODataset):
             mosaic_scale=aug.mosaic_mixup.mosaic_scale,
             keep_ratio=True,
         )
-        self.use_mosaic_mixup=True
+        self.use_mosaic_mixup=False
         
         self.batch_collator = BatchCollator(size_divisible=32)
     
@@ -532,7 +532,7 @@ class SelectionMemoryDataset(MemoryDataset):
             mosaic_scale=aug.mosaic_mixup.mosaic_scale,
             keep_ratio=True,
         )
-        self.use_mosaic_mixup=True 
+        self.use_mosaic_mixup=False
         
         self.batch_collator = BatchCollator(size_divisible=32)
         
@@ -587,17 +587,16 @@ class SelectionMemoryDataset(MemoryDataset):
     def get_buffer_data(self, ind, batch_size):
         data = []
         
-        batch = self.buffer[ind:ind+batch_size]
+        # batch = self.buffer[ind:ind+batch_size]
         
-        for i, entry in enumerate(batch):
+        for i in range(ind, min(ind+batch_size, len(self.buffer))):
             # img, bboxes, img_id = entry['img'], entry['labels'], entry['img_id']
             # valid_mask = labels[:, 0] != -1
             # bboxes = labels[valid_mask]
             if self.use_mosaic_mixup:
                 img, label, img_id = self.mosaic_wrapper.__getitem__((True, i))
             else:
-                entry = self.buffer[i]
-                img, anno, img_id = entry['img'], entry['labels'], entry['img_id']
+                img, anno, img_id, score = self.buffer[i]
                 anno = [obj for obj in anno if obj['iscrowd'] == 0]
 
                 boxes = [obj['bbox'] for obj in anno]
@@ -641,7 +640,7 @@ class SelectionMemoryDataset(MemoryDataset):
                 if self.use_mosaic_mixup:
                     img, label, img_id = self.mosaic_wrapper.__getitem__((True, i + buffer_size))
                 else:
-                    img, anno, img_id = self.buffer[i + buffer_size]
+                    img, anno, img_id, score = self.buffer[i + buffer_size]
                     anno = [obj for obj in anno if obj['iscrowd'] == 0]
 
                     boxes = [obj['bbox'] for obj in anno]
@@ -689,7 +688,7 @@ class SelectionMemoryDataset(MemoryDataset):
                 if self.use_mosaic_mixup:
                     img, label, img_id = self.mosaic_wrapper.__getitem__((True, i))
                 else:
-                    img, label, img_id, score = self.buffer[i]
+                    img, anno, img_id, score = self.buffer[i]
                     anno = [obj for obj in anno if obj['iscrowd'] == 0]
 
                     boxes = [obj['bbox'] for obj in anno]
