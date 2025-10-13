@@ -513,6 +513,7 @@ class SelectionMemoryDataset(MemoryDataset):
         # aug.mosaic_mixup.degrees = 0
         # aug.mosaic_mixup.translate = 0
         # aug.mosaic_mixup.mosaic_scale = (0.8, 1.2)
+        self.info_ema = 0.9
         
         print("mosaic_prob", aug.mosaic_mixup.mosaic_prob)
         print("mixup_prob", aug.mosaic_mixup.mixup_prob)
@@ -546,11 +547,17 @@ class SelectionMemoryDataset(MemoryDataset):
             img, labels, img_id, _ = self.buffer[i]
             self.buffer[i] = (img, labels, img_id, info)
             
+    # def update_info(self, infos):
+    #     assert len(infos) == len(self.indices)
+    #     for i, info in enumerate(infos):
+    #         img, labels, img_id, _ = self.buffer[self.indices[i]]
+    #         self.buffer[self.indices[i]] = (img, labels, img_id, info)
     def update_info(self, infos):
         assert len(infos) == len(self.indices)
         for i, info in enumerate(infos):
-            img, labels, img_id, _ = self.buffer[self.indices[i]]
-            self.buffer[self.indices[i]] = (img, labels, img_id, info)
+            img, labels, img_id, old_info = self.buffer[self.indices[i]]
+            new_info = self.info_ema * old_info + (1 - self.info_ema) * info
+            self.buffer[self.indices[i]] = (img, labels, img_id, new_info)
     
     def replace_sample(self, sample, info=0, idx=None, images_dir=None,label_path=None):
         data_class = sample.get('label', None)
@@ -561,6 +568,11 @@ class SelectionMemoryDataset(MemoryDataset):
             self.buffer.append(data)
         else:
             self.buffer[idx] = data
+            # classes = [obj['category_id'] for obj in labels]
+            # classes = [self.contiguous_class2id[self.ori_id2class[c]] 
+            #         for c in classes]
+            # print("buffer replaced", classes)
+
             
     def register_sample_for_initial_buffer(self, sample, idx=None, images_dir=None,label_path=None):
         img, labels, img_id = self.load_data(sample['file_name'], is_stream=False)
@@ -666,8 +678,9 @@ class SelectionMemoryDataset(MemoryDataset):
             # indices = np.random.choice(range(buffer_size), size=memory_batch_size, replace=False)
             info_list = np.array([e[-1] for e in self.buffer],
                         dtype=np.float64)
-            nonzero_indices = [i for i, x in enumerate(info_list) if x != 0]
-            info_list = np.array([x for x in info_list if x != 0])
+            # print(info_list, len(self.buffer))
+            # nonzero_indices = [i for i, x in enumerate(info_list) if x != 0]
+            info_list = info_list[:buffer_size]
             w = info_list / info_list.sum()
             ### HYBRID WEIGHT END
             if self.priority_selection == "high":
@@ -682,7 +695,6 @@ class SelectionMemoryDataset(MemoryDataset):
                     p=w,
                 )
             # print(nonzero_indices, indices, info_list, len(info_list), len(self.buffer))
-            indices = [nonzero_indices[ind] for ind in indices]
             self.indices = indices
             for i in indices:
                 if self.use_mosaic_mixup:
@@ -690,6 +702,7 @@ class SelectionMemoryDataset(MemoryDataset):
                 else:
                     img, anno, img_id, score = self.buffer[i]
                     anno = [obj for obj in anno if obj['iscrowd'] == 0]
+                    
 
                     boxes = [obj['bbox'] for obj in anno]
                     boxes = torch.as_tensor(boxes).reshape(-1, 4)  # guard against no boxes
@@ -707,6 +720,7 @@ class SelectionMemoryDataset(MemoryDataset):
                     
                     img = np.asarray(img)
                     img, label = self._transforms(img, target)
+                
                 data.append((img, label, img_id))
 
         # remove stream data from buffer
@@ -843,7 +857,7 @@ class SelectionClsBalancedDataset(MemoryDataset):
             mosaic_scale=aug.mosaic_mixup.mosaic_scale,
             keep_ratio=True,
         )
-        self.use_mosaic_mixup=True 
+        self.use_mosaic_mixup=False 
         
         self.batch_collator = BatchCollator(size_divisible=32)
         
@@ -875,7 +889,7 @@ class SelectionClsBalancedDataset(MemoryDataset):
         for i, info in enumerate(infos):
             self.buffer[self.selected_indices[i]]["score"] = info
     
-    def replace_sample(self, sample, info=0, idx=None, images_dir=None,label_path=None):
+    def replace_sample(self, sample, info, idx=None, images_dir=None,label_path=None):
         data_class = sample.get('label', None)
         img, labels, img_id = self.load_data(sample['file_name'], is_stream=True,data_class=data_class)
         classes = [obj['category_id'] for obj in labels]
