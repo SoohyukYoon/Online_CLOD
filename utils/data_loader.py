@@ -1891,6 +1891,135 @@ class FreqDataset(MemoryDataset):
 
 ################################################################################################
 # Class Balanced Dataset
+# class ClassBalancedDataset(MemoryDataset):
+#     def __init__(self, ann_file, root, transforms=None, class_names=None,
+#                  dataset=None, cls_list=None, device=None, data_dir=None, memory_size=None, 
+#                  init_buffer_size=None, image_size=(640, 640), aug=None
+#                  ):
+#         super(MemoryDataset, self).__init__(ann_file, root, transforms, class_names)
+#         # self.args = args
+#         if isinstance(image_size, int):
+#             image_size = (image_size, image_size)
+#         self.image_sizes = [int(image_size[0]), int(image_size[1])]
+#         self.memory_size = memory_size
+
+#         self.buffer = []
+#         self.stream_data = []
+#         self.logits = []
+
+#         self.dataset = dataset
+#         self.device = device
+#         self.data_dir = data_dir
+
+#         self.counts = []
+#         self.class_usage_cnt = []
+#         self.tasks = []
+        
+#         # FIXME: fix for object detection class counting
+#         self.cls_list = cls_list if cls_list else []
+#         self.cls_used_times = []
+#         self.cls_dict = {}
+#         self.cls_count = [0]
+#         self.cls_idx = [[]]
+        
+#         self.new_exposed_classes = ['pretrained']
+#         # self.cls_train_cnt = np.array([0,]*len(cls_list)) if cls_list else np.array([])
+#         self.cls_train_cnt = np.array([])
+#         self.score = []
+#         self.others_loss_decrease = np.array([])
+#         self.previous_idx = np.array([], dtype=int)
+#         self.usage_cnt = []
+#         self.sample_weight = []
+#         self.data = {}
+        
+#         with open(ann_file, 'r') as f:
+#             annotations = json.load(f)
+#             self.name2id = {ann['file_name'].split('.')[0]: ann['id'] for ann in annotations['images']}
+        
+#         self.build_initial_buffer(init_buffer_size)
+
+#         n_classes, image_dir, label_path = get_statistics(dataset=self.dataset)
+#         self.image_dir = image_dir
+#         self.label_path = label_path
+        
+#         # set transform
+#         transforms = aug.transform
+#         transforms = build_transforms_memorydataset(**transforms)
+#         self._transforms = transforms
+        
+#         # aug.mosaic_mixup.mosaic_prob = 0
+#         # aug.mosaic_mixup.mixup_prob = 0
+#         # aug.mosaic_mixup.degrees = 0
+#         # aug.mosaic_mixup.translate = 0
+#         # aug.mosaic_mixup.mosaic_scale = (0.8, 1.2)
+        
+#         print("mosaic_prob", aug.mosaic_mixup.mosaic_prob)
+#         print("mixup_prob", aug.mosaic_mixup.mixup_prob)
+#         print("degrees", aug.mosaic_mixup.degrees)
+#         print("translate", aug.mosaic_mixup.translate)
+#         print("mosaic_scale", aug.mosaic_mixup.mosaic_scale)
+        
+        
+#         self.mosaic_wrapper = MosaicWrapper(
+#             dataset=self,                      # <-- this class will provide pull_item/load_anno
+#             img_size=image_size,
+#             mosaic_prob=aug.mosaic_mixup.mosaic_prob,                   # always “allowed”; actual apply is still random inside wrapper
+#             mixup_prob=aug.mosaic_mixup.mixup_prob,
+#             transforms=self._transforms,                   # we'll run your own transforms after mosaic
+#             degrees=aug.mosaic_mixup.degrees,
+#             translate=aug.mosaic_mixup.translate,
+#             mosaic_scale=aug.mosaic_mixup.mosaic_scale,
+#             keep_ratio=True,
+#         )
+#         self.use_mosaic_mixup=False
+        
+#         self.batch_collator = BatchCollator(size_divisible=32)
+
+#     def add_new_class(self, cls_list, sample=None):
+#         self.cls_list = cls_list
+#         self.cls_count.append(0)
+#         self.cls_idx.append([])
+
+#     def replace_sample(self, sample, idx=None, images_dir=None,label_path=None):
+#         data_class = sample.get('label', None)
+#         img, labels, img_id = self.load_data(sample['file_name'], is_stream=True,data_class=data_class)
+#         data = (img, labels, img_id)
+
+#         if sample.get('klass', None):
+#             self.cls_count[self.new_exposed_classes.index(sample['klass'])] += 1
+#             sample_category = sample['klass']
+#         elif sample.get('domain', None):
+#             self.cls_count[self.new_exposed_classes.index(sample['domain'])] += 1
+#             sample_category = sample['domain']
+#         else:
+#             self.cls_count[self.new_exposed_classes.index('pretrained')] += 1
+#             sample_category = 'pretrained'
+#         # self.cls_count[self.new_exposed_classes.index(sample.get('klass', 'pretrained'))] += 1
+#         if idx is None:
+#             self.cls_idx[self.new_exposed_classes.index(sample_category)].append(len(self.buffer))
+#             self.buffer.append(data)
+#         else:
+#             self.buffer[idx] = data
+#     def register_sample_for_initial_buffer(self, sample, idx=None, images_dir=None, label_path=None):
+#         data_class = sample.get('label', None)
+#         img, labels, img_id = self.load_data(sample['file_name'], is_stream=False)
+#         data = (img, labels, img_id)
+#         if sample.get('klass', None):
+#             self.cls_count[self.new_exposed_classes.index(sample['klass'])] += 1
+#             sample_category = sample['klass']
+#         elif sample.get('domain', None):
+#             self.cls_count[self.new_exposed_classes.index(sample['domain'])] += 1
+#             sample_category = sample['domain']
+#         else:
+#             self.cls_count[self.new_exposed_classes.index('pretrained')] += 1
+#             sample_category = 'pretrained'
+#         # self.cls_count[self.new_exposed_classes.index(sample.get('klass', 'pretrained'))] += 1
+#         if idx is None:
+#             self.cls_idx[self.new_exposed_classes.index(sample_category)].append(len(self.buffer))
+#             self.buffer.append(data)
+#         else:
+#             self.buffer[idx] = data
+
 class ClassBalancedDataset(MemoryDataset):
     def __init__(self, ann_file, root, transforms=None, class_names=None,
                  dataset=None, cls_list=None, device=None, data_dir=None, memory_size=None, 
@@ -1916,13 +2045,31 @@ class ClassBalancedDataset(MemoryDataset):
         self.tasks = []
         
         # FIXME: fix for object detection class counting
+        # self.cls_list = cls_list if cls_list else []
+        # self.cls_used_times = []
+        # self.cls_dict = {}
+        # self.cls_count = [0]
+        # self.cls_idx = [[]]
+        
+        # self.new_exposed_classes = ['pretrained'] 
+        
         self.cls_list = cls_list if cls_list else []
         self.cls_used_times = []
         self.cls_dict = {}
-        self.cls_count = [0]
-        self.cls_idx = [[]]
         
-        self.new_exposed_classes = ['pretrained']
+        self.is_domain_incremental = ('SHIFT' in self.dataset) or ('BDD' in self.dataset) or ('Military' in self.dataset)
+        
+        if self.is_domain_incremental:
+            self.cls_count = [0]
+            self.cls_idx = [[]]
+            
+            self.new_exposed_classes = ['pretrained'] 
+        else:
+            self.cls_count = [0 for _ in range(len(cls_list))]
+            self.cls_idx = [[] for _ in range(len(cls_list))]
+            
+            self.new_exposed_classes = self.cls_list #['pretrained'] 
+        
         # self.cls_train_cnt = np.array([0,]*len(cls_list)) if cls_list else np.array([])
         self.cls_train_cnt = np.array([])
         self.score = []
@@ -1974,7 +2121,67 @@ class ClassBalancedDataset(MemoryDataset):
         self.use_mosaic_mixup=False
         
         self.batch_collator = BatchCollator(size_divisible=32)
-
+    
+    def build_initial_buffer(self, buffer_size=None):
+        n_classes, images_dir, label_path = get_pretrained_statistics(self.dataset)
+        self.image_dir = images_dir
+        self.label_path = label_path
+        
+        if self.dataset == 'VOC_10_10' or self.dataset == 'VOC_15_5':
+            image_files = glob.glob(os.path.join(images_dir, "train","*/*.jpg"))
+        else:
+            image_files = glob.glob(os.path.join(images_dir, "train","*.jpg"))
+            
+        if 'SHIFT' in self.dataset:
+            cleaned_files = []
+            for i in image_files:
+                key = re.sub(r'\.(jpg|jpeg|png)$', '', i, flags=re.IGNORECASE)
+                try:
+                    temp = self.name2id[key]
+                except KeyError:
+                    try:
+                        temp = self.name2id[key.split('/')[-1]]
+                    except KeyError:
+                        continue  # skip this file
+                cleaned_files.append(i)
+            image_files = cleaned_files
+                    
+        if self.is_domain_incremental:
+            indices = np.random.choice(range(len(image_files)), size=buffer_size or self.memory_size, replace=False)
+            for idx in indices:
+                image_path = image_files[idx]
+                split_name = image_path.split('/')[-2]
+                base_name = image_path.split('/')[-1]
+                self.register_sample_for_initial_buffer({'file_name': split_name + '/' + base_name, 'label': None}, images_dir=images_dir,label_path=label_path)    
+        else:
+            for idx in range(len(image_files)):
+                image_path = image_files[idx]
+                split_name = image_path.split('/')[-2]
+                base_name = image_path.split('/')[-1]
+                if (buffer_size is not None and len(self.buffer) >= buffer_size) or (buffer_size is None and len(self.buffer) >= self.memory_size):
+                    cls_to_replace = np.random.choice(
+                        np.flatnonzero(np.array(self.cls_count) == np.array(self.cls_count).max()))
+                    mem_index = np.random.choice(self.cls_idx[cls_to_replace])
+                    labels = self.buffer[mem_index][1]
+                else:
+                    mem_index = None
+                self.register_sample_for_initial_buffer({'file_name': split_name + '/' + base_name, 'label': None}, idx=mem_index, images_dir=images_dir,label_path=label_path)    
+                if mem_index is not None:
+                    classes = [obj['category_id'] for obj in labels]
+                    classes = [self.contiguous_class2id[self.ori_id2class[c]] 
+                            for c in classes]
+                    classes = list(set(classes))
+                    for cls_ in classes:
+                        self.cls_count[cls_] -= 1
+                        self.cls_idx[cls_].remove(mem_index)
+                    
+                    new_labels = self.buffer[mem_index][1]
+                    new_classes = [obj['category_id'] for obj in new_labels]
+                    new_classes = [self.contiguous_class2id[self.ori_id2class[c]] 
+                            for c in new_classes]
+                    new_classes = list(set(new_classes))
+                    for cls_ in new_classes:
+                        self.cls_idx[cls_].append(mem_index)
     def add_new_class(self, cls_list, sample=None):
         self.cls_list = cls_list
         self.cls_count.append(0)
@@ -1986,8 +2193,15 @@ class ClassBalancedDataset(MemoryDataset):
         data = (img, labels, img_id)
 
         if sample.get('klass', None):
-            self.cls_count[self.new_exposed_classes.index(sample['klass'])] += 1
-            sample_category = sample['klass']
+            # self.cls_count[self.new_exposed_classes.index(sample['klass'])] += 1
+            # sample_category = sample['klass']
+            classes = [obj['category_id'] for obj in labels]
+            classes = [self.contiguous_class2id[self.ori_id2class[c]] 
+                    for c in classes]
+            classes = list(set(classes))
+            for cls_ in classes:
+                self.cls_count[cls_] += 1
+            sample_category = classes
         elif sample.get('domain', None):
             self.cls_count[self.new_exposed_classes.index(sample['domain'])] += 1
             sample_category = sample['domain']
@@ -1996,7 +2210,11 @@ class ClassBalancedDataset(MemoryDataset):
             sample_category = 'pretrained'
         # self.cls_count[self.new_exposed_classes.index(sample.get('klass', 'pretrained'))] += 1
         if idx is None:
-            self.cls_idx[self.new_exposed_classes.index(sample_category)].append(len(self.buffer))
+            if isinstance(sample_category, list):
+                for cls_ in sample_category:
+                    self.cls_idx[cls_].append(len(self.buffer))
+            else:
+                self.cls_idx[self.new_exposed_classes.index(sample_category)].append(len(self.buffer))
             self.buffer.append(data)
         else:
             self.buffer[idx] = data
@@ -2004,24 +2222,370 @@ class ClassBalancedDataset(MemoryDataset):
         data_class = sample.get('label', None)
         img, labels, img_id = self.load_data(sample['file_name'], is_stream=False)
         data = (img, labels, img_id)
-        if sample.get('klass', None):
-            self.cls_count[self.new_exposed_classes.index(sample['klass'])] += 1
-            sample_category = sample['klass']
-        elif sample.get('domain', None):
-            self.cls_count[self.new_exposed_classes.index(sample['domain'])] += 1
-            sample_category = sample['domain']
+        if not self.is_domain_incremental:
+            # self.cls_count[self.new_exposed_classes.index(sample['klass'])] += 1
+            # sample_category = sample['klass']
+            classes = [obj['category_id'] for obj in labels]
+            classes = [self.contiguous_class2id[self.ori_id2class[c]] 
+                    for c in classes]
+            classes = list(set(classes))
+            for cls_ in classes:
+                self.cls_count[cls_] += 1
+            sample_category = classes
         else:
             self.cls_count[self.new_exposed_classes.index('pretrained')] += 1
             sample_category = 'pretrained'
         # self.cls_count[self.new_exposed_classes.index(sample.get('klass', 'pretrained'))] += 1
         if idx is None:
-            self.cls_idx[self.new_exposed_classes.index(sample_category)].append(len(self.buffer))
+            if isinstance(sample_category, list):
+                for cls_ in sample_category:
+                    self.cls_idx[cls_].append(len(self.buffer))
+            else:
+                self.cls_idx[self.new_exposed_classes.index(sample_category)].append(len(self.buffer))
             self.buffer.append(data)
         else:
             self.buffer[idx] = data
-
 #################################################################################################
 # Frequency + class balanced dataset
+
+# Frequency-based Dataset
+# class FreqClsBalancedDataset(MemoryDataset):
+#     def __init__(self, ann_file, root, transforms=None, class_names=None,
+#                  dataset=None, cls_list=None, device=None, data_dir=None, memory_size=None, 
+#                  init_buffer_size=None, image_size=(640, 640), aug=None
+#                  ):
+#         super(MemoryDataset, self).__init__(ann_file, root, transforms, class_names)
+#         # self.args = args
+#         if isinstance(image_size, int):
+#             image_size = (image_size, image_size)
+#         self.image_sizes = [int(image_size[0]), int(image_size[1])]
+#         self.memory_size = memory_size
+
+#         self.buffer = []
+#         self.stream_data = []
+#         self.logits = []
+
+#         self.dataset = dataset
+#         self.device = device
+#         self.data_dir = data_dir
+
+#         self.counts = []
+#         self.class_usage_cnt = []
+#         self.tasks = []
+        
+#         # FIXME: fix for object detection class counting
+#         self.cls_list = cls_list if cls_list else []
+#         self.cls_used_times = []
+#         self.cls_dict = {}
+#         self.cls_count = [0]
+#         self.cls_idx = [[]]
+        
+#         self.new_exposed_classes = ['pretrained']
+#         # self.cls_train_cnt = np.array([0,]*len(cls_list)) if cls_list else np.array([])
+#         self.cls_train_cnt = np.array([])
+#         self.score = []
+#         self.others_loss_decrease = np.array([])
+#         self.previous_idx = np.array([], dtype=int)
+#         self.usage_cnt = []
+#         self.sample_weight = []
+#         self.data = {}
+        
+#         with open(ann_file, 'r') as f:
+#             annotations = json.load(f)
+#             self.name2id = {ann['file_name'].split('.')[0]: ann['id'] for ann in annotations['images']}
+        
+#         self.build_initial_buffer(init_buffer_size)
+
+#         n_classes, image_dir, label_path = get_statistics(dataset=self.dataset)
+#         self.image_dir = image_dir
+#         self.label_path = label_path
+        
+#         # set transform
+#         transforms = aug.transform
+#         transforms = build_transforms_memorydataset(**transforms)
+#         self._transforms = transforms
+        
+#         # aug.mosaic_mixup.mosaic_prob = 0
+#         # aug.mosaic_mixup.mixup_prob = 0
+#         # aug.mosaic_mixup.degrees = 0
+#         # aug.mosaic_mixup.translate = 0
+#         # aug.mosaic_mixup.mosaic_scale = (0.8, 1.2)
+        
+#         print("mosaic_prob", aug.mosaic_mixup.mosaic_prob)
+#         print("mixup_prob", aug.mosaic_mixup.mixup_prob)
+#         print("degrees", aug.mosaic_mixup.degrees)
+#         print("translate", aug.mosaic_mixup.translate)
+#         print("mosaic_scale", aug.mosaic_mixup.mosaic_scale)
+        
+        
+#         self.mosaic_wrapper = MosaicWrapper(
+#             dataset=self,                      # <-- this class will provide pull_item/load_anno
+#             img_size=image_size,
+#             mosaic_prob=aug.mosaic_mixup.mosaic_prob,                   # always “allowed”; actual apply is still random inside wrapper
+#             mixup_prob=aug.mosaic_mixup.mixup_prob,
+#             transforms=self._transforms,                   # we'll run your own transforms after mosaic
+#             degrees=aug.mosaic_mixup.degrees,
+#             translate=aug.mosaic_mixup.translate,
+#             mosaic_scale=aug.mosaic_mixup.mosaic_scale,
+#             keep_ratio=True,
+#         )
+#         self.use_mosaic_mixup=False 
+        
+#         self.batch_collator = BatchCollator(size_divisible=32)
+        
+#         self.alpha = 1.0                  # smoothing constant in 1/(usage+α)
+#         self.beta = 1.0
+#         self.usage_decay = 0.995
+    
+        
+#     def replace_sample(self, sample, idx=None, images_dir=None,label_path=None):
+#         data_class = sample.get('label', None)
+#         img, labels, img_id = self.load_data(sample['file_name'], is_stream=True,data_class=data_class)
+#         classes = [obj['category_id'] for obj in labels]
+#         classes = [self.contiguous_class2id[self.ori_id2class[c]] 
+#                    for c in classes]
+#         ### BEGIN USAGE
+#         entry = {
+#             "img": img,
+#             "labels": labels,
+#             "img_id": img_id,
+#             "usage": sample.get("usage", 0),
+#             "classes": list(set(classes)) if len(classes) else []
+#         }
+#         ### END USAGE
+
+#         if sample.get('klass', None):
+#             self.cls_count[self.new_exposed_classes.index(sample['klass'])] += 1
+#             sample_category = sample['klass']
+#         elif sample.get('domain', None):
+#             self.cls_count[self.new_exposed_classes.index(sample['domain'])] += 1
+#             sample_category = sample['domain']
+#         else:
+#             self.cls_count[self.new_exposed_classes.index('pretrained')] += 1
+#             sample_category = 'pretrained'
+#         # self.cls_count[self.new_exposed_classes.index(sample.get('klass', 'pretrained'))] += 1
+#         if idx is None:
+#             self.cls_idx[self.new_exposed_classes.index(sample_category)].append(len(self.buffer))
+#             self.buffer.append(entry)
+#         else:
+#             self.buffer[idx] = entry
+    
+#     def register_sample_for_initial_buffer(self, sample, idx=None, images_dir=None,label_path=None):
+#         img, labels, img_id = self.load_data(sample['file_name'], is_stream=False)
+#         ### BEGIN USAGE
+#         classes = [obj['category_id'] for obj in labels]
+#         classes = [self.contiguous_class2id[self.ori_id2class[c]] 
+#                    for c in classes]
+#         entry = {
+#             "img": img,
+#             "labels": labels,
+#             "img_id": img_id,
+#             "usage": sample.get("usage", 0),
+#             "classes": list(set(classes)) if len(classes) else []
+#         }
+#         ### END USAGE
+
+#         if sample.get('klass', None):
+#             self.cls_count[self.new_exposed_classes.index(sample['klass'])] += 1
+#             sample_category = sample['klass']
+#         elif sample.get('domain', None):
+#             self.cls_count[self.new_exposed_classes.index(sample['domain'])] += 1
+#             sample_category = sample['domain']
+#         else:
+#             self.cls_count[self.new_exposed_classes.index('pretrained')] += 1
+#             sample_category = 'pretrained'
+#         # self.cls_count[self.new_exposed_classes.index(sample.get('klass', 'pretrained'))] += 1
+#         if idx is None:
+#             self.cls_idx[self.new_exposed_classes.index(sample_category)].append(len(self.buffer))
+#             self.buffer.append(entry)
+#         else:
+#             self.buffer[idx] = entry
+    
+#     def register_stream(self, datalist):
+#         self.stream_data = []
+#         for data in datalist:
+#             data_class = data.get('label', None)
+#             img_path = data.get('file_name', data.get('filepath'))
+            
+#             img, labels, img_id = self.load_data(img_path, is_stream=True, data_class=data_class)
+#             classes = [obj['category_id'] for obj in labels]
+#             classes = [self.contiguous_class2id[self.ori_id2class[c]] 
+#                     for c in classes]
+#             entry = {
+#                 "img": img,
+#                 "labels": labels,
+#                 "img_id": img_id,
+#                 "usage": 0,
+#                 "classes": list(set(classes)) if len(classes) else []
+#             }
+            
+#             self.stream_data.append(entry)
+
+#     @torch.no_grad()
+#     def get_batch(self, batch_size, stream_batch_size=0, use_weight=None, transform=None, weight_method= "cls_usage"):
+#         assert batch_size >= stream_batch_size
+#         stream_batch_size = min(stream_batch_size, len(self.stream_data))
+#         batch_size = min(batch_size, stream_batch_size + len(self.buffer))
+#         memory_batch_size = batch_size - stream_batch_size
+
+#         data = []
+        
+#         # append stream data to buffer for batch creation
+#         buffer_size = len(self.buffer)
+#         self.buffer.extend(self.stream_data)
+ 
+#         if stream_batch_size > 0:
+#             stream_indices = np.random.choice(range(len(self.stream_data)), size=stream_batch_size, replace=False)
+#             for i in stream_indices:
+#                 if self.use_mosaic_mixup:
+#                     img, label, img_id = self.mosaic_wrapper.__getitem__((True, i + buffer_size))
+#                 else:
+#                     entry = self.buffer[i + buffer_size]
+#                     img, anno, img_id = entry['img'], entry['labels'], entry['img_id']
+#                     anno = [obj for obj in anno if obj['iscrowd'] == 0]
+
+#                     boxes = [obj['bbox'] for obj in anno]
+#                     boxes = torch.as_tensor(boxes).reshape(-1, 4)  # guard against no boxes
+#                     target = BoxList(boxes, img.size, mode='xywh').convert('xyxy')
+
+#                     classes = [obj['category_id'] for obj in anno]
+#                     classes = [self.contiguous_class2id[self.ori_id2class[c]] 
+#                             for c in classes]
+
+#                     classes = torch.tensor(classes)
+#                     target.add_field('labels', classes)
+
+#                     target = target.clip_to_image(remove_empty=True)
+                    
+#                     img = np.asarray(img)
+#                     img, label = self._transforms(img, target)
+                
+#                 data.append((img, label, img_id))
+
+#         # ───── Memory part ──────────────────────────────────────────────
+#         if memory_batch_size > 0 and len(self.buffer):
+#             for e in self.buffer:
+#                 e['usage'] *= self.usage_decay
+#             for cls_idx in range(len(self.cls_train_cnt)):
+#                 self.cls_train_cnt[cls_idx] *= self.usage_decay
+
+#             ### HYBRID WEIGHT BEGIN
+#             if weight_method == "cls_usage":          # new option
+#                 # 1 / (usage+α)  ×  1 / (mean cls_trained + β)
+#                 alpha = getattr(self, "alpha", 1.0)
+#                 beta  = getattr(self, "beta", 1.0)       # you may set self.beta in __init__
+#                 weights = []
+#                 for entry in self.buffer:
+#                     u = entry["usage"]
+#                     # gather per-image class-trained counts
+#                     if entry["classes"]:
+#                         t = [self.cls_train_cnt[int(c)]    # safe: cls_dict maps real IDs
+#                             for c in entry["classes"]               # (skip if not yet in dict)
+#                             if c < len(self.cls_train_cnt)]
+#                         mean_t = np.mean(t) if t else 0.0
+#                     else:
+#                         mean_t = 0.0        # no GT boxes → neutral
+#                     weights.append(1.0 / (u + alpha) * 1.0 / (mean_t + beta))
+#                 w = np.asarray(weights, dtype=np.float64)
+#                 w /= w.sum()
+#             else:
+#                 w = np.array([1.0 / (e["usage"] + self.alpha) for e in self.buffer],
+#                             dtype=np.float64)
+#                 w /= w.sum()
+#             ### HYBRID WEIGHT END
+
+#             indices = np.random.choice(
+#                 len(self.buffer),
+#                 size=memory_batch_size,
+#                 replace=len(self.buffer) < memory_batch_size,
+#                 p=w,
+#             )
+
+#             for i in indices:
+#                 # update usage counter *and* class-train counts
+#                 self.buffer[i]["usage"] += 1
+#                 for idx_cls in self.buffer[i]["classes"]:
+#                     if idx_cls < len(self.cls_train_cnt):
+#                         self.cls_train_cnt[int(idx_cls)] += 1
+
+#                 if self.use_mosaic_mixup:
+#                     img, label, img_id = self.mosaic_wrapper.__getitem__((True, i))
+#                 else:
+#                     entry = self.buffer[i]
+#                     img, anno, img_id = entry['img'], entry['labels'], entry['img_id']
+#                     anno = [obj for obj in anno if obj['iscrowd'] == 0]
+
+#                     boxes = [obj['bbox'] for obj in anno]
+#                     boxes = torch.as_tensor(boxes).reshape(-1, 4)  # guard against no boxes
+#                     target = BoxList(boxes, img.size, mode='xywh').convert('xyxy')
+
+#                     classes = [obj['category_id'] for obj in anno]
+#                     classes = [self.contiguous_class2id[self.ori_id2class[c]] 
+#                             for c in classes]
+
+#                     classes = torch.tensor(classes)
+#                     target.add_field('labels', classes)
+
+
+#                     target = target.clip_to_image(remove_empty=True)
+                    
+#                     img = np.asarray(img)
+#                     img, label = self._transforms(img, target)
+#                 data.append((img, label, img_id))
+
+#          # remove stream data from buffer
+#         self.buffer = self.buffer[:buffer_size]
+        
+#         return self.batch_collator(data)
+
+#     def pull_item(self, idx):
+#         entry = self.buffer[idx]
+#         img, anno, img_id = entry['img'], entry['labels'], entry['img_id']
+#         # filter crowd annotations
+#         # TODO might be better to add an extra field
+#         anno = [obj for obj in anno if obj['iscrowd'] == 0]
+
+#         boxes = [obj['bbox'] for obj in anno]
+#         boxes = torch.as_tensor(boxes).reshape(-1, 4)  # guard against no boxes
+#         target = BoxList(boxes, img.size, mode='xywh').convert('xyxy')
+        
+#         target = target.clip_to_image(remove_empty=True)
+
+#         classes = [obj['category_id'] for obj in anno]
+#         classes = [self.contiguous_class2id[self.ori_id2class[c]] 
+#                    for c in classes]
+
+#         obj_masks = []
+#         for obj in anno:
+#             obj_mask = []
+#             if 'segmentation' in obj:
+#                 for mask in obj['segmentation']:
+#                     obj_mask += mask
+#                 if len(obj_mask) > 0:
+#                     obj_masks.append(obj_mask)
+#         seg_masks = [
+#             np.array(obj_mask, dtype=np.float32).reshape(-1, 2)
+#             for obj_mask in obj_masks
+#         ]
+
+#         res = np.zeros((len(target.bbox), 5))
+#         for idx in range(len(target.bbox)):
+#             res[idx, 0:4] = target.bbox[idx]
+#             res[idx, 4] = classes[idx]
+
+#         img = np.asarray(img)  # rgb
+
+#         return img, res, seg_masks, img_id
+    
+#     def load_anno(self, idx):
+#         entry = self.buffer[idx]
+#         anno = entry['labels']
+#         anno = [obj for obj in anno if obj['iscrowd'] == 0]
+#         classes = [obj['category_id'] for obj in anno]
+#         classes = [self.contiguous_class2id[self.ori_id2class[c]] 
+#                    for c in classes]
+#         return classes
+    
 
 # Frequency-based Dataset
 class FreqClsBalancedDataset(MemoryDataset):
@@ -2049,15 +2613,32 @@ class FreqClsBalancedDataset(MemoryDataset):
         self.tasks = []
         
         # FIXME: fix for object detection class counting
+        # self.cls_list = cls_list if cls_list else []
+        # self.cls_used_times = []
+        # self.cls_dict = {}
+        # self.cls_count = [0]
+        # self.cls_idx = [[]]
+        
+        # self.new_exposed_classes = ['pretrained'] 
+        
         self.cls_list = cls_list if cls_list else []
         self.cls_used_times = []
         self.cls_dict = {}
-        self.cls_count = [0]
-        self.cls_idx = [[]]
         
-        self.new_exposed_classes = ['pretrained']
-        # self.cls_train_cnt = np.array([0,]*len(cls_list)) if cls_list else np.array([])
-        self.cls_train_cnt = np.array([])
+        self.is_domain_incremental = ('SHIFT' in self.dataset) or ('BDD' in self.dataset) or ('Military' in self.dataset)
+        
+        if self.is_domain_incremental:
+            self.cls_count = [0]
+            self.cls_idx = [[]]
+            
+            self.new_exposed_classes = ['pretrained'] 
+        else:
+            self.cls_count = [0 for _ in range(len(cls_list))]
+            self.cls_idx = [[] for _ in range(len(cls_list))]
+            
+            self.new_exposed_classes = self.cls_list #['pretrained'] 
+        self.cls_train_cnt = np.array([0,]*len(cls_list)) if cls_list else np.array([])
+        # self.cls_train_cnt = np.array([])
         self.score = []
         self.others_loss_decrease = np.array([])
         self.previous_idx = np.array([], dtype=int)
@@ -2112,6 +2693,73 @@ class FreqClsBalancedDataset(MemoryDataset):
         self.beta = 1.0
         self.usage_decay = 0.995
     
+    def add_new_class(self, cls_list, sample=None):
+        self.cls_list = cls_list
+        self.cls_count.append(0)
+        self.cls_idx.append([])
+        self.cls_train_cnt = np.append(self.cls_train_cnt, 0)
+        
+    
+    def build_initial_buffer(self, buffer_size=None):
+        n_classes, images_dir, label_path = get_pretrained_statistics(self.dataset)
+        self.image_dir = images_dir
+        self.label_path = label_path
+        
+        if self.dataset == 'VOC_10_10' or self.dataset == 'VOC_15_5':
+            image_files = glob.glob(os.path.join(images_dir, "train","*/*.jpg"))
+        else:
+            image_files = glob.glob(os.path.join(images_dir, "train","*.jpg"))
+            
+        if 'SHIFT' in self.dataset:
+            cleaned_files = []
+            for i in image_files:
+                key = re.sub(r'\.(jpg|jpeg|png)$', '', i, flags=re.IGNORECASE)
+                try:
+                    temp = self.name2id[key]
+                except KeyError:
+                    try:
+                        temp = self.name2id[key.split('/')[-1]]
+                    except KeyError:
+                        continue  # skip this file
+                cleaned_files.append(i)
+            image_files = cleaned_files
+                    
+        if self.is_domain_incremental:
+            indices = np.random.choice(range(len(image_files)), size=buffer_size or self.memory_size, replace=False)
+            for idx in indices:
+                image_path = image_files[idx]
+                split_name = image_path.split('/')[-2]
+                base_name = image_path.split('/')[-1]
+                self.register_sample_for_initial_buffer({'file_name': split_name + '/' + base_name, 'label': None}, images_dir=images_dir,label_path=label_path)    
+        else:
+            for idx in range(len(image_files)):
+                image_path = image_files[idx]
+                split_name = image_path.split('/')[-2]
+                base_name = image_path.split('/')[-1]
+                if (buffer_size is not None and len(self.buffer) >= buffer_size) or (buffer_size is None and len(self.buffer) >= self.memory_size):
+                    cls_to_replace = np.random.choice(
+                        np.flatnonzero(np.array(self.cls_count) == np.array(self.cls_count).max()))
+                    mem_index = np.random.choice(self.cls_idx[cls_to_replace])
+                    labels = self.buffer[mem_index]['labels']
+                else:
+                    mem_index = None
+                self.register_sample_for_initial_buffer({'file_name': split_name + '/' + base_name, 'label': None}, idx=mem_index, images_dir=images_dir,label_path=label_path)    
+                if mem_index is not None:
+                    classes = [obj['category_id'] for obj in labels]
+                    classes = [self.contiguous_class2id[self.ori_id2class[c]] 
+                            for c in classes]
+                    classes = list(set(classes))
+                    for cls_ in classes:
+                        self.cls_count[cls_] -= 1
+                        self.cls_idx[cls_].remove(mem_index)
+                    
+                    new_labels = self.buffer[mem_index]['labels']
+                    new_classes = [obj['category_id'] for obj in new_labels]
+                    new_classes = [self.contiguous_class2id[self.ori_id2class[c]] 
+                            for c in new_classes]
+                    new_classes = list(set(new_classes))
+                    for cls_ in new_classes:
+                        self.cls_idx[cls_].append(mem_index)
         
     def replace_sample(self, sample, idx=None, images_dir=None,label_path=None):
         data_class = sample.get('label', None)
@@ -2130,8 +2778,15 @@ class FreqClsBalancedDataset(MemoryDataset):
         ### END USAGE
 
         if sample.get('klass', None):
-            self.cls_count[self.new_exposed_classes.index(sample['klass'])] += 1
-            sample_category = sample['klass']
+            # self.cls_count[self.new_exposed_classes.index(sample['klass'])] += 1
+            # sample_category = sample['klass']
+            classes = [obj['category_id'] for obj in labels]
+            classes = [self.contiguous_class2id[self.ori_id2class[c]] 
+                    for c in classes]
+            classes = list(set(classes))
+            for cls_ in classes:
+                self.cls_count[cls_] += 1
+            sample_category = classes
         elif sample.get('domain', None):
             self.cls_count[self.new_exposed_classes.index(sample['domain'])] += 1
             sample_category = sample['domain']
@@ -2140,7 +2795,11 @@ class FreqClsBalancedDataset(MemoryDataset):
             sample_category = 'pretrained'
         # self.cls_count[self.new_exposed_classes.index(sample.get('klass', 'pretrained'))] += 1
         if idx is None:
-            self.cls_idx[self.new_exposed_classes.index(sample_category)].append(len(self.buffer))
+            if isinstance(sample_category, list):
+                for cls_ in sample_category:
+                    self.cls_idx[cls_].append(len(self.buffer))
+            else:
+                self.cls_idx[self.new_exposed_classes.index(sample_category)].append(len(self.buffer))
             self.buffer.append(entry)
         else:
             self.buffer[idx] = entry
@@ -2160,21 +2819,30 @@ class FreqClsBalancedDataset(MemoryDataset):
         }
         ### END USAGE
 
-        if sample.get('klass', None):
-            self.cls_count[self.new_exposed_classes.index(sample['klass'])] += 1
-            sample_category = sample['klass']
-        elif sample.get('domain', None):
-            self.cls_count[self.new_exposed_classes.index(sample['domain'])] += 1
-            sample_category = sample['domain']
+        if not self.is_domain_incremental:
+            # self.cls_count[self.new_exposed_classes.index(sample['klass'])] += 1
+            # sample_category = sample['klass']
+            classes = [obj['category_id'] for obj in labels]
+            classes = [self.contiguous_class2id[self.ori_id2class[c]] 
+                    for c in classes]
+            classes = list(set(classes))
+            for cls_ in classes:
+                self.cls_count[cls_] += 1
+            sample_category = classes
         else:
             self.cls_count[self.new_exposed_classes.index('pretrained')] += 1
             sample_category = 'pretrained'
         # self.cls_count[self.new_exposed_classes.index(sample.get('klass', 'pretrained'))] += 1
         if idx is None:
-            self.cls_idx[self.new_exposed_classes.index(sample_category)].append(len(self.buffer))
+            if isinstance(sample_category, list):
+                for cls_ in sample_category:
+                    self.cls_idx[cls_].append(len(self.buffer))
+            else:
+                self.cls_idx[self.new_exposed_classes.index(sample_category)].append(len(self.buffer))
             self.buffer.append(entry)
         else:
             self.buffer[idx] = entry
+        
     
     def register_stream(self, datalist):
         self.stream_data = []
@@ -2360,7 +3028,6 @@ class FreqClsBalancedDataset(MemoryDataset):
         classes = [self.contiguous_class2id[self.ori_id2class[c]] 
                    for c in classes]
         return classes
-    
 
 # Frequency-based Dataset
 class FreqClsBalancedPseudoDataset(MemoryDataset):

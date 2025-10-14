@@ -73,6 +73,28 @@ class ERFreqBalanced(ER):
     def update_memory(self, sample):
         self.balanced_replace_memory(sample)
 
+    # def balanced_replace_memory(self, sample):
+    #     if len(self.memory) >= self.memory_size:
+    #         label_frequency = copy.deepcopy(self.memory.cls_count)
+    #         if sample.get('klass', None):
+    #             sample_category = sample['klass']
+    #         elif sample.get('domain', None):
+    #             sample_category = sample['domain']
+    #         else:
+    #             sample_category = 'pretrained'
+            
+    #         label_frequency[self.new_exposed_classes.index(sample_category)] += 1
+    #         cls_to_replace = np.random.choice(
+    #             np.flatnonzero(np.array(label_frequency) == np.array(label_frequency).max()))
+    #         idx_to_replace = np.random.choice(self.memory.cls_idx[cls_to_replace])
+    #         self.memory.replace_sample(sample, idx_to_replace)
+            
+    #         self.memory.cls_count[cls_to_replace] -= 1
+    #         self.memory.cls_idx[cls_to_replace].remove(idx_to_replace)
+    #         self.memory.cls_idx[self.new_exposed_classes.index(sample_category)].append(idx_to_replace)
+    #     else:
+    #         self.memory.replace_sample(sample)
+
     def balanced_replace_memory(self, sample):
         if len(self.memory) >= self.memory_size:
             label_frequency = copy.deepcopy(self.memory.cls_count)
@@ -87,10 +109,28 @@ class ERFreqBalanced(ER):
             cls_to_replace = np.random.choice(
                 np.flatnonzero(np.array(label_frequency) == np.array(label_frequency).max()))
             idx_to_replace = np.random.choice(self.memory.cls_idx[cls_to_replace])
+            labels = self.memory.buffer[idx_to_replace]['labels']
             self.memory.replace_sample(sample, idx_to_replace)
             
-            self.memory.cls_count[cls_to_replace] -= 1
-            self.memory.cls_idx[cls_to_replace].remove(idx_to_replace)
-            self.memory.cls_idx[self.new_exposed_classes.index(sample_category)].append(idx_to_replace)
+            if sample.get('klass', None):
+                classes = [obj['category_id'] for obj in labels]
+                classes = [self.memory.contiguous_class2id[self.memory.ori_id2class[c]] 
+                        for c in classes]
+                classes = list(set(classes))
+                for cls_ in classes:
+                    self.memory.cls_count[cls_] -= 1
+                    self.memory.cls_idx[cls_].remove(idx_to_replace)
+                
+                new_labels = self.memory.buffer[idx_to_replace]['labels']
+                new_classes = [obj['category_id'] for obj in new_labels]
+                new_classes = [self.memory.contiguous_class2id[self.memory.ori_id2class[c]] 
+                        for c in new_classes]
+                new_classes = list(set(new_classes))
+                for cls_ in new_classes:
+                    self.memory.cls_idx[cls_].append(idx_to_replace)
+            else:
+                self.memory.cls_count[cls_to_replace] -= 1
+                self.memory.cls_idx[cls_to_replace].remove(idx_to_replace)
+                self.memory.cls_idx[self.new_exposed_classes.index(sample_category)].append(idx_to_replace)
         else:
             self.memory.replace_sample(sample)
