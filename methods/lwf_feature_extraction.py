@@ -24,7 +24,7 @@ class LWF_Feature(LWF_Logit):
     def __init__(self, criterion, n_classes, device, **kwargs):
         super().__init__(criterion, n_classes, device, **kwargs)
         
-        self.lambda_old = 10#kwargs.get("lambda_old", 0.1)
+        self.lambda_old = 0.1#kwargs.get("lambda_old", 0.1)
 
     def model_forward(self, batch):
         inps, targets = self.preprocess_batch(batch)

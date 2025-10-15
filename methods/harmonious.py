@@ -52,15 +52,21 @@ class ModelEMA:
             decay = self.decay
         # Update EMA parameters
         with torch.no_grad():
-            msd = (
-                model.module.state_dict() if is_parallel(model) else model.state_dict()
-            )  # model state_dict
+            # msd = (
+            #     model.module.state_dict() if is_parallel(model) else model.state_dict()
+            # )  # model state_dict
             
-            for k, v in self.model.state_dict().items():
-                if v.dtype.is_floating_point:
-                    v *= decay
-                    v += (1.0 - decay) * msd[k].detach()
-                        
+            # for k, v in self.model.state_dict().items():
+            #     if v.dtype.is_floating_point:
+            #         v *= decay
+            #         v += (1.0 - decay) * msd[k].detach()
+            # breakpoint()
+            model_params = OrderedDict(model.named_parameters())
+            ema_params = OrderedDict(self.model.named_parameters())
+            assert model_params.keys() == ema_params.keys()
+            for name, param in model_params.items():
+                ema_params[name].sub_((1. - decay) * (ema_params[name] - param))
+            # breakpoint()
             # self.model.head.gfl_cls[0] = copy.deepcopy(model.head.gfl_cls[0])
             # self.model.head.gfl_cls[1] = copy.deepcopy(model.head.gfl_cls[1])
             # self.model.head.gfl_cls[2] = copy.deepcopy(model.head.gfl_cls[2])
@@ -80,27 +86,27 @@ class Harmonious(ER):
         super().__init__(criterion, n_classes, device, **kwargs)
         
         
-        if self.dataset == 'SHIFT_domain' or self.dataset == 'SHIFT_domain_small' or self.dataset == 'SHIFT_domain_small2':
-            self.model = build_local_model_harmonious(self.damo_cfg, device='cuda')
-            pretrained_path = "./damo_pretrain_outputs_w/shift/pretrain_shift/damo_pretrain_shift_w_newnew.pth"
-            if os.path.exists(pretrained_path):
-                state_dict = torch.load(pretrained_path, map_location='cpu')
-                self.model.load_state_dict(state_dict['model'])
-        elif self.dataset=='VOC_15_5':
-            self.model = build_local_model_harmonious(self.damo_cfg, device='cuda')
-            pretrained_path = "./damo_pretrain_outputs_w/voc_15/pretrain_voc_15/epoch_300_bs16_ckpt.pth"
-            if os.path.exists(pretrained_path):
-                state_dict = torch.load(pretrained_path, map_location='cpu')
-                self.model.load_state_dict(state_dict['model'])        
-        else:
-            self.model = select_model(self.dataset, self.damo_cfg)
+        # if self.dataset == 'SHIFT_domain' or self.dataset == 'SHIFT_domain_small' or self.dataset == 'SHIFT_domain_small2':
+        #     self.model = build_local_model_harmonious(self.damo_cfg, device='cuda')
+        #     pretrained_path = "./damo_pretrain_outputs_w/shift/pretrain_shift/damo_pretrain_shift_w_newnew.pth"
+        #     if os.path.exists(pretrained_path):
+        #         state_dict = torch.load(pretrained_path, map_location='cpu')
+        #         self.model.load_state_dict(state_dict['model'])
+        # elif self.dataset=='VOC_15_5':
+        #     self.model = build_local_model_harmonious(self.damo_cfg, device='cuda')
+        #     pretrained_path = "./damo_pretrain_outputs_w/voc_15/pretrain_voc_15/epoch_300_bs16_ckpt.pth"
+        #     if os.path.exists(pretrained_path):
+        #         state_dict = torch.load(pretrained_path, map_location='cpu')
+        #         self.model.load_state_dict(state_dict['model'])        
+        # else:
+        #     self.model = select_model(self.dataset, self.damo_cfg)
             
             
-        self.optimizer = select_optimizer(self.opt_name, self.model, lr=self.lr, cfg=self.damo_cfg.train.optimizer)
+        # self.optimizer = select_optimizer(self.opt_name, self.model, lr=self.lr, cfg=self.damo_cfg.train.optimizer)
                     
         
-        self.score_thresh = 0.25
-        self.decay_factor = 1
+        self.score_thresh = 0.55
+        self.decay_factor = 0.0
         self.ema_model = ModelEMA(self.model, self.decay_factor)
         
     
@@ -179,7 +185,7 @@ class Harmonious(ER):
         
         # with torch.cuda.amp.autocast(enabled=self.use_amp):
         with torch.cuda.amp.autocast(enabled=False):
-            loss_item = self.model(inps, targets, score_weights=score_weights)
+            loss_item = self.model(inps, targets)#, score_weights=score_weights)
             total_loss = loss_item["total_loss"]
             
             self.total_flops += (len(targets) * self.forward_flops)

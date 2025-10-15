@@ -51,8 +51,8 @@ def get_statistics(dataset: str):
     elif dataset == 'BDD_domain' or dataset == 'BDD_domain_small':
         return 13, 'data/bdd100k/images', 'data/bdd100k/annotations'
     elif dataset == 'SHIFT_domain' or dataset == 'SHIFT_domain_small' or dataset == 'SHIFT_domain_small2':
-        # return 6, 'data/shift/images', 'data/shift/annotations'
-        return 6, '/disk1/jhpark/clod/data/shift/images', 'data/shift/annotations'
+        return 6, 'data/shift/images', 'data/shift/annotations'
+        # return 6, '/disk1/jhpark/clod/data/shift/images', 'data/shift/annotations'
     elif 'MILITARY_SYNTHETIC_domain' in dataset:
         return 9, 'data/military_synthetic/images', 'data/military_synthetic/annotations'
     else:
@@ -66,8 +66,8 @@ def get_pretrained_statistics(dataset: str):
     elif dataset == 'BDD_domain' or dataset == 'BDD_domain_small':
         return 13, 'data/bdd100k_source/images', 'data/bdd100k_source/annotations'
     elif dataset == 'SHIFT_domain' or dataset == 'SHIFT_domain_small' or dataset == 'SHIFT_domain_small2':
-        # return 6, 'data/shift_source/images', 'data/shift_source/annotations'
-        return 6, '/disk1/jhpark/clod/data/shift/images', 'data/shift_source/annotations'
+        return 6, 'data/shift_source/images', 'data/shift_source/annotations'
+        # return 6, '/disk1/jhpark/clod/data/shift/images', 'data/shift_source/annotations'
     elif 'MILITARY_SYNTHETIC_domain' in dataset:
         return 9, 'data/military_synthetic_domain_source/images', 'data/military_synthetic_domain_source/annotations'
     else:

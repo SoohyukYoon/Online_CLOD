@@ -96,6 +96,7 @@ class LD(ER):
             self.online_after_task(sample_num)
             self.add_new_class(sample['klass'])
         elif sample.get('domain',None) and sample['domain'] not in self.exposed_domains:
+            self.online_after_task(sample_num)
             self.exposed_domains.append(sample['domain'])
 
         self.temp_batch.append(sample)
@@ -116,21 +117,29 @@ class LD(ER):
         
         # 1. 현재 모델을 Teacher로 복사하고 동결
         self.teacher_model = copy.deepcopy(self.model)
-        self.teacher_model.eval()
+        self.teacher_model.train()
         for param in self.teacher_model.parameters():
             param.requires_grad = False
         logger.info("Teacher model created and frozen.")
 
         # 2. Student 모델의 Backbone 동결
         frozen_cnt = 0
-        if hasattr(self.model, "backbone") and hasattr(self.model.backbone, "block_list"):
-            for i, m in enumerate(self.model.backbone.block_list):
-                if i < self.frozen_point:
-                    for p in m.parameters():
-                        if p.requires_grad:
-                            p.requires_grad = False
-                            frozen_cnt += 1
-
+        # if hasattr(self.model, "backbone") and hasattr(self.model.backbone, "block_list"):
+        #     for i, m in enumerate(self.model.backbone.block_list):
+        #         if i < self.frozen_point:
+        #             for p in m.parameters():
+        #                 if p.requires_grad:
+        #                     p.requires_grad = False
+        #                     frozen_cnt += 1
+        for p in self.model.backbone.parameters():
+            if p.requires_grad:
+                p.requires_grad = False
+        for p in self.model.neck.parameters():
+            if p.requires_grad:
+                p.requires_grad = False
+        for p in self.model.head.parameters():
+            p.requires_grad = True
+            
         # self.optimizer = select_optimizer(self.opt_name, self.model, lr=self.lr)
         
     def update_memory(self, sample):

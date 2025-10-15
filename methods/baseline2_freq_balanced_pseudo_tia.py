@@ -48,9 +48,9 @@ class BASELINEFreqBalancedPseudoGRAM(BASELINE2):
         self.CE = CrossEntropyLoss(num_classes=2)
         self.FL = FocalLoss(num_classes=2, gamma=3.0)
         self.Align = FocalLoss(num_classes=2, gamma=3.0)
-        self.supcon = SupervisedContrastiveLoss()
+        # self.supcon = SupervisedContrastiveLoss()
 
-        self.DA_filter = Filter_conv1(32896).to(self.device)
+        # self.DA_filter = Filter_conv1(32896).to(self.device)
         
     def copy_model_head(self):
         self.ema_model.head.gfl_cls[0] = copy.deepcopy(self.model.head.gfl_cls[0])
@@ -186,7 +186,7 @@ class BASELINEFreqBalancedPseudoGRAM(BASELINE2):
                     da_tgt_img_loss3
                 )
                 
-            loss = total_loss + da_img_loss / 3 + pseudo_loss["total_loss"] * 0.2
+            loss = total_loss + da_img_loss / 3 + pseudo_loss["total_loss"] * 0.5
 
             if self.use_amp:
                 self.scaler.scale(loss).backward()

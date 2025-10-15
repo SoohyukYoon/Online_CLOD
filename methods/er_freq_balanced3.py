@@ -15,10 +15,10 @@ from scipy.stats import chi2, norm
 #from ptflops import get_model_complexity_info
 from flops_counter.ptflops import get_model_complexity_info
 from methods.er_baseline import ER
-from utils.data_loader import FreqDataset, MemoryPseudoDataset, FreqClsBalancedPseudoDataset
+from methods.baseline2 import BASELINE2
+from utils.data_loader import FreqClsBalancedDataset
 from utils.train_utils import select_model, select_optimizer, select_scheduler
-import os
-from damo.detectors.detector import build_local_model_harmonious
+import torch.nn.functional as F
 from collections import OrderedDict
 
 logger = logging.getLogger()
@@ -32,50 +32,31 @@ def cycle(iterable):
             yield i
 
 
-class ERFreqBalancedPseudo(ER):
-    def __init__(self, criterion, n_classes, device, **kwargs):
-        super().__init__(criterion, n_classes, device, **kwargs)
-        
-        
-        if self.dataset == 'SHIFT_domain' or self.dataset == 'SHIFT_domain_small':
-            self.model = build_local_model_harmonious(self.damo_cfg, device='cuda')
-            pretrained_path = "./damo_pretrain_outputs_w/shift/pretrain_shift/damo_pretrain_shift_w_newnew.pth"
-            if os.path.exists(pretrained_path):
-                state_dict = torch.load(pretrained_path, map_location='cpu')
-                self.model.load_state_dict(state_dict['model'])
-        elif self.dataset=='VOC_15_5':
-            self.model = build_local_model_harmonious(self.damo_cfg, device='cuda')
-            pretrained_path = "./damo_pretrain_outputs_w/voc_15/pretrain_voc_15/epoch_300_bs16_ckpt.pth"
-            if os.path.exists(pretrained_path):
-                state_dict = torch.load(pretrained_path, map_location='cpu')
-                self.model.load_state_dict(state_dict['model'])        
-        else:
-            self.model = select_model(self.dataset, self.damo_cfg)
-            
-            
-        self.optimizer = select_optimizer(self.opt_name, self.model, lr=self.lr, cfg=self.damo_cfg.train.optimizer)
-        self.ema_ratio=0.95
-        self.ema_model = copy.deepcopy(self.model)
-        self.new_exposed_classes = ['pretrained']
-    
+class ERFreqBalanced3(ER):
     def initialize_memory_buffer(self, memory_size):
-        self.memory_size = memory_size - self.temp_batchsize
+        self.memory_size = memory_size - 8
         data_args = self.damo_cfg.get_data(self.damo_cfg.dataset.train_ann[0])
-        self.memory = FreqClsBalancedPseudoDataset(ann_file=data_args['args']['ann_file'], root=data_args['args']['root'], transforms=None,class_names=self.damo_cfg.dataset.class_names,
+        self.memory = FreqClsBalancedDataset(ann_file=data_args['args']['ann_file'], root=data_args['args']['root'], transforms=None,class_names=self.damo_cfg.dataset.class_names,
             dataset=self.dataset, cls_list=self.exposed_classes, device=self.device, memory_size=self.memory_size, image_size=self.img_size, aug=self.damo_cfg.train.augment)
         
+        self.new_exposed_classes = ['pretrained']
+        self.lambda_ = 1.0
+        self.use_hardlabel = True
         
-        
+        self.ema_ratio=0.999
+        self.ema_model = copy.deepcopy(self.model)
     def copy_model_head(self):
         self.ema_model.head.gfl_cls[0] = copy.deepcopy(self.model.head.gfl_cls[0])
         self.ema_model.head.gfl_cls[1] = copy.deepcopy(self.model.head.gfl_cls[1])
         self.ema_model.head.gfl_cls[2] = copy.deepcopy(self.model.head.gfl_cls[2])
+
     def add_new_class(self, class_name):
         super().add_new_class(class_name)
+        self.ema_model.head.num_classes = self.num_learned_class
+        self.ema_model.head.cls_out_channels = self.num_learned_class
+        self.copy_model_head()
         self.new_exposed_classes.append(class_name)
         self.memory.new_exposed_classes = self.new_exposed_classes
-        # self.copy_model_head()
-    
     @torch.no_grad()
     def update_ema_model(self, num_updates=1.0):
         
@@ -87,7 +68,7 @@ class ERFreqBalancedPseudo(ER):
         # self.sdp_updates += 1
         for name, param in model_params.items():
             ema_params[name].sub_((1. - self.ema_ratio) * (ema_params[name] - param))
-        # self.copy_model_head()
+        self.copy_model_head()
 
         model_buffers = OrderedDict(self.model.named_buffers())
         shadow_buffers = OrderedDict(self.ema_model.named_buffers())
@@ -96,7 +77,6 @@ class ERFreqBalancedPseudo(ER):
 
         for name, buffer in model_buffers.items():
             shadow_buffers[name].copy_(buffer)
-    
     def online_step(self, sample, sample_num, n_worker):
         if sample.get('klass',None) and sample['klass'] not in self.exposed_classes:
             self.online_after_task(sample_num)
@@ -147,14 +127,15 @@ class ERFreqBalancedPseudo(ER):
             self.memory.cls_idx[self.new_exposed_classes.index(sample_category)].append(idx_to_replace)
         else:
             self.memory.replace_sample(sample)
-            
+
     def online_train(self, sample, batch_size, n_worker, iterations=1, stream_batch_size=1):
         total_loss = 0.0
         if len(sample) > 0:
             self.memory.register_stream(sample)
         for i in range(iterations):
-            data = self.memory.get_batch(batch_size, stream_batch_size, model=(self.ema_model,self.model), score_thresh=0.3)
             self.model.train()
+            data = self.memory.get_batch(batch_size, stream_batch_size)
+            
             self.optimizer.zero_grad()
 
             loss, loss_item = self.model_forward(data)
@@ -171,25 +152,82 @@ class ERFreqBalancedPseudo(ER):
             
             self.update_schedule()
             self.update_ema_model(num_updates=1.0)
-
+            
             total_loss += loss.item()
             
         return total_loss / iterations
-    
+
     def model_forward(self, batch):
-        inps, targets, score_weights = self.preprocess_batch(batch)
+        inps, targets = self.preprocess_batch(batch)
         
         # with torch.cuda.amp.autocast(enabled=self.use_amp):
         with torch.cuda.amp.autocast(enabled=False):
-            loss_item = self.model(inps, targets, score_weights=score_weights)
-            total_loss = loss_item["total_loss"]
+            image_tensors = inps.tensors
+            new_feats_b = self.model.backbone(image_tensors)
+            new_feats_n = self.model.neck(new_feats_b)
+            
+            loss_item = self.model.head.forward_train(new_feats_n, labels=targets)
+            loss_new = loss_item["total_loss"]
+
+            cls_scores, _, bbox_before_softmax, bbox_preds, pos_inds, labels, label_scores, num_total_pos = self.model.head.get_head_outputs_with_label(
+                new_feats_n, labels=targets, drop_bg=False
+            )
+            
+            with torch.no_grad():
+                old_feats_b = self.ema_model.backbone(image_tensors)
+                old_feats_n = self.ema_model.neck(old_feats_b)
+                cls_scores_old, _, bbox_before_softmax_old, bbox_preds_old, pos_inds_old, labels_old, label_scores_old, num_total_pos_old = self.ema_model.head.get_head_outputs_with_label(
+                    old_feats_n, labels=targets, drop_bg=False
+                )
+                
+            # breakpoint()
+            # focal loss with current prediction score as label
+            mask = (labels != self.num_learned_class) & (labels != self.num_learned_class-1)
+            label_scores[mask] = cls_scores_old[mask, labels[mask]].detach()
+            loss_qfl_self = self.model.head.loss_cls(cls_scores, (labels, label_scores),
+                                 avg_factor=num_total_pos)
+            
+            # box dfl self
+            loss_dfl_self=0
+            # reg_max = self.model.head.reg_max
+            # weight_targets = cls_scores_old.detach()
+            # weight_targets = weight_targets.max(dim=1)[0][pos_inds]
+            # norm_factor = max(weight_targets.sum().item(), 1.0)
+            
+            # if self.use_hardlabel:
+            #     # 1. hard pseudo-label
+            #     bins = torch.arange(reg_max + 1, device=bbox_preds.device, dtype=bbox_preds.dtype)
+            #     expected = (bbox_preds_old * bins)  # (N, 4, K+1)
+            #     expected = expected.sum(dim=-1)     # (N, 4)
+            #     # Build hard pseudo targets in the same shape/type as your original dfl_targets
+            #     pseudo_dfl_targets_hard = expected.clamp(min=0, max=reg_max)  # (N, 4)
+            #     loss_dfl_self = self.model.head.loss_dfl(
+            #         bbox_before_softmax.reshape(-1, reg_max + 1),
+            #         pseudo_dfl_targets_hard.reshape(-1),
+            #         weight=weight_targets[:, None].expand(-1, 4).reshape(-1),
+            #         avg_factor=4.0 * norm_factor,
+            #     )
+                
+            # else:
+            #     # 2. soft pseudo-label
+            #     pred_probs = F.softmax(bbox_before_softmax.detach(), dim=-1)
+            #     soft_targets = pred_probs.view(-1, 4, reg_max + 1)
+            #     student_logits = bbox_before_softmax.view(-1, 4, reg_max + 1) 
+                
+            #     # Optional temperature (sharpening); T=1.0 means no change
+            #     T = 1.0
+            #     log_q = F.log_softmax(student_logits / T, dim=-1)                          # (n_pos, 4, K+1)
+            #     p   = F.softmax(soft_targets / T, dim=-1)                                  # (n_pos, 4, K+1)
+                
+            #     # KL divergence per side, then sum over bins
+            #     kl_per_side = F.kl_div(log_q, p, reduction='none').sum(dim=-1)             # (n_pos, 4)
+
+            #     # Weighting like your DFL call
+            #     w = weight_targets[:, None].expand(-1, 4)                                  # (n_pos, 4)
+            #     loss_dfl_self = (kl_per_side * w).sum() / (4.0 * norm_factor)
+            # loss_dfl_self=0
+            total_loss = loss_new + self.lambda_ * (loss_qfl_self + loss_dfl_self)
             
             self.total_flops += (len(targets) * self.forward_flops)
         
         return total_loss, loss_item
-    
-    def preprocess_batch(self, batch):
-        inps = batch[0].to(self.device)
-        targets = [target.to(self.device) for target in batch[1]]
-        score_weights = batch[3]
-        return inps, targets, score_weights

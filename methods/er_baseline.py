@@ -133,7 +133,8 @@ class ER:
         self.img_size = [640, 640]
         
         self.selection_method = kwargs["selection_method"]
-        self.priority_selection = kwargs["priority_selection"]
+        # self.priority_selection = kwargs["priority_selection"]
+        self.priority_selection = kwargs.get("priority_selection", None)
         self.initialize_memory_buffer(kwargs["memory_size"])
         
         self.temp_batch = []

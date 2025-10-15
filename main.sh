@@ -1,9 +1,9 @@
 #/bin/bash
 
 # CIL CONFIG
-NOTE="harmonious" # Short description of the experiment. (WARNING: logs/results with the same note will be overwritten!)
-MODE="harmonious"
-DATASET="SHIFT_domain_small" # VOC_10_10 BDD_domain SHIFT_domain MILITARY_SYNTHETIC_domain_1 MILITARY_SYNTHETIC_domain_2 MILITARY_SYNTHETIC_domain_3
+NOTE="adaptive_freeze" # Short description of the experiment. (WARNING: logs/results with the same note will be overwritten!)
+MODE="adaptive_freeze"
+DATASET="VOC_10_10" # VOC_10_10 BDD_domain SHIFT_domain MILITARY_SYNTHETIC_domain_1 MILITARY_SYNTHETIC_domain_2 MILITARY_SYNTHETIC_domain_3
 # DATASET="VOC_15_5"
 SIGMA=10
 REPEAT=1
@@ -15,13 +15,13 @@ MIXUP=0.0
 SEEDS="1"
 
 if [ "$DATASET" == "VOC_10_10" ]; then
-    MEM_SIZE=500 ONLINE_ITER=1
-    MODEL_NAME="damo" EVAL_PERIOD=100
-    BATCHSIZE=16; LR=1e-5 OPT_NAME="SGD" SCHED_NAME="default" IMP_UPDATE_PERIOD=1
+    MEM_SIZE=1000 ONLINE_ITER=1
+    MODEL_NAME="damo5" EVAL_PERIOD=500
+    BATCHSIZE=16; LR=2e-4 OPT_NAME="SGD" SCHED_NAME="default" IMP_UPDATE_PERIOD=1
 elif [ "$DATASET" == "VOC_15_5" ]; then
     MEM_SIZE=1000 ONLINE_ITER=1
-    MODEL_NAME="damo5" EVAL_PERIOD=1000
-    BATCHSIZE=16; LR=5e-4 OPT_NAME="SGD" SCHED_NAME="default" IMP_UPDATE_PERIOD=1
+    MODEL_NAME="damo5" EVAL_PERIOD=500
+    BATCHSIZE=16; LR=1e-4 OPT_NAME="SGD" SCHED_NAME="default" IMP_UPDATE_PERIOD=1
 elif [ "$DATASET" == "BDD_domain" ]; then
     MEM_SIZE=10 ONLINE_ITER=1
     MODEL_NAME="yolov9-s" EVAL_PERIOD=1000
@@ -32,8 +32,8 @@ elif [ "$DATASET" == "SHIFT_domain_small" ]; then
     BATCHSIZE=16; LR=1e-6 OPT_NAME="SGD" SCHED_NAME="default" IMP_UPDATE_PERIOD=1
 elif [ "$DATASET" == "SHIFT_domain_small2" ]; then
     MEM_SIZE=500 ONLINE_ITER=1
-    MODEL_NAME="damo5" EVAL_PERIOD=1000
-    BATCHSIZE=16; LR=1e-6 OPT_NAME="SGD" SCHED_NAME="default" IMP_UPDATE_PERIOD=1
+    MODEL_NAME="damo5" EVAL_PERIOD=2000
+    BATCHSIZE=16; LR=2e-6 OPT_NAME="SGD" SCHED_NAME="default" IMP_UPDATE_PERIOD=1
 elif [[ "$DATASET" == "MILITARY_SYNTHETIC_domain_1" || \
         "$DATASET" == "MILITARY_SYNTHETIC_domain_2" || \
         "$DATASET" == "MILITARY_SYNTHETIC_domain_3" ]]; then

@@ -16,7 +16,7 @@ from scipy.stats import chi2, norm
 from flops_counter.ptflops import get_model_complexity_info
 from methods.er_baseline import ER
 from methods.baseline2 import BASELINE2
-from utils.data_loader import FreqClsBalancedDataset
+from utils.data_loader import FreqClsBalancedDataset, FreqDataset
 from utils.train_utils import select_model, select_optimizer, select_scheduler
 import torch.nn.functional as F
 
@@ -116,7 +116,7 @@ class ERFreqBalanced2(ER):
             
             # focal loss with current prediction score as label
             mask = (labels != self.num_learned_class) & (labels != self.num_learned_class-1)
-            label_scores[mask] = cls_scores[mask, labels[mask]]
+            label_scores[mask] = cls_scores[mask, labels[mask]].detach()
             loss_qfl_self = self.model.head.loss_cls(cls_scores, (labels, label_scores),
                                  avg_factor=num_total_pos)
             
@@ -130,7 +130,7 @@ class ERFreqBalanced2(ER):
                 # 1. hard pseudo-label
                 bins = torch.arange(reg_max + 1, device=bbox_preds.device, dtype=bbox_preds.dtype)
                 expected = (bbox_preds * bins)  # (N, 4, K+1)
-                expected = expected.sum(dim=-1)     # (N, 4)
+                expected = expected.sum(dim=-1).detach()     # (N, 4)
                 # Build hard pseudo targets in the same shape/type as your original dfl_targets
                 pseudo_dfl_targets_hard = expected.clamp(min=0, max=reg_max)  # (N, 4)
                 loss_dfl_self = self.model.head.loss_dfl(
@@ -157,7 +157,7 @@ class ERFreqBalanced2(ER):
                 # Weighting like your DFL call
                 w = weight_targets[:, None].expand(-1, 4)                                  # (n_pos, 4)
                 loss_dfl_self = (kl_per_side * w).sum() / (4.0 * norm_factor)
-            # loss_dfl_self=0
+            # loss_dfl_self=0 (1 - self.lambda_) *
             total_loss = (1 - self.lambda_) * loss_new + self.lambda_ * (loss_qfl_self + loss_dfl_self)
             
             self.total_flops += (len(targets) * self.forward_flops)

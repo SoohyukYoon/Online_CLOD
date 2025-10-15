@@ -197,9 +197,9 @@ class BASELINEFreqBalancedPseudoGRAM2(BASELINE2):
                 )
                 
                 # Weight the gram loss (adjust weight as needed)
-                gram_loss_weight = 0.1
+                gram_loss_weight = 0.5
                 
-            loss = total_loss + da_img_loss / 3 + gram_loss * gram_loss_weight
+            loss = total_loss + da_img_loss / 3 + gram_loss * gram_loss_weight + pseudo_loss["total_loss"] * 0.5
 
             if self.use_amp:
                 self.scaler.scale(loss).backward()
