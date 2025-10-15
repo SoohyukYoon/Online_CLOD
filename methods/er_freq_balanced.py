@@ -59,7 +59,10 @@ class ERFreqBalanced(ER):
             else:
                 sample_category = 'pretrained'
             
-            label_frequency[self.new_exposed_classes.index(sample_category)] += 1
+            if sample.get('klass', None):
+                label_frequency[self.exposed_classes.index(sample_category)] += 1
+            else:
+                label_frequency[self.new_exposed_classes.index(sample_category)] += 1
             cls_to_replace = np.random.choice(
                 np.flatnonzero(np.array(label_frequency) == np.array(label_frequency).max()))
             idx_to_replace = np.random.choice(self.memory.cls_idx[cls_to_replace])
