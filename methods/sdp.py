@@ -5,16 +5,11 @@ from collections import OrderedDict
 import numpy as np
 import pandas as pd
 import torch
-import torch.nn as nn
-import torch.nn.functional as F
-from torch.utils.data import DataLoader
-from torch.utils.tensorboard import SummaryWriter
 
 from methods.er_baseline import ER
 from utils.data_loader import MemoryDataset, ClassBalancedDataset, FreqClsBalancedDataset
 
 logger = logging.getLogger()
-writer = SummaryWriter("tensorboard")
 
 
 class SDP(ER):
