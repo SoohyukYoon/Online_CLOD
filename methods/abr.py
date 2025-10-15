@@ -10,15 +10,12 @@ from methods.er_baseline import ER
 from damo.structures.image_list import ImageList
 from damo.structures.bounding_box import BoxList
 
-import types
-import pdb
-
 import logging
 logger = logging.getLogger()
 
 class ABR(ER):
-    def __init__(self, criterion, n_classes, device, **kwargs):
-        super().__init__(criterion, n_classes, device, **kwargs)
+    def __init__(self, n_classes, device, **kwargs):
+        super().__init__(n_classes, device, **kwargs)
         self.abr_weight = kwargs.get("abr_weight", 0.5)
         self.pad_weight = kwargs.get("pad_weight", 1.0)
         self.afd_weight = kwargs.get("afd_weight", 1.0)

@@ -1,20 +1,14 @@
 import logging
 import copy
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
 from methods.er_baseline import ER
-import torch.nn.functional as F
-from utils.data_loader import ImageDataset, StreamDataset, MemoryDataset, cutmix_data, get_statistics
-from utils.train_utils import select_model, select_optimizer, select_scheduler, MeanAveragePrecisionCustomized
-import types
-import pdb
 
 logger = logging.getLogger(__name__)
 
 class LD(ER):
-    def __init__(self, criterion, n_classes, device, **kwargs):
-        super().__init__(criterion, n_classes, device, **kwargs)
+    def __init__(self, n_classes, device, **kwargs):
+        super().__init__(n_classes, device, **kwargs)
 
         self.alpha = kwargs.get("alpha", 1.0)
         self.frozen_point = kwargs.get("frozen_point", 3)
@@ -140,8 +134,3 @@ class LD(ER):
         for p in self.model.head.parameters():
             p.requires_grad = True
             
-        # self.optimizer = select_optimizer(self.opt_name, self.model, lr=self.lr)
-        
-    def update_memory(self, sample):
-        self.seen += 1
-        pass

@@ -1,28 +1,14 @@
-import copy
 import logging
-from collections import OrderedDict
-
-import numpy as np
-import pandas as pd
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
-from torch.utils.data import DataLoader
-from torch.utils.tensorboard import SummaryWriter
-
 from methods.er_baseline import ER
 from methods.lwf_logit import LWF_Logit
-from utils.data_loader import ImageDataset, StreamDataset, cutmix_data
-import types
-import pdb
-
 logger = logging.getLogger()
-# writer = SummaryWriter("tensorboard")
 
 
 class LWF_Feature(LWF_Logit):
-    def __init__(self, criterion, n_classes, device, **kwargs):
-        super().__init__(criterion, n_classes, device, **kwargs)
+    def __init__(self, n_classes, device, **kwargs):
+        super().__init__(n_classes, device, **kwargs)
         
         self.lambda_old = 0.1#kwargs.get("lambda_old", 0.1)
 

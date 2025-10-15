@@ -1,34 +1,10 @@
-# When we make a new one, we should inherit the Finetune class.
 import logging
 import copy
-import time
-import datetime
-import pickle
 import numpy as np
-import pandas as pd
-import torch
-import torch.nn as nn
-from torch.utils.data import DataLoader
-from torch.utils.tensorboard import SummaryWriter
-from torch import optim
-from scipy.stats import chi2, norm
-#from ptflops import get_model_complexity_info
-from flops_counter.ptflops import get_model_complexity_info
 from methods.er_baseline import ER
-from methods.baseline2 import BASELINE2
 from utils.data_loader import FreqClsBalancedDataset
-from utils.train_utils import select_model, select_optimizer, select_scheduler
 
 logger = logging.getLogger()
-#writer = SummaryWriter("tensorboard")
-
-
-def cycle(iterable):
-    # iterate with shuffling
-    while True:
-        for i in iterable:
-            yield i
-
 
 class ERFreqBalanced(ER):
     def initialize_memory_buffer(self, memory_size):
@@ -72,28 +48,6 @@ class ERFreqBalanced(ER):
     
     def update_memory(self, sample):
         self.balanced_replace_memory(sample)
-
-    # def balanced_replace_memory(self, sample):
-    #     if len(self.memory) >= self.memory_size:
-    #         label_frequency = copy.deepcopy(self.memory.cls_count)
-    #         if sample.get('klass', None):
-    #             sample_category = sample['klass']
-    #         elif sample.get('domain', None):
-    #             sample_category = sample['domain']
-    #         else:
-    #             sample_category = 'pretrained'
-            
-    #         label_frequency[self.new_exposed_classes.index(sample_category)] += 1
-    #         cls_to_replace = np.random.choice(
-    #             np.flatnonzero(np.array(label_frequency) == np.array(label_frequency).max()))
-    #         idx_to_replace = np.random.choice(self.memory.cls_idx[cls_to_replace])
-    #         self.memory.replace_sample(sample, idx_to_replace)
-            
-    #         self.memory.cls_count[cls_to_replace] -= 1
-    #         self.memory.cls_idx[cls_to_replace].remove(idx_to_replace)
-    #         self.memory.cls_idx[self.new_exposed_classes.index(sample_category)].append(idx_to_replace)
-    #     else:
-    #         self.memory.replace_sample(sample)
 
     def balanced_replace_memory(self, sample):
         if len(self.memory) >= self.memory_size:

@@ -11,16 +11,15 @@ from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 
 from methods.er_baseline import ER
-from methods.baseline2_balanced import BASELINE2Balanced
 from utils.data_loader import MemoryDataset, ClassBalancedDataset, FreqClsBalancedDataset
 
 logger = logging.getLogger()
 writer = SummaryWriter("tensorboard")
 
 
-class SDP(BASELINE2Balanced):
-    def __init__(self, criterion, n_classes, device, **kwargs):
-        super().__init__(criterion=criterion, n_classes=n_classes, device=device, **kwargs)
+class SDP(ER):
+    def __init__(self, n_classes, device, **kwargs):
+        super().__init__(n_classes=n_classes, device=device, **kwargs)
         self.sdp_mean = 10000 #kwargs['sdp_mean']
         self.sdp_varcoeff = 0.75 #kwargs['sdp_var']
         assert 0.5 - 1 / self.sdp_mean < self.sdp_varcoeff < 1 - 1 / self.sdp_mean

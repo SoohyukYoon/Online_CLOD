@@ -4,15 +4,11 @@ import copy
 import logging
 from methods.er_baseline import ER
 
-from tqdm import tqdm
-import types
-import pdb
-
 logger = logging.getLogger()
 
 class ERD(ER):
-    def __init__(self, criterion, n_classes, device, **kwargs):
-        super().__init__(criterion, n_classes, device, **kwargs)
+    def __init__(self, n_classes, device, **kwargs):
+        super().__init__(n_classes, device, **kwargs)
         self.old_model = None
         self.lambda_cls = kwargs.get("lambda_cls", 1.0)
         self.lambda_reg = kwargs.get("lambda_reg", 1.0)
@@ -135,6 +131,7 @@ class ERD(ER):
             self.online_after_task(sample_num)
             self.add_new_class(sample['klass'])
         elif sample.get('domain',None) and sample['domain'] not in self.exposed_domains:
+            self.online_after_task(sample_num)
             self.exposed_domains.append(sample['domain'])
 
         self.temp_batch.append(sample)

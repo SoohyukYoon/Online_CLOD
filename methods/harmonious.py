@@ -1,19 +1,8 @@
-# When we make a new one, we should inherit the Finetune class.
 import logging
 import copy
-import time
-import datetime
-import pickle
 import numpy as np
-import pandas as pd
 import torch
 import torch.nn as nn
-from torch.utils.data import DataLoader
-from torch.utils.tensorboard import SummaryWriter
-from torch import optim
-from scipy.stats import chi2, norm
-#from ptflops import get_model_complexity_info
-from flops_counter.ptflops import get_model_complexity_info
 from methods.er_baseline import ER
 from utils.data_loader import HarmoniousDataset
 from utils.train_utils import select_model, select_optimizer, select_scheduler
@@ -24,8 +13,6 @@ from collections import OrderedDict
 
 
 logger = logging.getLogger()
-#writer = SummaryWriter("tensorboard")
-
 
 def is_parallel(model):
     """check if model is in parallel mode."""
@@ -36,7 +23,6 @@ def is_parallel(model):
     return isinstance(model, parallel_type)
             
 class ModelEMA:
-
     def __init__(self, model, decay=0.9999):
         # Create EMA(FP32)
         self.model = deepcopy(model.module if is_parallel(model) else model).eval()
@@ -82,27 +68,27 @@ class ModelEMA:
 
 class Harmonious(ER):
 
-    def __init__(self, criterion, n_classes, device, **kwargs):
-        super().__init__(criterion, n_classes, device, **kwargs)
+    def __init__(self, n_classes, device, **kwargs):
+        super().__init__(n_classes, device, **kwargs)
         
         
-        # if self.dataset == 'SHIFT_domain' or self.dataset == 'SHIFT_domain_small' or self.dataset == 'SHIFT_domain_small2':
-        #     self.model = build_local_model_harmonious(self.damo_cfg, device='cuda')
-        #     pretrained_path = "./damo_pretrain_outputs_w/shift/pretrain_shift/damo_pretrain_shift_w_newnew.pth"
-        #     if os.path.exists(pretrained_path):
-        #         state_dict = torch.load(pretrained_path, map_location='cpu')
-        #         self.model.load_state_dict(state_dict['model'])
-        # elif self.dataset=='VOC_15_5':
-        #     self.model = build_local_model_harmonious(self.damo_cfg, device='cuda')
-        #     pretrained_path = "./damo_pretrain_outputs_w/voc_15/pretrain_voc_15/epoch_300_bs16_ckpt.pth"
-        #     if os.path.exists(pretrained_path):
-        #         state_dict = torch.load(pretrained_path, map_location='cpu')
-        #         self.model.load_state_dict(state_dict['model'])        
-        # else:
-        #     self.model = select_model(self.dataset, self.damo_cfg)
+        if self.dataset == 'SHIFT_domain' or self.dataset == 'SHIFT_domain_small' or self.dataset == 'SHIFT_domain_small2':
+            self.model = build_local_model_harmonious(self.damo_cfg, device='cuda')
+            pretrained_path = "./damo_pretrain_outputs_w/shift/pretrain_shift/damo_pretrain_shift_w_newnew.pth"
+            if os.path.exists(pretrained_path):
+                state_dict = torch.load(pretrained_path, map_location='cpu')
+                self.model.load_state_dict(state_dict['model'])
+        elif self.dataset=='VOC_15_5':
+            self.model = build_local_model_harmonious(self.damo_cfg, device='cuda')
+            pretrained_path = "./damo_pretrain_outputs_w/voc_15/pretrain_voc_15/epoch_300_bs16_ckpt.pth"
+            if os.path.exists(pretrained_path):
+                state_dict = torch.load(pretrained_path, map_location='cpu')
+                self.model.load_state_dict(state_dict['model'])        
+        else:
+            self.model = select_model(self.dataset, self.damo_cfg)
             
             
-        # self.optimizer = select_optimizer(self.opt_name, self.model, lr=self.lr, cfg=self.damo_cfg.train.optimizer)
+        self.optimizer = select_optimizer(self.opt_name, self.model, lr=self.lr, cfg=self.damo_cfg.train.optimizer)
                     
         
         self.score_thresh = 0.55

@@ -1,33 +1,8 @@
-# When we make a new one, we should inherit the Finetune class.
 import logging
-import copy
-import time
-import datetime
-import pickle
-import numpy as np
-import pandas as pd
-import torch
-import torch.nn as nn
-from torch.utils.data import DataLoader
-from torch.utils.tensorboard import SummaryWriter
-from torch import optim
-from scipy.stats import chi2, norm
-#from ptflops import get_model_complexity_info
-from flops_counter.ptflops import get_model_complexity_info
 from methods.er_baseline import ER
 from utils.data_loader import FreqDataset
-from utils.train_utils import select_model, select_optimizer, select_scheduler
 
 logger = logging.getLogger()
-#writer = SummaryWriter("tensorboard")
-
-
-def cycle(iterable):
-    # iterate with shuffling
-    while True:
-        for i in iterable:
-            yield i
-
 
 class ERFrequency(ER):
     def initialize_memory_buffer(self, memory_size):

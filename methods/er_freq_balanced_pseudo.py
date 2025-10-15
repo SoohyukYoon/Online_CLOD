@@ -1,19 +1,7 @@
-# When we make a new one, we should inherit the Finetune class.
 import logging
 import copy
-import time
-import datetime
-import pickle
 import numpy as np
-import pandas as pd
 import torch
-import torch.nn as nn
-from torch.utils.data import DataLoader
-from torch.utils.tensorboard import SummaryWriter
-from torch import optim
-from scipy.stats import chi2, norm
-#from ptflops import get_model_complexity_info
-from flops_counter.ptflops import get_model_complexity_info
 from methods.er_baseline import ER
 from utils.data_loader import FreqDataset, MemoryPseudoDataset, FreqClsBalancedPseudoDataset
 from utils.train_utils import select_model, select_optimizer, select_scheduler
@@ -22,15 +10,6 @@ from damo.detectors.detector import build_local_model_harmonious
 from collections import OrderedDict
 
 logger = logging.getLogger()
-#writer = SummaryWriter("tensorboard")
-
-
-def cycle(iterable):
-    # iterate with shuffling
-    while True:
-        for i in iterable:
-            yield i
-
 
 class ERFreqBalancedPseudo(ER):
     def __init__(self, criterion, n_classes, device, **kwargs):

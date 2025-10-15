@@ -3,14 +3,11 @@ from methods.er_freq_balanced import ERFreqBalanced
 import torch
 from torch import nn
 import numpy as np
-from utils import autograd_hacks
 from operator import attrgetter
-from utils.data_loader import MemoryDataset, FreqClsBalancedDataset
-import copy
 
 class AdaptiveFreeze(ERFreqBalanced):
-    def __init__(self, criterion, n_classes, device, **kwargs):
-        super().__init__(criterion=criterion, n_classes=n_classes, device=device, **kwargs)
+    def __init__(self, n_classes, device, **kwargs):
+        super().__init__(n_classes=n_classes, device=device, **kwargs)
         # Information based freezing
         self.unfreeze_rate = 0.0
         self.fisher_ema_ratio = 0.01

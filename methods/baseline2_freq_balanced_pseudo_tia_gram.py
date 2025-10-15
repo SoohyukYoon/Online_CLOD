@@ -1,43 +1,20 @@
-# When we make a new one, we should inherit the Finetune class.
 import logging
 import copy
-import time
-import datetime
-import pickle
 import numpy as np
-import pandas as pd
 import torch
 import torch.nn as nn
-from torch.utils.data import DataLoader
-from torch.utils.tensorboard import SummaryWriter
-from torch import optim
-from scipy.stats import chi2, norm
-#from ptflops import get_model_complexity_info
-from flops_counter.ptflops import get_model_complexity_info
 from methods.er_baseline import ER
-from methods.baseline2 import BASELINE2
-from utils.data_loader import FreqDataset, MemoryPseudoDataset, FreqClsBalancedPseudoDataset, FreqClsBalancedPseudoDomainDataset
-from utils.train_utils import select_model, select_optimizer, select_scheduler
+from utils.data_loader import FreqDataset, MemoryPseudoDataset, FreqClsBalancedPseudoDataset
 
 from collections import OrderedDict
 
-
 logger = logging.getLogger()
-#writer = SummaryWriter("tensorboard")
 
-
-def cycle(iterable):
-    # iterate with shuffling
-    while True:
-        for i in iterable:
-            yield i
-
-
-class BASELINEFreqBalancedPseudoGRAM2(BASELINE2):
+class BASELINEFreqBalancedPseudoGRAM2(ER):
     def initialize_memory_buffer(self, memory_size):
         self.memory_size = memory_size - 1
         data_args = self.damo_cfg.get_data(self.damo_cfg.dataset.train_ann[0])
-        self.memory = FreqClsBalancedPseudoDomainDataset(ann_file=data_args['args']['ann_file'], root=data_args['args']['root'], transforms=None,class_names=self.damo_cfg.dataset.class_names,
+        self.memory = FreqClsBalancedPseudoDataset(ann_file=data_args['args']['ann_file'], root=data_args['args']['root'], transforms=None,class_names=self.damo_cfg.dataset.class_names,
             dataset=self.dataset, cls_list=self.exposed_classes, device=self.device, memory_size=self.memory_size, init_buffer_size=(memory_size + 1) // 2, image_size=self.img_size, aug=self.damo_cfg.train.augment)
         
         self.ema_ratio=0.995

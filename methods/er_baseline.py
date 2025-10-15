@@ -1,24 +1,12 @@
-# When we make a new one, we should inherit the Finetune class.
 import logging
 import copy
 import time
 import datetime
-import pickle
 import numpy as np
-import pandas as pd
 import os
 import torch
-import math
-import types
 import torch.nn as nn
-from torch.utils.data import DataLoader
-# from torch.utils.tensorboard import SummaryWriter
-from torch import optim
-from scipy.stats import chi2, norm
-#from ptflops import get_model_complexity_info
-from flops_counter.ptflops import get_model_complexity_info
-# from utils.cka import linear_CKA
-from utils.data_loader import ImageDataset, MemoryDataset, get_exposed_classes
+from utils.data_loader import MemoryDataset, get_exposed_classes
 from utils.train_utils import select_model, select_optimizer, select_scheduler, MeanAveragePrecisionCustomized, boxlist_to_pred_dict, boxlist_to_target_dict
 #### object detection
 import random
@@ -28,7 +16,6 @@ from utils.block_utils import get_blockwise_flops, MODEL_BLOCK_DICT
 from damo.dataset.build import build_dataset, build_dataloader
 # from damo.utils.boxes import postprocess
 from damo.config.base import parse_config
-from hydra import compose, initialize
 
 from tqdm import tqdm
 
@@ -36,16 +23,10 @@ from contextlib import redirect_stdout
 from calflops import calculate_flops
 from utils.flops_utils import blockwise_from_log_file
 
-import pdb
-
-from damo.apis.detector_inference import compute_on_dataset
-from damo.dataset.datasets.evaluation import evaluate
-from damo.utils.timer import Timer
-
 logger = logging.getLogger()
 
 class ER:
-    def __init__(self, criterion, n_classes, device, **kwargs):
+    def __init__(self, n_classes, device, **kwargs):
         # 기존 파라미터 저장
         self.n_classes = n_classes
         self.device = device
@@ -58,18 +39,11 @@ class ER:
         self.batch_size = kwargs["batchsize"]
         self.temp_batchsize = kwargs.get("temp_batchsize") or (self.batch_size // 2)
         self.memory_size = kwargs["memory_size"] - self.temp_batchsize
-        self.topk = kwargs["topk"]
-        self.sigma = kwargs["sigma"]
-        self.repeat = kwargs["repeat"]
-        self.weight_option = kwargs["weight_option"]
-        self.weight_method = kwargs["weight_method"]
         self.model_name = kwargs["model_name"]
         self.opt_name = kwargs["opt_name"]
         self.sched_name = 'const' if kwargs["sched_name"] == "default" else kwargs["sched_name"]
         self.data_dir = kwargs["data_dir"]
         self.online_iter = kwargs["online_iter"]
-        self.gpu_transform = kwargs["gpu_transform"]
-        self.use_kornia = kwargs["use_kornia"]
         self.use_amp = kwargs["use_amp"]
         if self.use_amp:
             self.scaler = torch.cuda.amp.GradScaler()
@@ -77,6 +51,8 @@ class ER:
         self.exposed_classes = get_exposed_classes(self.dataset)
         self.num_learned_class = len(self.exposed_classes)
         self.num_learning_class = self.num_learned_class + 1
+        
+        
         if 'VOC_10_10' in self.dataset:
             data_name = 'voc'
             config_file = 'configs/damoyolo_tinynasL25_S_VOC_10_10.py'
@@ -92,20 +68,14 @@ class ER:
         elif 'MILITARY_SYNTHETIC' in self.dataset:
             data_name = 'military_synthetic'
             config_file = 'configs/damoyolo_tinynasL25_S_MILITARY_SYNTHETIC.py'
-            
-        # config_file = 'configs/damoyolo_tinynasL20_T.py'
-        
         self.damo_cfg = parse_config(config_file)
         
         self.exposed_domains = [f'{data_name}_source']
         self.model = select_model(self.dataset, self.damo_cfg)
 
-        # self.model.model.args = self.args.model
         self.stride = max(int(self.model.stride.max() if hasattr(self.model, "stride") else 32), 32)
         self.optimizer = select_optimizer(self.opt_name, self.model, lr=self.lr, cfg=self.damo_cfg.train.optimizer)
         self.scheduler = None  # optional
-
-
 
         val_dataset_names = self.damo_cfg.dataset.val_ann
         val_datasets = build_dataset(self.damo_cfg, val_dataset_names, is_train=False)
@@ -119,21 +89,9 @@ class ER:
         )
         self.val_loader = val_dataloaders[0]
         
-        
-        
-        
-        
-        
-        
-        # self.vec2box = create_converter(
-        #     self.args.model.name, self.model, self.args.model.anchor, self.args.image_size, self.device
-        # )
-        # self.model.set_loss_function(self.args, self.vec2box, self.num_learned_class)
-        # self.img_size = self._resolve_image_size(self.damo_cfg, self.model, val_dataloaders)
         self.img_size = [640, 640]
         
         self.selection_method = kwargs["selection_method"]
-        # self.priority_selection = kwargs["priority_selection"]
         self.priority_selection = kwargs.get("priority_selection", None)
         self.initialize_memory_buffer(kwargs["memory_size"])
         
@@ -141,22 +99,9 @@ class ER:
         self.num_updates = 0
         self.train_count = 0
 
-        self.gt_label = None
-        self.test_records = []
-        self.n_model_cls = []
-        self.forgetting = []
-        self.knowledge_gain = []
-        self.total_knowledge = []
-        self.retained_knowledge = []
-        self.forgetting_time = []
-
-        self.f_calculated = False
         self.total_flops = 0.0
-        self.f_period = kwargs['f_period']
-        self.f_next_time = 0
         self.start_time = time.time()
 
-        # self.writer = SummaryWriter(f'tensorboard/{self.dataset}/{self.note}/seed_{self.rnd_seed}')
         self.save_path = f'results/{self.dataset}/{self.note}/seed_{self.rnd_seed}'
         
         # test arguments
@@ -183,6 +128,7 @@ class ER:
             self.online_after_task(sample_num)
             self.add_new_class(sample['klass'])
         elif sample.get('domain',None) and sample['domain'] not in self.exposed_domains:
+            self.online_after_task(sample_num)
             self.exposed_domains.append(sample['domain'])
         self.temp_batch.append(sample)
         self.num_updates += self.online_iter
@@ -199,25 +145,6 @@ class ER:
 
                 self.temp_batch = []
                 self.num_updates -= int(self.num_updates)
-
-
-    def save_std_pickle(self):
-        '''
-        class_std, sample_std = self.memory.get_std()
-        self.class_std_list.append(class_std)
-        self.sample_std_list.append(sample_std)
-        '''
-        
-        cls_file_name = self.mode + '_final_cls_std.pickle'
-        sample_file_name = self.mode + '_sample_std.pickle'
-        
-        with open(cls_file_name, 'wb') as handle:
-            pickle.dump(self.class_std_list, handle, protocol=pickle.HIGHEST_PROTOCOL)
-        
-        '''
-        with open(sample_file_name, 'wb') as handle:
-            pickle.dump(self.sample_std_list, handle, protocol=pickle.HIGHEST_PROTOCOL)
-        '''
 
     def add_new_class(self, class_name):
         self.exposed_classes.append(class_name)
@@ -330,30 +257,11 @@ class ER:
         targets = [target.to(self.device) for target in batch[1]]
         return inps, targets
 
-    def report_training(self, sample_num, train_loss, train_initial_cka=None, train_group1_cka=None, train_group2_cka=None, train_group3_cka=None, train_group4_cka=None):
-        # self.writer.add_scalar(f"train/loss", train_loss, sample_num)
-
-        if train_initial_cka is not None:
-            '''
-            self.writer.add_scalar(f"train/initial_cka", train_initial_cka, sample_num)
-            self.writer.add_scalar(f"train/group1_cka", train_group1_cka, sample_num)
-            self.writer.add_scalar(f"train/group2_cka", train_group2_cka, sample_num)
-            self.writer.add_scalar(f"train/group3_cka", train_group3_cka, sample_num)
-            self.writer.add_scalar(f"train/group4_cka", train_group4_cka, sample_num)
-            '''
-            cka_dict = {}
-            cka_dict["initial_cka"] = train_initial_cka
-            cka_dict["train_group1_cka"] = train_group1_cka
-            cka_dict["train_group2_cka"] = train_group2_cka
-            cka_dict["train_group3_cka"] = train_group3_cka
-            cka_dict["train_group4_cka"] = train_group4_cka
-
-            # self.writer.add_scalars(f"train/cka", cka_dict, sample_num)
-            #self.writer.add_scalar(f"train/fc_cka", train_fc_cka, sample_num)
+    def report_training(self, sample_num, train_loss):
 
         logger.info(
             f"Train | Sample # {sample_num} | train_loss {train_loss:.4f} | "
-            f"TFLOPs {self.total_flops/1000:.2f} | "
+            f"TFLOPs {self.total_flops/1e12:.2f} | "
             f"lr {self.optimizer.param_groups[0]['lr']:.6f} | "
             f"running_time {datetime.timedelta(seconds=int(time.time() - self.start_time))} | "
             f"ETA {datetime.timedelta(seconds=int((time.time() - self.start_time) * (self.total_samples-sample_num) / sample_num))} | "
@@ -366,7 +274,7 @@ class ER:
         logger.info(
             f"Test | Sample # {sample_num} | test_acc {avg_acc:.4f} | \n"
             f"classwise mAP50 [{'|'.join([str(round(cls_acc,3)) for cls_acc in classwise_acc])}] | \n"
-            f"TFLOPs {self.total_flops/1000:.2f} | "
+            f"TFLOPs {self.total_flops/1e12:.2f} | "
         )
 
     def update_memory(self, sample):
@@ -376,43 +284,6 @@ class ER:
         pass   
 
     def evaluate(self):
-        
-        
-        # # alternative eval
-        # inference_timer = Timer()
-        # predictions = compute_on_dataset(self.model, self.val_loader, self.device, inference_timer)
-        
-        # extra_args = dict(
-        #     box_only=False,
-        #     iou_types=('bbox', ),
-        #     expected_results=(),
-        #     expected_results_sigma_tol=4,
-        # )
-        
-        # result = evaluate(self.val_loader.dataset, predictions, None, **extra_args)
-        
-        # coco_eval = result[2]
-        # prec = coco_eval.eval['precision']  # [T, R, K, A, M]
-        # iou_thrs = coco_eval.params.iouThrs
-        # cat_ids = coco_eval.params.catIds
-        # area_idx = 0   # all
-        # maxdet_idx = -1  # use last (usually 100)
-
-        # t = np.where(np.isclose(iou_thrs, 0.5))[0][0]
-
-        # ap50_per_class = []
-        # for k, catId in enumerate(cat_ids):
-            
-        #     s = prec[t, :, k, area_idx, maxdet_idx]
-        #     s = s[s > -1] 
-        #     ap50_per_class.append(np.mean(s) if s.size else float("nan"))
-
-        # eval_dict = {
-        #     "avg_mAP50": sum(ap50_per_class[:self.num_learned_class])/self.num_learned_class,
-        #     "classwise_mAP50": ap50_per_class[:self.num_learned_class]
-        # }
-        
-        
         preds_lists = []
         targs_lists = []
         for i, batch in enumerate(tqdm(self.val_loader)):

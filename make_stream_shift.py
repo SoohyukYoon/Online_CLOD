@@ -6,7 +6,7 @@ import scipy.stats as stats
 import glob
 
 dataset = 'shift'
-output_dataset = 'SHIFT_domain'
+output_dataset = 'SHIFT_domain_small2'
 dataset_dir = f'data'
 
 repeats = [1]
@@ -14,7 +14,8 @@ sigmas = [0.1]
 seeds = [1, 2, 3]
 
 # Domain order for incremental sampling
-dataset_dirs = ['shift_overcast', 'shift_cloudy', 'shift_rainy', 'shift_foggy', 'shift_dawndusk', 'shift_night']
+# dataset_dirs = ['shift_overcast', 'shift_cloudy', 'shift_rainy', 'shift_foggy', 'shift_dawndusk', 'shift_night']
+dataset_dirs = ['shift_dawndusk', 'shift_night', 'shift_foggy']
 domain_dict = {i: domain for i, domain in enumerate(dataset_dirs)}
 
 # Initialize domain data list
@@ -63,7 +64,7 @@ for repeat in repeats:
             for domain_id in range(n_domains):
                 datalist = domain_datalist[domain_id].copy()
                 random.shuffle(datalist)
-                samples_list.append(datalist)
+                samples_list.append(datalist[:3000])            
             
             # Create stream with time-based sampling
             stream = []

@@ -6,7 +6,7 @@ import scipy.stats as stats
 import glob
 
 dataset = 'bdd100k'
-output_dataset = 'BDD_domain'
+output_dataset = 'BDD_domain_small'
 dataset_dir = f'data'
 
 repeats = [1]
@@ -63,7 +63,7 @@ for repeat in repeats:
             for domain_id in range(n_domains):
                 datalist = domain_datalist[domain_id].copy()
                 random.shuffle(datalist)
-                samples_list.append(datalist)
+                samples_list.append(datalist[:3000])
             
             # Create stream with time-based sampling
             stream = []
