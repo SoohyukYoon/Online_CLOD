@@ -1245,6 +1245,8 @@ class SelectionMemoryDataset(MemoryDataset):
         self.priority_selection = priority_selection
         self.alpha = 1.0                  
         self.beta = 1.0
+        self.use_mosaic_mixup=False
+        self.info_ema = 0.9
     
     def update_initialinfo(self, info_list):
         assert len(info_list) == len(self.buffer)
@@ -1371,8 +1373,6 @@ class SelectionMemoryDataset(MemoryDataset):
             # indices = np.random.choice(range(buffer_size), size=memory_batch_size, replace=False)
             info_list = np.array([e[-1] for e in self.buffer],
                         dtype=np.float64)
-            # print(info_list, len(self.buffer))
-            # nonzero_indices = [i for i, x in enumerate(info_list) if x != 0]
             info_list = info_list[:buffer_size]
             w = info_list / info_list.sum()
             ### HYBRID WEIGHT END
@@ -1470,7 +1470,7 @@ class SelectionMemoryDataset(MemoryDataset):
     
     
 # Selection-Based Retrieval + Cls Balanced
-class SelectionClsBalancedDataset(FreqClsBalancedDataset):
+class SelectionClsBalancedDataset(ClassBalancedDataset):
     def __init__(self, ann_file, root, transforms=None, class_names=None,
                  dataset=None, cls_list=None, device=None, data_dir=None, memory_size=None, 
                  init_buffer_size=None, image_size=(640, 640), aug=None, selection_method=None, priority_selection=None
@@ -1481,32 +1481,31 @@ class SelectionClsBalancedDataset(FreqClsBalancedDataset):
         
         self.selection_method = selection_method
         self.priority_selection = priority_selection
-    
+        self.alpha = 1.0                  
+        self.beta = 1.0
+        self.use_mosaic_mixup=False
+        self.info_ema = 0.9
+        
     def update_initialinfo(self, info_list):
         assert len(info_list) == len(self.buffer)
         for i, info in enumerate(info_list):
-            self.buffer[i]["score"] = info
+            img, labels, img_id, _ = self.buffer[i]
+            self.buffer[i] = (img, labels, img_id, info)
             
     def update_info(self, infos):
-        assert len(infos) == len(self.selected_indices)
+        assert len(infos) == len(self.indices)
         for i, info in enumerate(infos):
-            self.buffer[self.selected_indices[i]]["score"] = info
+            img, labels, img_id, old_info = self.buffer[self.indices[i]]
+            new_info = self.info_ema * old_info + (1 - self.info_ema) * info
+            self.buffer[self.indices[i]] = (img, labels, img_id, new_info)
     
     def replace_sample(self, sample, info, idx=None):
         data_class = sample.get('label', None)
         img, labels, img_id = self.load_data(sample['file_name'], is_stream=True,data_class=data_class)
+        data = (img, labels, img_id, info)
         classes = [obj['category_id'] for obj in labels]
         classes = [self.contiguous_class2id[self.ori_id2class[c]] 
                    for c in classes]
-        ### BEGIN USAGE
-        entry = {
-            "img": img,
-            "labels": labels,
-            "img_id": img_id,
-            "score": info,
-            "classes": list(set(classes)) if len(classes) else []
-        }
-        ### END USAGE
 
         if sample.get('klass', None):
             # self.cls_count[self.new_exposed_classes.index(sample['klass'])] += 1
@@ -1531,23 +1530,22 @@ class SelectionClsBalancedDataset(FreqClsBalancedDataset):
                     self.cls_idx[cls_].append(len(self.buffer))
             else:
                 self.cls_idx[self.new_exposed_classes.index(sample_category)].append(len(self.buffer))
-            self.buffer.append(entry)
+            self.buffer.append(data)
         else:
-            self.buffer[idx] = entry
+            self.buffer[idx] = data
     
     def register_sample_for_initial_buffer(self, sample, idx=None):
         img, labels, img_id = self.load_data(sample['file_name'], is_stream=False)
-        ### BEGIN USAGE
+        data = (img, labels, img_id, 0)
         classes = [obj['category_id'] for obj in labels]
         classes = [self.contiguous_class2id[self.ori_id2class[c]] 
                    for c in classes]
-        entry = {
-            "img": img,
-            "labels": labels,
-            "img_id": img_id,
-            "score": 0,
-            "classes": list(set(classes)) if len(classes) else []
-        }
+
+        if idx is None:
+            self.buffer.append(data)
+        else:
+            self.buffer[idx] = data
+        
         ### END USAGE
 
         if not self.is_domain_incremental:
@@ -1570,9 +1568,9 @@ class SelectionClsBalancedDataset(FreqClsBalancedDataset):
                     self.cls_idx[cls_].append(len(self.buffer))
             else:
                 self.cls_idx[self.new_exposed_classes.index(sample_category)].append(len(self.buffer))
-            self.buffer.append(entry)
+            self.buffer.append(data)
         else:
-            self.buffer[idx] = entry
+            self.buffer[idx] = data
             
     
     def register_stream(self, datalist):
@@ -1582,18 +1580,9 @@ class SelectionClsBalancedDataset(FreqClsBalancedDataset):
             img_path = data.get('file_name', data.get('filepath'))
             
             img, labels, img_id = self.load_data(img_path, is_stream=True, data_class=data_class)
-            classes = [obj['category_id'] for obj in labels]
-            classes = [self.contiguous_class2id[self.ori_id2class[c]] 
-                    for c in classes]
-            entry = {
-                "img": img,
-                "labels": labels,
-                "img_id": img_id,
-                "score": 0,
-                "classes": list(set(classes)) if len(classes) else []
-            }
             
-            self.stream_data.append(entry)
+            self.stream_data.append((img, labels, img_id, 0))
+            
 
     def get_buffer_data(self, ind, batch_size):
         data = []
@@ -1607,8 +1596,7 @@ class SelectionClsBalancedDataset(FreqClsBalancedDataset):
             if self.use_mosaic_mixup:
                 img, label, img_id = self.mosaic_wrapper.__getitem__((True, i))
             else:
-                entry = self.buffer[i]
-                img, anno, img_id = entry['img'], entry['labels'], entry['img_id']
+                img, anno, img_id, score = self.buffer[i]
                 anno = [obj for obj in anno if obj['iscrowd'] == 0]
 
                 boxes = [obj['bbox'] for obj in anno]
@@ -1651,8 +1639,7 @@ class SelectionClsBalancedDataset(FreqClsBalancedDataset):
                 if self.use_mosaic_mixup:
                     img, label, img_id = self.mosaic_wrapper.__getitem__((True, i + buffer_size))
                 else:
-                    entry = self.buffer[i + buffer_size]
-                    img, anno, img_id = entry['img'], entry['labels'], entry['img_id']
+                    img, anno, img_id, score = self.buffer[i]
                     anno = [obj for obj in anno if obj['iscrowd'] == 0]
 
                     boxes = [obj['bbox'] for obj in anno]
@@ -1676,9 +1663,10 @@ class SelectionClsBalancedDataset(FreqClsBalancedDataset):
         # ───── Memory part ──────────────────────────────────────────────
         if memory_batch_size > 0 and len(self.buffer):
             
-            w = np.array([e["score"] for e in self.buffer],
+            info_list = np.array([e[-1] for e in self.buffer],
                         dtype=np.float64)
-            w /= w.sum()
+            info_list = info_list[:buffer_size]
+            w = info_list / info_list.sum()
             ### HYBRID WEIGHT END
             if self.priority_selection == "high":
                 indices = np.argpartition(w, -memory_batch_size)[-memory_batch_size:]
@@ -1686,19 +1674,17 @@ class SelectionClsBalancedDataset(FreqClsBalancedDataset):
                 indices = np.argpartition(w, memory_batch_size)[:memory_batch_size] 
             elif self.priority_selection == "prob":
                 indices = np.random.choice(
-                    len(self.buffer),
+                    len(info_list),
                     size=memory_batch_size,
-                    replace=len(self.buffer) < memory_batch_size,
+                    replace=len(info_list) < memory_batch_size,
                     p=w,
                 )
-
+            self.indices = indices
             for i in indices:
-
                 if self.use_mosaic_mixup:
                     img, label, img_id = self.mosaic_wrapper.__getitem__((True, i))
                 else:
-                    entry = self.buffer[i]
-                    img, anno, img_id = entry['img'], entry['labels'], entry['img_id']
+                    img, anno, img_id, score = self.buffer[i]
                     anno = [obj for obj in anno if obj['iscrowd'] == 0]
 
                     boxes = [obj['bbox'] for obj in anno]
@@ -1721,8 +1707,53 @@ class SelectionClsBalancedDataset(FreqClsBalancedDataset):
 
          # remove stream data from buffer
         self.buffer = self.buffer[:buffer_size]
-        self.selected_indices = indices
         return self.batch_collator(data)
+    
+    def pull_item(self, idx):
+        img, anno, img_id, score = self.buffer[idx]
+        # filter crowd annotations
+        # TODO might be better to add an extra field
+        anno = [obj for obj in anno if obj['iscrowd'] == 0]
+
+        boxes = [obj['bbox'] for obj in anno]
+        boxes = torch.as_tensor(boxes).reshape(-1, 4)  # guard against no boxes
+        target = BoxList(boxes, img.size, mode='xywh').convert('xyxy')
+        
+        target = target.clip_to_image(remove_empty=True)
+
+        classes = [obj['category_id'] for obj in anno]
+        classes = [self.contiguous_class2id[self.ori_id2class[c]] 
+                   for c in classes]
+
+        obj_masks = []
+        for obj in anno:
+            obj_mask = []
+            if 'segmentation' in obj:
+                for mask in obj['segmentation']:
+                    obj_mask += mask
+                if len(obj_mask) > 0:
+                    obj_masks.append(obj_mask)
+        seg_masks = [
+            np.array(obj_mask, dtype=np.float32).reshape(-1, 2)
+            for obj_mask in obj_masks
+        ]
+
+        res = np.zeros((len(target.bbox), 5))
+        for idx in range(len(target.bbox)):
+            res[idx, 0:4] = target.bbox[idx]
+            res[idx, 4] = classes[idx]
+
+        img = np.asarray(img)  # rgb
+
+        return img, res, seg_masks, img_id
+    
+    def load_anno(self, idx):
+        _, anno, _,_ = self.buffer[idx]
+        anno = [obj for obj in anno if obj['iscrowd'] == 0]
+        classes = [obj['category_id'] for obj in anno]
+        classes = [self.contiguous_class2id[self.ori_id2class[c]] 
+                   for c in classes]
+        return classes
 
 ################################################################################################ pseudo
 # MemoryPseudoDataset

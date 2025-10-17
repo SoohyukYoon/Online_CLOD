@@ -10,9 +10,10 @@ import torch.nn.functional as F
 logger = logging.getLogger()
 #writer = SummaryWriter("tensorboard")
 
-class SampleSelection(ER):
+class SampleSelectionBalanced(ER):
     def __init__(self, n_classes, device, **kwargs):
         super().__init__(n_classes, device, **kwargs)
+        print("buffer samples", len(self.memory.buffer))
     
     def initialize_memory_buffer(self, memory_size):
         self.memory_size = memory_size - self.temp_batchsize
@@ -34,32 +35,19 @@ class SampleSelection(ER):
         Calculate the initial information for each sample in the buffer.
         This is a placeholder function that should be implemented based on the selection method.
         """
-        # buffer_initial_data2 = self.memory.get_buffer_data()
         buffer_initial_info = []
-        # self.model.eval()
-        # with torch.no_grad():
         for i in range(0,len(self.memory.buffer), self.batch_size):
             batch = self.memory.get_buffer_data(i, self.batch_size)
-            # batch = buffer_initial_data2[i:i+self.batch_size]
-            # data = collate_fn(batch)
-            # print("data", len(batch), self.batch_size)
-            # batch = {
-            #     "img": data[0],         # images
-            #     "cls": data[1],         # labels
-            #     "img_id": data[2],    # image paths
-            # }
-            self.optimizer.zero_grad()
             inps, targets = self.preprocess_batch(batch)
+            inputs = inps.tensors
+            self.optimizer.zero_grad()
             with torch.cuda.amp.autocast(enabled=False):
-                inputs = inps.tensors
                 infos = []
                 loss = None
                 if "loss" in self.selection_method:
                     for ind in range(len(targets)):
                         loss_item = self.model(inputs[ind], [targets[ind]])["total_loss"]
                         infos.append(loss_item.detach().cpu().item())
-                        self.optimizer.zero_grad()
-
                 elif "entropy" in self.selection_method:
                     for ind in range(len(targets)):
                         loss, sample_logit = self.model(inputs[ind], [targets[ind]], get_features=True)
@@ -67,21 +55,19 @@ class SampleSelection(ER):
                         probs = F.softmax(sample_logit, dim=0)
                         info = -torch.sum(probs * torch.log(probs + 1e-8)).item()
                         infos.append(info)
-                        self.optimizer.zero_grad()
-                
                 elif "fisher" in self.selection_method:
                     for ind in range(len(targets)):
                         loss = self.model(inputs[ind],[targets[ind]])["total_loss"]
-                        for n, p in self.model.neck.named_parameters():
-                            if p.requires_grad == True:
-                                grad = torch.autograd.grad(loss, p, retain_graph=True)[0].clone().detach().clamp(-1, 1)
-                        info = (grad**2).sum().cpu()
+                        loss.backward()
+                        info = 0
+                        for n, p in self.model.named_parameters():
+                            if "neck" in n and p.requires_grad == True:
+                                grad = p.grad.detach().cpu().numpy()
+                                info += (grad**2).sum()
                         infos.append(info)
-                        self.optimizer.zero_grad()
                 
-            buffer_initial_info.extend(infos)          
+            buffer_initial_info.extend(infos)
         return buffer_initial_info
-    
     
     
     def add_new_class(self, class_name):
@@ -94,67 +80,31 @@ class SampleSelection(ER):
         inps, targets = self.preprocess_batch(batch)
 
         with torch.cuda.amp.autocast(enabled=False):
-            # 모델 실행: output = {"AUX": ..., "Main": ...}
-            # for input_s in batch["img"]:
-            # outputs = self.model(batch["img"])
-            # aux_raw = outputs["AUX"]
-            # main_raw = outputs["Main"]
 
-            # Vec2Box 변환: [B, A, C], [B, A, R], [B, A, 4]
-            # aux_predicts = self.vec2box(aux_raw)
-            # main_predicts = self.vec2box(main_raw)
-            image_tensors = inps.tensors
-        
             # 손실 계산
             infos = []
             loss = None
-            
+            self.total_flops += len(targets) * self.forward_flops
             if "loss" in self.selection_method:
-                for ind in range(len(targets)):
-                    loss_item = self.model(image_tensors[ind], [targets[ind]])
-                    sample_loss = loss_item["total_loss"]
-                    infos.append(sample_loss.detach().cpu().item())
-                    
-                    # infos.append(sample_loss.detach().cpu().item())
-                    if loss == None:
-                        loss = sample_loss
-                    else:
-                        loss += sample_loss
-                        
-                loss /= len(image_tensors)
-                    
+                loss_item = self.model(inps, targets)
+                loss = loss_item["total_loss"]
+                infos = len(targets)*[loss.detach().cpu().item()]
+                
             elif "entropy" in self.selection_method:
-                for ind in range(len(targets)):
-                    loss_item, sample_logit = self.model(image_tensors[ind], [targets[ind]], get_features=True)
-                    sample_logit = sample_logit[-1]
-                    sample_loss = loss_item["total_loss"]
+                loss_item, sample_logits = self.model(inps, targets, get_features=True)
+                loss = loss_item["total_loss"]
+                for sample_logit in sample_logits:
                     probs = F.softmax(sample_logit, dim=0)
                     info = -torch.sum(probs * torch.log(probs + 1e-8)).item()
                     infos.append(info)
-                    
-                    if loss == None:
-                        loss = sample_loss
-                    else:
-                        loss += sample_loss
-                        
-                loss /= len(image_tensors)
+
             
-            elif self.selection_method == "fisher":
-                for ind in range(len(targets)):
-                    loss_item = self.model(image_tensors[ind], [targets[ind]])["total_loss"]
-                    sample_loss = loss_item["total_loss"]
-                    for n, p in self.model.neck.named_parameters():
-                        if p.requires_grad == True:
-                            grad = torch.autograd.grad(sample_loss, p, retain_graph=True)[0].clone().detach().clamp(-1, 1)
-                    info = (grad**2).sum().cpu()
-                    infos.append(info)
-                    
-                    if loss == None:
-                        loss = sample_loss
-                    else:
-                        loss += sample_loss
-                    
-                loss /= len(image_tensors)
+            elif "fisher" in self.selection_method:
+                self.optimizer.zero_grad()
+                loss_item = self.model(inps, targets)
+                loss = loss_item["total_loss"]
+
+                info = 0
                 
             if self.use_amp:
                 self.scaler.scale(loss).backward()
@@ -163,8 +113,15 @@ class SampleSelection(ER):
             else:
                 loss.backward()
                 self.optimizer.step()
+                
+            if "fisher" in self.selection_method:
+                for n, p in self.model.named_parameters():
+                    if "neck" in n and p.requires_grad == True:
+                        grad = p.grad.detach().cpu().numpy()
+                        info += (grad**2).sum()
+                infos = len(targets)*[info] 
             
-            self.total_flops += self.backward_flops
+            self.total_flops += len(targets) * self.backward_flops
             
             self.update_schedule()
                     
@@ -249,7 +206,7 @@ class SampleSelection(ER):
     def update_memory(self, sample, info):
         self.balanced_replace_memory(sample, info)
 
-    def balanced_replace_memory(self, sample):
+    def balanced_replace_memory(self, sample, info):
         if len(self.memory) >= self.memory_size:
             label_frequency = copy.deepcopy(self.memory.cls_count)
             if sample.get('klass', None):
@@ -267,7 +224,7 @@ class SampleSelection(ER):
                 np.flatnonzero(np.array(label_frequency) == np.array(label_frequency).max()))
             idx_to_replace = np.random.choice(self.memory.cls_idx[cls_to_replace])
             labels = self.memory.buffer[idx_to_replace][1]
-            self.memory.replace_sample(sample, idx_to_replace)
+            self.memory.replace_sample(sample, info, idx_to_replace)
             
             if sample.get('klass', None):
                 classes = [obj['category_id'] for obj in labels]
@@ -290,4 +247,4 @@ class SampleSelection(ER):
                 self.memory.cls_idx[cls_to_replace].remove(idx_to_replace)
                 self.memory.cls_idx[self.new_exposed_classes.index(sample_category)].append(idx_to_replace)
         else:
-            self.memory.replace_sample(sample)
+            self.memory.replace_sample(sample, info)
