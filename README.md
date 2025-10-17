@@ -179,6 +179,7 @@ python subsample_shift_validation.py
 ### Pretraining
 
 Create a pretrained model on initial classes (class-incremental) or a source domain (domain-incremental). Use one of the `configs/pretrain_*.py` files with the provided launcher.
+- Download pre-trained weights from [here](https://storage.foss.beauty/mirrors/DAMO-YOLO/damo-yolo.zip) and initialize the YOLO weight to this checkpoint.
 
 **Example (VOC 10):**
 
