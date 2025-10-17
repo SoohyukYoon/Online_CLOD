@@ -19,7 +19,7 @@ class AdaptiveFreeze(ERFreqBalanced):
         self.freeze_idx = []
         self.frozen = False
 
-        self.cls_weight_decay = kwargs["cls_weight_decay"]
+        # self.cls_weight_decay = kwargs["cls_weight_decay"]
 
     def _layer_type(self, layer: nn.Module) -> str:
         return layer.__class__.__name__

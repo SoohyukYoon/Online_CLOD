@@ -171,7 +171,7 @@ class Harmonious(ER):
         
         # with torch.cuda.amp.autocast(enabled=self.use_amp):
         with torch.cuda.amp.autocast(enabled=False):
-            loss_item = self.model(inps, targets)#, score_weights=score_weights)
+            loss_item = self.model(inps, targets, score_weights=score_weights)
             total_loss = loss_item["total_loss"]
             
             self.total_flops += (len(targets) * self.forward_flops)

@@ -1639,7 +1639,7 @@ class SelectionClsBalancedDataset(ClassBalancedDataset):
                 if self.use_mosaic_mixup:
                     img, label, img_id = self.mosaic_wrapper.__getitem__((True, i + buffer_size))
                 else:
-                    img, anno, img_id, score = self.buffer[i]
+                    img, anno, img_id, score = self.buffer[i+buffer_size]
                     anno = [obj for obj in anno if obj['iscrowd'] == 0]
 
                     boxes = [obj['bbox'] for obj in anno]
