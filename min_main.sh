@@ -2,7 +2,7 @@
 
 # CIL CONFIG
 
-MODE="er_selection"
+MODE="er_selection_balanced"
 DATASET="VOC_10_10" # VOC_10_10 BDD_domain SHIFT_domain MILITARY_SYNTHETIC_domain_1 MILITARY_SYNTHETIC_domain_2 MILITARY_SYNTHETIC_domain_3
 # DATASET="VOC_15_5"
 SIGMA=10
@@ -21,11 +21,11 @@ NOTE=${DATASET}_${MODE}_${SELECTION_METHOD}_${PRIORITY_SELECTION} # Short descri
 
 if [ "$DATASET" == "VOC_10_10" ]; then
     MEM_SIZE=1000 ONLINE_ITER=1
-    MODEL_NAME="damo5" EVAL_PERIOD=500
+    MODEL_NAME="damo" EVAL_PERIOD=500
     BATCHSIZE=16; LR=1e-4 OPT_NAME="SGD" SCHED_NAME="default" IMP_UPDATE_PERIOD=1
 elif [ "$DATASET" == "VOC_15_5" ]; then
     MEM_SIZE=1000 ONLINE_ITER=1 #1000
-    MODEL_NAME="damo5" EVAL_PERIOD=500
+    MODEL_NAME="damo" EVAL_PERIOD=500
     BATCHSIZE=16; LR=1e-4 OPT_NAME="SGD" SCHED_NAME="default" IMP_UPDATE_PERIOD=1
 elif [ "$DATASET" == "BDD_domain" ]; then
     MEM_SIZE=10 ONLINE_ITER=1
@@ -55,12 +55,11 @@ for RND_SEED in $SEEDS
 do
     CUDA_VISIBLE_DEVICES=$1 python main.py --mode $MODE --n_worker 8 \
     --dataset $DATASET \
-    --sigma $SIGMA --repeat $REPEAT --init_cls $INIT_CLS\
+    --sigma $SIGMA --repeat $REPEAT \
     --rnd_seed $RND_SEED \
     --model_name $MODEL_NAME --opt_name $OPT_NAME --sched_name $SCHED_NAME \
     --lr $LR --batchsize $BATCHSIZE \
-    --memory_size $MEM_SIZE $GPU_TRANSFORM --online_iter $ONLINE_ITER \
-    --mosaic_prob $MOSAIC --mixup_prob $MIXUP \
+    --memory_size $MEM_SIZE --online_iter $ONLINE_ITER \
     --priority_selection $PRIORITY_SELECTION --selection_method $SELECTION_METHOD \
-    --note $NOTE --eval_period $EVAL_PERIOD --imp_update_period $IMP_UPDATE_PERIOD $USE_AMP > ${NOTE}.out 2>&1 
+    --note $NOTE --eval_period $EVAL_PERIOD $USE_AMP > ${NOTE}.out 2>&1 
 done
