@@ -2,12 +2,12 @@ import logging
 import numpy as np
 import torch
 from methods.er_baseline import ER
-from utils.data_loader import SelectionMemoryDataset
+from utils.data_loader import SelectionFrequencyDataset
 import torch.nn.functional as F
 
 logger = logging.getLogger()
 
-class SampleSelectionBase(ER):
+class SampleSelectionFrequency(ER):
     def __init__(self, n_classes, device, **kwargs):
         super().__init__(n_classes, device, **kwargs)
         print("buffer samples", len(self.memory.buffer))
@@ -19,7 +19,7 @@ class SampleSelectionBase(ER):
         self.use_hardlabel = True
         
         data_args = self.damo_cfg.get_data(self.damo_cfg.dataset.train_ann[0])
-        self.memory = SelectionMemoryDataset(ann_file=data_args['args']['ann_file'], root=data_args['args']['root'], transforms=None,class_names=self.damo_cfg.dataset.class_names,
+        self.memory = SelectionFrequencyDataset(ann_file=data_args['args']['ann_file'], root=data_args['args']['root'], transforms=None,class_names=self.damo_cfg.dataset.class_names,
             dataset=self.dataset, cls_list=self.exposed_classes, device=self.device, memory_size=self.memory_size, image_size=self.img_size, aug=self.damo_cfg.train.augment, selection_method=self.selection_method, priority_selection=self.priority_selection)
         buffer_initial_info = self.cal_initial_info()
         assert len(self.memory.buffer) == len(buffer_initial_info), "Buffer size and initial info size mismatch."

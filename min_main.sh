@@ -2,7 +2,7 @@
 
 # CIL CONFIG
 
-MODE="er_selection_balanced"
+MODE="er_selection_frequency" # er_selection_frequency
 DATASET="VOC_10_10" # VOC_10_10 BDD_domain SHIFT_domain MILITARY_SYNTHETIC_domain_1 MILITARY_SYNTHETIC_domain_2 MILITARY_SYNTHETIC_domain_3
 # DATASET="VOC_15_5"
 SIGMA=10
@@ -14,8 +14,8 @@ MOSAIC=0.0
 MIXUP=0.0
 SEEDS="1"
 
-SELECTION_METHOD="fisher"
-PRIORITY_SELECTION="prob"
+SELECTION_METHOD="entropy"
+PRIORITY_SELECTION="high"
 NOTE=${DATASET}_${MODE}_${SELECTION_METHOD}_${PRIORITY_SELECTION} # Short description of the experiment. (WARNING: logs/results with the same note will be overwritten!)
 
 
