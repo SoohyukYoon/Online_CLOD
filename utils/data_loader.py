@@ -2373,7 +2373,7 @@ def generate_pseudo_labels(model, img, score_thresh=0.7, transform=None,image_si
 from ensemble_boxes import weighted_boxes_fusion
 from damo.structures.image_list import to_image_list
 SCALES = [(640, 640)]#, (704, 704), (768, 768)]
-HFLIPS = [False, True]
+HFLIPS = [False]#, True]
 def _apply_feature_dropout_to_backbone_feats(
     feats,
     p: float = 0.1,
@@ -2475,46 +2475,53 @@ def _iou_xyxy(a: np.ndarray, b: np.ndarray) -> float:
     union = area_a + area_b - inter + 1e-9
     return inter / union
 
-def generate_pseudo_labels_tta_mc(
+def generate_pseudo_labels_tta_mc_ugpl_first(
     models,
     img,                              # PIL or np image
     device='cuda',
     scales=SCALES,
     hflips=HFLIPS,
-    # WBF knobs
-    iou_thr=0.55,
-    skip_box_thr=0.05,
-    fusion_conf_type='avg',
-    # Global filtering (no classwise thresholds)
-    score_thresh=0.5,
-    topk_per_image: int = 200,
-    # Uncertainty (MC dropout at backbone features)
-    mc_passes: int = 0,               # 0 disables MC
-    dropout_p: float = 0.10,          # dropout prob on backbone features
-    agg_iou_match: float = 0.5,       # IoU to count a vote
-    lambda_var: float = 2.0,          # weight on variance penalty
-    beta_vote: float = 1.0,           # vote ratio exponent
+    # UGPL thresholds (SSAL)
+    ugpl_prob_thr: float = 0.25,       # κ1: mean prob threshold
+    ugpl_min_consistency: int = 15,    # κ2: min distinct views in T
+    agg_iou_match: float = 0.5,       # γ: IoU for consistency
+    # WBF for fusing inside each selected cluster
+    wbf_iou_thr: float = 0.55,
+    wbf_skip_box_thr: float = 0.0,    # we already filtered via UGPL
+    wbf_conf_type: str = 'avg',
+    # Optional caps/filters
+    prefilter_score: float = 0.1,    # ignore very low-score raw dets early
+    max_pseudo_per_image: int | None = None,
+    # MC settings
+    mc_passes: int = 10,
+    dropout_p: float = 0.10,
 ):
     """
-    TTA + (optional) MC-dropout at backbone features + WBF + uncertainty re-scoring.
-    Returns (boxes_xyxy, labels, scores_final) in ORIGINAL image coordinates.
+    SSAL-style pipeline:
+      1) Build class-consistent clusters T across all TTA×MC×models by IoU≥γ.
+      2) Compute p_hat (mean prob) and |T| (distinct views) for each cluster.
+      3) Keep clusters with p_hat>=ugpl_prob_thr and |T|>=ugpl_min_consistency.
+      4) Fuse *within each kept cluster* using WBF to get final pseudo labels.
+
+    Returns:
+      pl_boxes [M,4] float32 (xyxy, original image coords)
+      pl_labels [M] int64
+      pl_scores [M] float32  (you can choose to return p_hat here if preferred)
+      pl_meta: dict with arrays 'p_hat', 'T_count'
     """
-    
+
     img_cv = np.asarray(img)
     H, W = img_cv.shape[:2]
 
-    # Gather all views (TTA × MC)
-    all_view_boxes, all_view_scores, all_view_labels = [], [], []
+    # ===== 1) Collect raw detections across all views =====
+    raw = []  # list of dicts with: box, score, label, view_id
+    view_id = 0
 
-    # Also keep raw per-view predictions for uncertainty aggregation later
-    raw_views = []  # list of dicts: {'boxes': np, 'scores': np, 'labels': np}
     for model in models:
         model.eval()
         for (ih, iw) in scales:
             for flip in hflips:
-                # Prepare view
                 view_img = np.ascontiguousarray(img_cv[:, ::-1] if flip else img_cv)
-                # tfm = base_transform_fn(view_img, (ih, iw))
                 tfm = T.Compose(
                     [
                         T.Resize((ih, iw), keep_ratio=False),
@@ -2524,99 +2531,143 @@ def generate_pseudo_labels_tta_mc(
                 )
                 inp = tfm(view_img)[0].unsqueeze(0).to(device)
 
-                # Forward with optional MC on backbone features
-                # out = _forward_backbone_neck_head_eval(
-                #     model, inp, dropout_p=dropout_p, mc_passes=mc_passes
-                # )
-                with torch.no_grad():
-                    out = model(inp)[0]
-
+                out = _forward_backbone_neck_head_eval(
+                    model, inp, dropout_p=dropout_p, mc_passes=mc_passes
+                )
                 outs = out if isinstance(out, list) else [out]
 
                 for out_i in outs:
                     boxes, scores, labels = _extract_np(out_i)
+                    # drop tiny-conf detections up front
+                    if prefilter_score is not None and prefilter_score > 0.0:
+                        keep = scores >= prefilter_score
+                        boxes, scores, labels = boxes[keep], scores[keep], labels[keep]
 
-                    # rescale to original coordinates
+                    # back to original coords
                     boxes = _rescale_boxes_xyxy(boxes, W, H, iw, ih)
                     if flip:
                         _maybe_hflip_boxes_inplace(boxes, W)
 
-                    # store normalized for WBF
-                    all_view_boxes.append(_to_norm_xyxy(boxes, W, H).tolist())
-                    all_view_scores.append(scores.tolist())
-                    all_view_labels.append(labels.tolist())
+                    # stash with view id
+                    for b, s, c in zip(boxes, scores, labels):
+                        raw.append({
+                            'box': b.astype(np.float32),
+                            'score': float(s),
+                            'label': int(c),
+                            'view': view_id
+                        })
+                    view_id += 1  # distinct per forward pass (TTA×MC×model)
 
-                    raw_views.append({'boxes': boxes, 'scores': scores, 'labels': labels})
-
-    if len(all_view_scores) == 0:
+    if len(raw) == 0:
         return (np.zeros((0, 4), np.float32),
                 np.zeros((0,), np.int64),
-                np.zeros((0,), np.float32))
+                np.zeros((0,), np.float32),)
+                #{'p_hat': np.zeros((0,), np.float32), 'T_count': np.zeros((0,), np.int32)})
 
-    # Fuse across all views (TTA × MC)
-    fused_boxes_n, fused_scores_wbf, fused_labels = weighted_boxes_fusion(
-        all_view_boxes, all_view_scores, all_view_labels,
-        iou_thr=iou_thr, skip_box_thr=skip_box_thr, conf_type=fusion_conf_type
-    )
-    fused_boxes_n = np.array(fused_boxes_n, dtype=np.float32)
-    fused_boxes = fused_boxes_n.copy()
-    fused_boxes[:, [0,2]] *= W
-    fused_boxes[:, [1,3]] *= H
-    fused_labels = np.array(fused_labels, dtype=np.int64)
-    fused_scores_wbf = np.array(fused_scores_wbf, dtype=np.float32)
+    # ===== 2) Build class-wise clusters T via greedy IoU matching =====
+    # Sort by score (desc) for stable clustering
+    raw_sorted_idx = np.argsort([-r['score'] for r in raw])
+    clusters = []  # list of dicts: {'label', 'members': [indices], 'views': set()}
+    # For convenience, keep arrays
+    raw_boxes = np.stack([raw[i]['box'] for i in range(len(raw))], axis=0)
+    raw_scores = np.array([r['score'] for r in raw], dtype=np.float32)
+    raw_labels = np.array([r['label'] for r in raw], dtype=np.int64)
+    raw_views  = np.array([r['view']  for r in raw], dtype=np.int32)
 
-    # ---- Uncertainty aggregation (optional) ----
-    # For each fused box, collect scores from all raw views that IoU-match it
-    # Then compute score_mean, score_var, vote_ratio
-    if mc_passes and mc_passes > 0:
-        final_scores = np.zeros_like(fused_scores_wbf)
-        total_views = len(raw_views)
-        for i, fbox in enumerate(fused_boxes):
-            matched_scores = []
-            votes = 0
-            for rv in raw_views:
-                # Find best match in this view
-                if len(rv['boxes']) == 0:
-                    continue
-                ious = np.array([_iou_xyxy(fbox, b) for b in rv['boxes']])
-                j = int(np.argmax(ious))
-                if ious[j] >= agg_iou_match:
-                    votes += 1
-                    matched_scores.append(rv['scores'][j])
+    for idx in raw_sorted_idx:
+        c = raw_labels[idx]
+        b = raw_boxes[idx]
+        # try to attach to an existing cluster of the same class
+        attach_k = -1
+        best_iou = -1.0
+        for k, cl in enumerate(clusters):
+            if cl['label'] != c:
+                continue
+            # compare with cluster's running representative: use highest-score member’s box
+            rep_idx = cl['members'][0]
+            iou = _iou_xyxy(b, raw_boxes[rep_idx])
+            if iou >= agg_iou_match and iou > best_iou:
+                attach_k, best_iou = k, iou
+        if attach_k >= 0:
+            clusters[attach_k]['members'].append(idx)
+            clusters[attach_k]['views'].add(int(raw_views[idx]))
+        else:
+            clusters.append({
+                'label': int(c),
+                'members': [int(idx)],
+                'views': {int(raw_views[idx])},
+            })
 
-            if len(matched_scores) == 0:
-                # fallback to WBF score if nothing matched
-                final_scores[i] = fused_scores_wbf[i]
-            else:
-                ms = np.array(matched_scores, dtype=np.float32)
-                score_mean = float(ms.mean())
-                score_var = float(ms.var(ddof=0))
-                vote_ratio = votes / max(1, total_views)
-                # re-score
-                s_final = score_mean * np.exp(-lambda_var * score_var) * (vote_ratio ** beta_vote)
-                final_scores[i] = s_final
-    else:
-        final_scores = fused_scores_wbf
+    # ===== 3) Compute SSAL stats (p_hat, |T|) and select by UGPL =====
+    p_hat_list, T_list, keep_mask = [], [], []
+    for cl in clusters:
+        ms = raw_scores[cl['members']]
+        p_hat = float(ms.mean()) if ms.size > 0 else 0.0
+        T_cnt = len(cl['views'])  # distinct views that produced consistent boxes
+        p_hat_list.append(p_hat)
+        T_list.append(T_cnt)
+        keep_mask.append((p_hat >= ugpl_prob_thr) and (T_cnt >= ugpl_min_consistency))
 
-    # Global filtering (no classwise thresholds)
-    keep = np.where(final_scores >= score_thresh)[0]
-    if keep.size == 0:
+    p_hat_arr = np.array(p_hat_list, dtype=np.float32)
+    T_arr = np.array(T_list, dtype=np.int32)
+    keep_idx = np.where(np.array(keep_mask, dtype=bool))[0]
+
+    if keep_idx.size == 0:
         return (np.zeros((0, 4), np.float32),
                 np.zeros((0,), np.int64),
-                np.zeros((0,), np.float32))
+                np.zeros((0,), np.float32),
+                {'p_hat': np.zeros((0,), np.float32), 'T_count': np.zeros((0,), np.int32)})
 
-    fused_boxes = fused_boxes[keep]
-    fused_labels = fused_labels[keep]
-    final_scores = final_scores[keep]
+    # Optional cap based on p_hat
+    # if max_pseudo_per_image is not None and keep_idx.size > max_pseudo_per_image:
+    #     order = np.argsort(-p_hat_arr[keep_idx])[:max_pseudo_per_image]
+    #     keep_idx = keep_idx[order]
 
-    # Optional per-image topK
-    if topk_per_image and len(final_scores) > topk_per_image:
-        order = np.argsort(-final_scores)[:topk_per_image]
-        fused_boxes = fused_boxes[order]
-        fused_labels = fused_labels[order]
-        final_scores = final_scores[order]
+    # ===== 4) Fuse *within each kept cluster* using WBF =====
+    pl_boxes, pl_labels, pl_scores = [], [], []
+    pl_p_hat, pl_T = [], []
 
-    return fused_boxes.astype(np.float32), fused_labels.astype(np.int64), final_scores.astype(np.float32)    
+    for k in keep_idx:
+        cl = clusters[k]
+        memb = cl['members']
+        # Prepare WBF inputs: treat each member as its own "model"
+        boxes_list = []
+        scores_list = []
+        labels_list = []
+        for m in memb:
+            b = raw_boxes[m]
+            # normalize to [0,1] for WBF
+            bn = _to_norm_xyxy(b[None, :], W, H)[0].tolist()
+            boxes_list.append([bn])                # one box in this "model"
+            scores_list.append([float(raw_scores[m])])
+            labels_list.append([int(raw_labels[m])])
+
+        fb_n, fs_wbf, fl = weighted_boxes_fusion(
+            boxes_list, scores_list, labels_list,
+            iou_thr=wbf_iou_thr, skip_box_thr=wbf_skip_box_thr, conf_type=wbf_conf_type
+        )
+
+        # Back to absolute coords; keep the top fused box (there should be 1)
+        fb_n = np.array(fb_n, dtype=np.float32)
+        fb = fb_n.copy()
+        fb[:, [0, 2]] *= W
+        fb[:, [1, 3]] *= H
+
+        # Append
+        pl_boxes.append(fb[0])
+        pl_labels.append(int(fl[0]))
+        # choose the training weight/score you prefer (WBF score or p_hat). Here: p_hat.
+        pl_scores.append(float(p_hat_arr[k]))
+        pl_p_hat.append(float(p_hat_arr[k]))
+        pl_T.append(int(T_arr[k]))
+
+    pl_boxes = np.stack(pl_boxes, axis=0).astype(np.float32)
+    pl_labels = np.array(pl_labels, dtype=np.int64)
+    pl_scores = np.array(pl_scores, dtype=np.float32)
+    
+    return pl_boxes, pl_labels, pl_scores
+#, {'p_hat': np.array(pl_p_hat, np.float32),
+                                            #'T_count': np.array(pl_T, np.int32)}
 
 class MemoryPseudoDataset(MemoryDataset):
     def __init__(self, ann_file, root, transforms=None, class_names=None,
@@ -2709,7 +2760,7 @@ class MemoryPseudoDataset(MemoryDataset):
                         img, label = self._transforms(img, target)
                     else:
                         # boxes, labels, scores = generate_pseudo_labels(model, img, score_thresh=score_thresh, transform=self.test_transform, image_sizes=self.image_sizes, device=self.device)
-                        boxes, labels, scores = generate_pseudo_labels_tta_mc(model, img, score_thresh=score_thresh, device=self.device)
+                        boxes, labels, scores = generate_pseudo_labels_tta_mc_ugpl_first(model, img, device=self.device)
 
                         if len(boxes) > 0:
                             target = BoxList(torch.tensor(boxes), img.size, mode='xyxy')
@@ -2754,7 +2805,7 @@ class MemoryPseudoDataset(MemoryDataset):
                         img, label = self._transforms(img, target)
                     else:
                         # boxes, labels, scores = generate_pseudo_labels(model, img, score_thresh=score_thresh,transform=self.test_transform, image_sizes=self.image_sizes, device=self.device)
-                        boxes, labels, scores = generate_pseudo_labels_tta_mc(model, img, score_thresh=score_thresh, device=self.device)
+                        boxes, labels, scores = generate_pseudo_labels_tta_mc_ugpl_first(model, img, device=self.device)
 
                         if len(boxes) > 0:
                             target = BoxList(torch.tensor(boxes), img.size, mode='xyxy')
@@ -3062,7 +3113,7 @@ class FreqClsBalancedPseudoDataset(MemoryDataset):
                         img, label = self._transforms(img, target)
                     else:
                         # boxes, labels, scores = generate_pseudo_labels(model, img, score_thresh=score_thresh, transform=self.test_transform, image_sizes=self.image_sizes, device=self.device)
-                        boxes, labels, scores = generate_pseudo_labels_tta_mc(model, img, score_thresh=score_thresh, device=self.device)
+                        boxes, labels, scores = generate_pseudo_labels_tta_mc_ugpl_first(model, img, device=self.device)
 
                         if len(boxes) > 0:
                             target = BoxList(torch.tensor(boxes), img.size, mode='xyxy')
@@ -3153,7 +3204,7 @@ class FreqClsBalancedPseudoDataset(MemoryDataset):
                         scores = torch.ones(len(boxes))
                     else:
                         # boxes, labels, scores = generate_pseudo_labels(model, img, score_thresh=score_thresh,transform=self.test_transform, image_sizes=self.image_sizes, device=self.device)
-                        boxes, labels, scores = generate_pseudo_labels_tta_mc(model, img, score_thresh=score_thresh, device=self.device)
+                        boxes, labels, scores = generate_pseudo_labels_tta_mc_ugpl_first(model, img, device=self.device)
 
                         if len(boxes) > 0:
                             target = BoxList(torch.tensor(boxes), img.size, mode='xyxy')
@@ -3531,8 +3582,9 @@ class HarmoniousDataset(MemoryDataset):
                         
                         
                     else:
-                        boxes, labels, scores = generate_pseudo_labels_harmonious(model, img, score_thresh=score_thresh, transform=self.test_transform, image_sizes=self.image_sizes, device=self.device)
-
+                        # boxes, labels, scores = generate_pseudo_labels_harmonious(model, img, score_thresh=score_thresh, transform=self.test_transform, image_sizes=self.image_sizes, device=self.device)
+                        boxes, labels, scores = generate_pseudo_labels_tta_mc_ugpl_first(model, img, device=self.device)
+                        
                         if len(boxes) > 0:
                             target = BoxList(torch.tensor(boxes), img.size, mode='xyxy')
                             target.add_field('labels', torch.tensor(labels))
@@ -3585,8 +3637,9 @@ class HarmoniousDataset(MemoryDataset):
 
                         
                     else: 
-                        boxes, labels, scores = generate_pseudo_labels_harmonious(model, img, score_thresh=score_thresh, transform=self.test_transform, image_sizes=self.image_sizes, device=self.device)
-
+                        # boxes, labels, scores = generate_pseudo_labels_harmonious(model, img, score_thresh=score_thresh, transform=self.test_transform, image_sizes=self.image_sizes, device=self.device)
+                        boxes, labels, scores = generate_pseudo_labels_tta_mc_ugpl_first(model, img, device=self.device)
+                        
                         if len(boxes) > 0:
                             target = BoxList(torch.tensor(boxes), img.size, mode='xyxy')
                             target.add_field('labels', torch.tensor(labels))

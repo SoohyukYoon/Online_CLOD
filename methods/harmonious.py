@@ -92,7 +92,7 @@ class Harmonious(ER):
                     
         
         self.score_thresh = 0.55
-        self.decay_factor = 0.0
+        self.decay_factor = 0.99
         self.ema_model = ModelEMA(self.model, self.decay_factor)
         
     
@@ -141,9 +141,8 @@ class Harmonious(ER):
         if len(sample) > 0:
             self.memory.register_stream(sample)
         for i in range(iterations):
+            data = self.memory.get_batch(batch_size, stream_batch_size, model=(self.ema_model.model,self.model), score_thresh=self.score_thresh)
             self.model.train()
-            data = self.memory.get_batch(batch_size, stream_batch_size, model=self.ema_model.model, score_thresh=self.score_thresh)
-            
             self.optimizer.zero_grad()
 
             loss, loss_item = self.model_forward(data)
