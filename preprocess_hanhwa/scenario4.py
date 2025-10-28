@@ -64,7 +64,7 @@ for repeat in repeats:
             for domain_id in range(n_domains):
                 datalist = domain_datalist[domain_id].copy()
                 random.shuffle(datalist)
-                samples_list.append(datalist[:3000])            
+                samples_list.append(datalist[:2000])            
             
             # Create stream with time-based sampling
             stream = []
