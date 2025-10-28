@@ -36,7 +36,7 @@ def get_statistics(dataset: str):
         return 20, 'data/voc/images', 'data/voc/annotations' ## 경로 수정
     elif dataset == 'BDD_domain' or dataset == 'BDD_domain_small':
         return 13, 'data/bdd100k/images', 'data/bdd100k/annotations'
-    elif dataset == 'SHIFT_domain' or dataset == 'SHIFT_domain_small' or dataset == 'SHIFT_domain_small2':
+    elif dataset == 'SHIFT_domain' or dataset == 'SHIFT_domain_small' or dataset == 'SHIFT_domain_small2' or 'hanhwa' in dataset:
         return 6, 'data/shift/images', 'data/shift/annotations'
         # return 6, '/disk1/jhpark/clod/data/shift/images', 'data/shift/annotations'
     elif 'MILITARY_SYNTHETIC_domain' in dataset:
@@ -51,7 +51,7 @@ def get_pretrained_statistics(dataset: str):
         return 10, 'data/voc_15/images', 'data/voc_15/annotations' ## 경로 수정
     elif dataset == 'BDD_domain' or dataset == 'BDD_domain_small':
         return 13, 'data/bdd100k_source/images', 'data/bdd100k_source/annotations'
-    elif dataset == 'SHIFT_domain' or dataset == 'SHIFT_domain_small' or dataset == 'SHIFT_domain_small2':
+    elif dataset == 'SHIFT_domain' or dataset == 'SHIFT_domain_small' or dataset == 'SHIFT_domain_small2' or 'hanhwa' in dataset:
         return 6, 'data/shift_source/images', 'data/shift_source/annotations'
         # return 6, '/disk1/jhpark/clod/data/shift/images', 'data/shift_source/annotations'
     elif 'MILITARY_SYNTHETIC_domain' in dataset:
@@ -66,7 +66,7 @@ def get_exposed_classes(dataset: str):
         return ['aeroplane', 'bicycle', 'bird', 'boat', 'bottle', 'bus', 'car', 'cat', 'chair', 'cow', 'diningtable', 'dog', 'horse', 'motorbike', 'person']
     elif dataset == 'BDD_domain' or dataset == 'BDD_domain_small':
         return ['pedestrian', 'rider', 'car', 'bus', 'truck', 'bicycle', 'motorcycle', 'traffic light', 'traffic sign', 'train', 'trailer', 'other person', 'other vehicle']
-    elif dataset == 'SHIFT_domain' or dataset == 'SHIFT_domain_small' or dataset == 'SHIFT_domain_small2':
+    elif dataset == 'SHIFT_domain' or dataset == 'SHIFT_domain_small' or dataset == 'SHIFT_domain_small2' or 'hanhwa' in dataset:
         return ['pedestrian', 'car', 'truck', 'bus', 'motorcycle', 'bicycle']
     elif 'MILITARY_SYNTHETIC_domain' in dataset:
         return ['fishing vessel', 'warship', 'merchant vessel', 'fixed-wing aircraft', 'rotary-wing aircraft', 'Unmanned Aerial Vehicle', 'bird', 'leaflet', 'waste bomb']
