@@ -14,6 +14,7 @@ sigmas = [0.1]
 seeds = [1, 2, 3]
 
 # Domain order for incremental sampling
+# dataset_dirs = ['shift_overcast', 'shift_cloudy', 'shift_rainy', 'shift_foggy', 'shift_dawndusk', 'shift_night']
 dataset_dirs = ['hanhwa_shift_daytime_clear1', 'hanhwa_shift_dawndusk_clear1', 'hanhwa_shift_night_clear', 'hanhwa_shift_dawndusk_clear2', 'hanhwa_shift_daytime_clear2']
 domain_dict = {i: domain for i, domain in enumerate(dataset_dirs)}
 
@@ -48,7 +49,6 @@ for domain_id, domain_name in enumerate(dataset_dirs):
 
 domain_datalist[2] = random.sample(domain_datalist[2], len(domain_datalist[2])//2)
 print(len(domain_datalist[2]))
-
 # Generate streams for different configurations
 for repeat in repeats:
     for sigma in sigmas:
@@ -64,7 +64,7 @@ for repeat in repeats:
             for domain_id in range(n_domains):
                 datalist = domain_datalist[domain_id].copy()
                 random.shuffle(datalist)
-                samples_list.append(datalist)
+                samples_list.append(datalist[:3000])            
             
             # Create stream with time-based sampling
             stream = []
