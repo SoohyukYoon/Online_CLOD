@@ -3,7 +3,8 @@
 # CIL CONFIG
 NOTE="erd" # Short description of the experiment. (WARNING: logs/results with the same note will be overwritten!)
 MODE="erd"
-DATASET="SHIFT_domain_small" # VOC_10_10 BDD_domain SHIFT_domain MILITARY_SYNTHETIC_domain_1 MILITARY_SYNTHETIC_domain_2 MILITARY_SYNTHETIC_domain_3
+DATASET="SHIFT_hanhwa_scenario5" # VOC_10_10 BDD_domain SHIFT_domain MILITARY_SYNTHETIC_domain_1 MILITARY_SYNTHETIC_domain_2 MILITARY_SYNTHETIC_domain_3
+# DATASET="SHIFT_domain_small" # VOC_10_10 BDD_domain SHIFT_domain MILITARY_SYNTHETIC_domain_1 MILITARY_SYNTHETIC_domain_2 MILITARY_SYNTHETIC_domain_3
 # DATASET="VOC_15_5"
 SIGMA=10
 REPEAT=1
@@ -27,6 +28,10 @@ elif [ "$DATASET" == "SHIFT_domain_small" ]; then
     MODEL_NAME="damo" EVAL_PERIOD=1000
     BATCHSIZE=16; LR=1e-5 OPT_NAME="SGD" SCHED_NAME="default"
 elif [ "$DATASET" == "SHIFT_domain_small2" ]; then
+    MEM_SIZE=500 ONLINE_ITER=1
+    MODEL_NAME="damo" EVAL_PERIOD=1000
+    BATCHSIZE=16; LR=2e-6 OPT_NAME="SGD" SCHED_NAME="default"
+elif [[ "$DATASET" == *"SHIFT_hanhwa"* ]]; then
     MEM_SIZE=500 ONLINE_ITER=1
     MODEL_NAME="damo" EVAL_PERIOD=1000
     BATCHSIZE=16; LR=2e-6 OPT_NAME="SGD" SCHED_NAME="default"

@@ -374,6 +374,101 @@ class ER:
                 eval_dict['avg_mAP50'] += average / 4 #len(self.exposed_domains)
                 eval_dict["classwise_mAP50"].append(average)
 
+        elif self.dataset=='SHIFT_hanhwa_scenario1':
+            eval_dict = {"avg_mAP50":0, "classwise_mAP50":[]}
+            for data_name in ['shift_source','shift_daytime_clear1', 'shift_dawndusk_clear1', 'shift_night_clear', 'shift_dawndusk_clear2', 'shift_daytime_clear2']:
+                datasets = build_dataset(self.damo_cfg, [data_name + '_val'], is_train=False)
+                dataloaders = build_dataloader(
+                    datasets,
+                    self.damo_cfg.test.augment,
+                    batch_size=self.damo_cfg.train.batch_size,
+                    is_train=False,
+                    num_workers=self.damo_cfg.train.get('num_workers', 8)
+                )
+                self.val_loader = dataloaders[0]
+
+                eval_dict_sub = self.evaluate()
+                clean = [v for v in eval_dict_sub['classwise_mAP50'] if v != -1]
+                average = sum(clean) / len(clean) if clean else 0.0
+                eval_dict['avg_mAP50'] += average / 6 #len(self.exposed_domains)
+                eval_dict["classwise_mAP50"].append(average)
+        
+        elif self.dataset=='SHIFT_hanhwa_scenario2':
+            eval_dict = {"avg_mAP50":0, "classwise_mAP50":[]}
+            for data_name in ['shift_source', 'shift_daytime_clear1', 'shift_dawndusk_cloudy', 'shift_night_foggy', 'shift_dawndusk_overcast', 'shift_daytime_clear2']:
+                datasets = build_dataset(self.damo_cfg, [data_name + '_val'], is_train=False)
+                dataloaders = build_dataloader(
+                    datasets,
+                    self.damo_cfg.test.augment,
+                    batch_size=self.damo_cfg.train.batch_size,
+                    is_train=False,
+                    num_workers=self.damo_cfg.train.get('num_workers', 8)
+                )
+                self.val_loader = dataloaders[0]
+
+                eval_dict_sub = self.evaluate()
+                clean = [v for v in eval_dict_sub['classwise_mAP50'] if v != -1]
+                average = sum(clean) / len(clean) if clean else 0.0
+                eval_dict['avg_mAP50'] += average / 6 #len(self.exposed_domains)
+                eval_dict["classwise_mAP50"].append(average)
+        
+        elif self.dataset=='SHIFT_hanhwa_scenario3':
+            eval_dict = {"avg_mAP50":0, "classwise_mAP50":[]}
+            for data_name in ['shift_source', 'shift_daytime_cloudy', 'shift_dawndusk_rainy', 'shift_night_foggy', 'shift_dawndusk_overcast', 'shift_daytime_clear1']:
+                datasets = build_dataset(self.damo_cfg, [data_name + '_val'], is_train=False)
+                dataloaders = build_dataloader(
+                    datasets,
+                    self.damo_cfg.test.augment,
+                    batch_size=self.damo_cfg.train.batch_size,
+                    is_train=False,
+                    num_workers=self.damo_cfg.train.get('num_workers', 8)
+                )
+                self.val_loader = dataloaders[0]
+
+                eval_dict_sub = self.evaluate()
+                clean = [v for v in eval_dict_sub['classwise_mAP50'] if v != -1]
+                average = sum(clean) / len(clean) if clean else 0.0
+                eval_dict['avg_mAP50'] += average / 6 #len(self.exposed_domains)
+                eval_dict["classwise_mAP50"].append(average)
+        
+        elif self.dataset=='SHIFT_hanhwa_scenario4':
+            eval_dict = {"avg_mAP50":0, "classwise_mAP50":[]}
+            for data_name in ['shift_source', 'shift_daytime_foggy', 'shift_dawndusk_clear', 'shift_night_rainy', 'shift_dawndusk_cloudy', 'shift_daytime_overcast']:
+                datasets = build_dataset(self.damo_cfg, [data_name + '_val'], is_train=False)
+                dataloaders = build_dataloader(
+                    datasets,
+                    self.damo_cfg.test.augment,
+                    batch_size=self.damo_cfg.train.batch_size,
+                    is_train=False,
+                    num_workers=self.damo_cfg.train.get('num_workers', 8)
+                )
+                self.val_loader = dataloaders[0]
+
+                eval_dict_sub = self.evaluate()
+                clean = [v for v in eval_dict_sub['classwise_mAP50'] if v != -1]
+                average = sum(clean) / len(clean) if clean else 0.0
+                eval_dict['avg_mAP50'] += average / 6 #len(self.exposed_domains)
+                eval_dict["classwise_mAP50"].append(average)
+        
+        elif self.dataset=='SHIFT_hanhwa_scenario5':
+            eval_dict = {"avg_mAP50":0, "classwise_mAP50":[]}
+            for data_name in ['shift_source', 'shift_daytime_rainy', 'shift_dawndusk_foggy', 'shift_night_clear', 'shift_dawndusk_cloudy', 'shift_daytime_rainy']:
+                datasets = build_dataset(self.damo_cfg, [data_name + '_val'], is_train=False)
+                dataloaders = build_dataloader(
+                    datasets,
+                    self.damo_cfg.test.augment,
+                    batch_size=self.damo_cfg.train.batch_size,
+                    is_train=False,
+                    num_workers=self.damo_cfg.train.get('num_workers', 8)
+                )
+                self.val_loader = dataloaders[0]
+
+                eval_dict_sub = self.evaluate()
+                clean = [v for v in eval_dict_sub['classwise_mAP50'] if v != -1]
+                average = sum(clean) / len(clean) if clean else 0.0
+                eval_dict['avg_mAP50'] += average / 6 #len(self.exposed_domains)
+                eval_dict["classwise_mAP50"].append(average)
+        
         elif 'MILITARY_SYNTHETIC_domain' in self.dataset:
             eval_dict = {"avg_mAP50":0, "classwise_mAP50":[]}
             domain_list = ['military_synthetic_domain_source', 'military_synthetic_domain_night', 'military_synthetic_domain_winter', 'military_synthetic_domain_infrared']

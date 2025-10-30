@@ -125,6 +125,87 @@ class DatasetCatalog(object):
             'ann_file': 'shift_rainy/annotations/instances_val.json'
         },
         
+        'shift_daytime_clear1_val': {
+            'img_dir': 'hanhwa_shift_daytime_clear1/images/val',
+            # 'img_dir': '/disk1/jhpark/clod/data/shift_daytime_clear1/images/val',
+            'ann_file': 'hanhwa_shift_daytime_clear1/annotations/instances_val.json'
+        },
+        'shift_dawndusk_clear1_val': {
+            'img_dir': 'hanhwa_shift_dawndusk_clear1/images/val',
+            # 'img_dir': '/disk1/jhpark/clod/data/shift_dawndusk_clear1/images/val',
+            'ann_file': 'hanhwa_shift_dawndusk_clear1/annotations/instances_val.json'
+        },
+        'shift_night_clear_val': {
+            'img_dir': 'hanhwa_shift_night_clear/images/val',
+            # 'img_dir': '/disk1/jhpark/clod/data/shift_night_clear/images/val',
+            'ann_file': 'hanhwa_shift_night_clear/annotations/instances_val.json'
+        },
+        'shift_dawndusk_clear2_val': {
+            'img_dir': 'hanhwa_shift_dawndusk_clear2/images/val',
+            # 'img_dir': '/disk1/jhpark/clod/data/shift_dawndusk_clear2/images/val',
+            'ann_file': 'hanhwa_shift_dawndusk_clear2/annotations/instances_val.json'
+        },
+        'shift_daytime_clear2_val': {
+            'img_dir': 'hanhwa_shift_daytime_clear2/images/val',
+            # 'img_dir': '/disk1/jhpark/clod/data/shift_daytime_clear2/images/val',
+            'ann_file': 'hanhwa_shift_daytime_clear2/annotations/instances_val.json'
+        },
+        'shift_dawndusk_cloudy_val': {
+            'img_dir': 'hanhwa_shift_dawndusk_cloudy/images/val',
+            # 'img_dir': '/disk1/jhpark/clod/data/shift_dawndusk_cloudy/images/val',
+            'ann_file': 'hanhwa_shift_dawndusk_cloudy/annotations/instances_val.json'
+        },
+        'shift_night_foggy_val': {
+            'img_dir': 'hanhwa_shift_night_foggy/images/val',
+            # 'img_dir': '/disk1/jhpark/clod/data/shift_night_foggy/images/val',
+            'ann_file': 'hanhwa_shift_night_foggy/annotations/instances_val.json'
+        },
+        'shift_dawndusk_overcast_val': {
+            'img_dir': 'hanhwa_shift_dawndusk_overcast/images/val',
+            # 'img_dir': '/disk1/jhpark/clod/data/shift_dawndusk_overcast/images/val',
+            'ann_file': 'hanhwa_shift_dawndusk_overcast/annotations/instances_val.json'
+        },
+        'shift_daytime_cloudy_val': {
+            'img_dir': 'hanhwa_shift_daytime_cloudy/images/val',
+            # 'img_dir': '/disk1/jhpark/clod/data/shift_daytime_cloudy/images/val',
+            'ann_file': 'hanhwa_shift_daytime_cloudy/annotations/instances_val.json'
+        },
+        'shift_dawndusk_rainy_val': {
+            'img_dir': 'hanhwa_shift_dawndusk_rainy/images/val',
+            # 'img_dir': '/disk1/jhpark/clod/data/shift_dawndusk_rainy/images/val',
+            'ann_file': 'hanhwa_shift_dawndusk_rainy/annotations/instances_val.json'
+        },
+        'shift_daytime_foggy_val': {
+            'img_dir': 'hanhwa_shift_daytime_foggy/images/val',
+            # 'img_dir': '/disk1/jhpark/clod/data/shift_daytime_foggy/images/val',
+            'ann_file': 'hanhwa_shift_daytime_foggy/annotations/instances_val.json'
+        },
+        'shift_dawndusk_clear_val': {
+            'img_dir': 'hanhwa_shift_dawndusk_clear/images/val',
+            # 'img_dir': '/disk1/jhpark/clod/data/shift_dawndusk_clear/images/val',
+            'ann_file': 'hanhwa_shift_dawndusk_clear/annotations/instances_val.json'
+        },
+        'shift_night_rainy_val': {
+            'img_dir': 'hanhwa_shift_night_rainy/images/val',
+            # 'img_dir': '/disk1/jhpark/clod/data/shift_night_rainy/images/val',
+            'ann_file': 'hanhwa_shift_night_rainy/annotations/instances_val.json'
+        },
+        'shift_daytime_overcast_val': {
+            'img_dir': 'hanhwa_shift_daytime_overcast/images/val',
+            # 'img_dir': '/disk1/jhpark/clod/data/shift_daytime_overcast/images/val',
+            'ann_file': 'hanhwa_shift_daytime_overcast/annotations/instances_val.json'
+        },
+        'shift_daytime_rainy_val': {
+            'img_dir': 'hanhwa_shift_daytime_rainy/images/val',
+            # 'img_dir': '/disk1/jhpark/clod/data/shift_daytime_rainy/images/val',
+            'ann_file': 'hanhwa_shift_daytime_rainy/annotations/instances_val.json'
+        },
+        'shift_dawndusk_foggy_val': {
+            'img_dir': 'hanhwa_shift_dawndusk_foggy/images/val',
+            # 'img_dir': '/disk1/jhpark/clod/data/shift_dawndusk_foggy/images/val',
+            'ann_file': 'hanhwa_shift_dawndusk_foggy/annotations/instances_val.json'
+        },
+        
         # --- BDD 데이터셋 ---
         'bdd_train_pretrain': {
             'img_dir': 'bdd100k_source/images/train',
