@@ -48,6 +48,11 @@ def select_model(dataset, cfg):
         if os.path.exists(pretrained_path):
             state_dict = torch.load(pretrained_path, map_location='cpu')
             model.load_state_dict(state_dict['model'])
+    elif dataset == 'VisDrone_3_4':
+        pretrained_path = "./damo_pretrain_outputs_w/visdrone_3/pretrain_visdrone_3/damo_pretrain_visdrone_3.pth"
+        if os.path.exists(pretrained_path):
+            state_dict = torch.load(pretrained_path, map_location='cpu')
+            model.load_state_dict(state_dict['model'])
     else:
         print("Pretrained model not found")
 

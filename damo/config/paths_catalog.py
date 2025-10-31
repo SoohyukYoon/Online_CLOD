@@ -7,6 +7,23 @@ import os
 class DatasetCatalog(object):
     DATA_DIR = 'data'
     DATASETS = {
+        'visdrone_3_train':{
+            'img_dir': 'VisDrone2019-VID-3/images/trainval',
+            'ann_file': 'VisDrone2019-VID-3/annotations/instances_trainval.json'
+        },
+        'visdrone_3_val':{
+            'img_dir': 'VisDrone2019-VID-3/images/test',
+            'ann_file': 'VisDrone2019-VID-3/annotations/instances_test.json'
+        },
+        
+        'visdrone_train':{
+            'img_dir': 'VisDrone2019-VID/images/trainval',
+            'ann_file': 'VisDrone2019-VID/annotations/instances_trainval.json'
+        },
+        'visdrone_val':{
+            'img_dir': 'VisDrone2019-VID/images/test',
+            'ann_file': 'VisDrone2019-VID/annotations/instances_test.json'
+        },
         # --- 기존 COCO 데이터셋 ---
         'coco_2017_train': {
             'img_dir': 'coco/images/train2017',

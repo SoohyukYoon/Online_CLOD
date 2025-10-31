@@ -41,6 +41,8 @@ def get_statistics(dataset: str):
         # return 6, '/disk1/jhpark/clod/data/shift/images', 'data/shift/annotations'
     elif 'MILITARY_SYNTHETIC_domain' in dataset:
         return 9, 'data/military_synthetic/images', 'data/military_synthetic/annotations'
+    elif dataset == 'VisDrone_3_4':
+        return 7, 'data/VisDrone2019-VID/images', 'data/VisDrone2019-VID/annotations'
     else:
         raise ValueError("Wrong dataset name")
 
@@ -56,6 +58,8 @@ def get_pretrained_statistics(dataset: str):
         # return 6, '/disk1/jhpark/clod/data/shift/images', 'data/shift_source/annotations'
     elif 'MILITARY_SYNTHETIC_domain' in dataset:
         return 9, 'data/military_synthetic_domain_source/images', 'data/military_synthetic_domain_source/annotations'
+    elif dataset == 'VisDrone_3_4':
+        return 3, 'data/VisDrone2019-VID-3/images', 'data/VisDrone2019-VID-3/annotations'
     else:
         raise ValueError("Wrong dataset name")
     
@@ -70,7 +74,8 @@ def get_exposed_classes(dataset: str):
         return ['pedestrian', 'car', 'truck', 'bus', 'motorcycle', 'bicycle']
     elif 'MILITARY_SYNTHETIC_domain' in dataset:
         return ['fishing vessel', 'warship', 'merchant vessel', 'fixed-wing aircraft', 'rotary-wing aircraft', 'Unmanned Aerial Vehicle', 'bird', 'leaflet', 'waste bomb']
-        
+    elif dataset == 'VisDrone_3_4':
+        return ['people', 'bicycle', 'car']
 def get_train_datalist(dataset, sigma, repeat, rnd_seed):
     with open(f"collections/{dataset}/{dataset}_sigma{sigma}_repeat{repeat}_seed{rnd_seed}.json") as fp:
         train_list = json.load(fp)
@@ -164,6 +169,8 @@ class MemoryDataset(COCODataset):
     def load_data(self, img_path, is_stream, data_class=None):
         img_path = re.sub(r'\.(jpg|jpeg|png|JPG|JPEG|PNG)$', '', img_path)
         try:
+            if not is_stream and self.dataset == 'VisDrone_3_4':
+                img_path = 'sequences/'+img_path
             image_id = self.name2id[img_path]
         except:
             image_id = self.name2id[img_path.split('/')[-1]]
@@ -179,7 +186,7 @@ class MemoryDataset(COCODataset):
         
         for i in range(len(label)):
             if is_stream:
-                if self.dataset == 'VOC_10_10' or self.dataset == 'VOC_15_5':
+                if self.dataset == 'VOC_10_10' or self.dataset == 'VOC_15_5' or self.dataset == 'VisDrone_3_4':
                     if self.contiguous_class2id[self.ori_id2class[label[i]['category_id']]] <= data_class: # == data_class:
                         indices_to_keep.append(i)
                 else:
@@ -190,6 +197,9 @@ class MemoryDataset(COCODataset):
                         indices_to_keep.append(i)
                 elif self.dataset == 'VOC_15_5':
                     if self.contiguous_class2id[self.ori_id2class[label[i]['category_id']]] < 15:
+                        indices_to_keep.append(i)
+                elif self.dataset == 'VisDrone_3_4':
+                    if self.contiguous_class2id[self.ori_id2class[label[i]['category_id']]] < 3:
                         indices_to_keep.append(i)
                 else:
                     indices_to_keep.append(i)
@@ -204,6 +214,8 @@ class MemoryDataset(COCODataset):
         
         if self.dataset == 'VOC_10_10' or self.dataset == 'VOC_15_5':
             image_files = glob.glob(os.path.join(images_dir, "train","*/*.jpg"))
+        elif self.dataset == 'VisDrone_3_4':
+            image_files = glob.glob(os.path.join(images_dir, "trainval","*/*/*.jpg"))
         else:
             image_files = glob.glob(os.path.join(images_dir, "train","*.jpg"))
             
@@ -709,6 +721,8 @@ class ClassBalancedDataset(MemoryDataset):
         
         if self.dataset == 'VOC_10_10' or self.dataset == 'VOC_15_5':
             image_files = glob.glob(os.path.join(images_dir, "train","*/*.jpg"))
+        elif self.dataset == 'VisDrone_3_4':
+            image_files = glob.glob(os.path.join(images_dir, "trainval","*/*/*.jpg"))
         else:
             image_files = glob.glob(os.path.join(images_dir, "train","*.jpg"))
             
@@ -909,6 +923,8 @@ class FreqClsBalancedDataset(MemoryDataset):
         
         if self.dataset == 'VOC_10_10' or self.dataset == 'VOC_15_5':
             image_files = glob.glob(os.path.join(images_dir, "train","*/*.jpg"))
+        elif self.dataset == 'VisDrone_3_4':
+            image_files = glob.glob(os.path.join(images_dir, "trainval","*/*/*.jpg"))
         else:
             image_files = glob.glob(os.path.join(images_dir, "train","*.jpg"))
             
