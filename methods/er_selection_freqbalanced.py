@@ -16,8 +16,6 @@ class SampleSelectionFreqBalanced(ER):
     def initialize_memory_buffer(self, memory_size):
         self.memory_size = memory_size - self.temp_batchsize
         self.new_exposed_classes = ['pretrained']
-        self.lambda_ = 0.5
-        self.use_hardlabel = True
         
         data_args = self.damo_cfg.get_data(self.damo_cfg.dataset.train_ann[0])
         self.memory = SelectionFreqBalancedDataset(ann_file=data_args['args']['ann_file'], root=data_args['args']['root'], transforms=None,class_names=self.damo_cfg.dataset.class_names,
@@ -171,9 +169,6 @@ class SampleSelectionFreqBalanced(ER):
                 # self.total_flops += (batch_size * (self.forward_flops + self.backward_flops))
                 # print("self.total_flops", self.total_flops)
         return total_loss / iterations, stream_info
-   
-    
-    
     
     def online_step(self, sample, sample_num, n_worker):
         if sample.get('klass',None) and sample['klass'] not in self.exposed_classes:
@@ -181,10 +176,10 @@ class SampleSelectionFreqBalanced(ER):
             self.add_new_class(sample['klass'])
         elif sample.get('domain',None) and sample['domain'] not in self.exposed_domains:
             self.exposed_domains.append(sample['domain'])
-            # self.new_exposed_classes.append(sample['domain'])
-            # self.memory.new_exposed_classes.append(sample['domain'])
-            # self.memory.cls_count.append(0)
-            # self.memory.cls_idx.append([])
+            self.new_exposed_classes.append(sample['domain'])
+            self.memory.new_exposed_classes.append(sample['domain'])
+            self.memory.cls_count.append(0)
+            self.memory.cls_idx.append([])
         
         self.temp_batch.append(sample)
         self.num_updates += self.online_iter
@@ -246,70 +241,3 @@ class SampleSelectionFreqBalanced(ER):
                 self.memory.cls_idx[self.new_exposed_classes.index(sample_category)].append(idx_to_replace)
         else:
             self.memory.replace_sample(sample, info)
-
-
-    def model_forward(self, batch):
-        inps, targets = self.preprocess_batch(batch)
-        
-        # with torch.cuda.amp.autocast(enabled=self.use_amp):
-        with torch.cuda.amp.autocast(enabled=False):
-            image_tensors = inps.tensors
-            new_feats_b = self.model.backbone(image_tensors)
-            new_feats_n = self.model.neck(new_feats_b)
-            
-            loss_item = self.model.head.forward_train(new_feats_n, labels=targets)
-            loss_new = loss_item["total_loss"]
-
-            cls_scores, _, bbox_before_softmax, bbox_preds, pos_inds, labels, label_scores, num_total_pos = self.model.head.get_head_outputs_with_label(
-                new_feats_n, labels=targets, drop_bg=False
-            )
-            
-            # focal loss with current prediction score as label
-            mask = (labels != self.num_learned_class) & (labels != self.num_learned_class-1)
-            label_scores[mask] = cls_scores[mask, labels[mask]]
-            loss_qfl_self = self.model.head.loss_cls(cls_scores, (labels, label_scores),
-                                 avg_factor=num_total_pos)
-            
-            # box dfl self
-            reg_max = self.model.head.reg_max
-            weight_targets = cls_scores.detach()
-            weight_targets = weight_targets.max(dim=1)[0][pos_inds]
-            norm_factor = max(weight_targets.sum().item(), 1.0)
-            
-            if self.use_hardlabel:
-                # 1. hard pseudo-label
-                bins = torch.arange(reg_max + 1, device=bbox_preds.device, dtype=bbox_preds.dtype)
-                expected = (bbox_preds * bins)  # (N, 4, K+1)
-                expected = expected.sum(dim=-1)     # (N, 4)
-                # Build hard pseudo targets in the same shape/type as your original dfl_targets
-                pseudo_dfl_targets_hard = expected.clamp(min=0, max=reg_max)  # (N, 4)
-                loss_dfl_self = self.model.head.loss_dfl(
-                    bbox_before_softmax.reshape(-1, reg_max + 1),
-                    pseudo_dfl_targets_hard.reshape(-1),
-                    weight=weight_targets[:, None].expand(-1, 4).reshape(-1),
-                    avg_factor=4.0 * norm_factor,
-                )
-                
-            else:
-                # 2. soft pseudo-label
-                pred_probs = F.softmax(bbox_before_softmax.detach(), dim=-1)
-                soft_targets = pred_probs.view(-1, 4, reg_max + 1)
-                student_logits = bbox_before_softmax.view(-1, 4, reg_max + 1) 
-                
-                # Optional temperature (sharpening); T=1.0 means no change
-                T = 1.0
-                log_q = F.log_softmax(student_logits / T, dim=-1)                          # (n_pos, 4, K+1)
-                p   = F.softmax(soft_targets / T, dim=-1)                                  # (n_pos, 4, K+1)
-                
-                # KL divergence per side, then sum over bins
-                kl_per_side = F.kl_div(log_q, p, reduction='none').sum(dim=-1)             # (n_pos, 4)
-
-                # Weighting like your DFL call
-                w = weight_targets[:, None].expand(-1, 4)                                  # (n_pos, 4)
-                loss_dfl_self = (kl_per_side * w).sum() / (4.0 * norm_factor)
-            # loss_dfl_self=0
-            total_loss = (1 - self.lambda_) * loss_new + self.lambda_ * (loss_qfl_self + loss_dfl_self)
-            
-            self.total_flops += (len(targets) * self.forward_flops)
-        
-        return total_loss, loss_item

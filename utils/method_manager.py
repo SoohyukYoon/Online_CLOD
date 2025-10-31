@@ -26,6 +26,7 @@ from methods.er_selection_balanced import SampleSelectionBalanced
 from methods.er_selection import SampleSelectionBase
 from methods.er_selection_frequency import SampleSelectionFrequency
 from methods.er_selection_freqbalanced import SampleSelectionFreqBalanced
+from methods.adaptive_freeze_selection import AdaptiveFreezeSelection
 
 logger = logging.getLogger()
 
@@ -70,6 +71,12 @@ def select_method(args, n_classes, device):
         )  
     elif args.mode == "adaptive_freeze":
         method = AdaptiveFreeze(
+            device=device,
+            n_classes=n_classes,
+            **kwargs,
+        )
+    elif args.mode == "adaptive_freeze_selection":
+        method = AdaptiveFreezeSelection(
             device=device,
             n_classes=n_classes,
             **kwargs,
