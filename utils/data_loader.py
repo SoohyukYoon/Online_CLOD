@@ -2280,7 +2280,8 @@ class SelectionFreqBalancedDataset(FreqClsBalancedDataset):
             w2 = info_list / info_list.sum()
             ### HYBRID WEIGHT END
             
-            final_w = [(x + y) / 2 for x, y in zip(w, w2)]
+            # final_w = [(x + y) / 2 for x, y in zip(w, w2)]
+            final_w = [x*y for x, y in zip(w, w2)]
             final_w = np.array(final_w)
             final_w /= final_w.sum()
             
