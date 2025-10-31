@@ -12,8 +12,8 @@ python -m preprocess_hanhwa.daytime_rainy
 python -m preprocess_hanhwa.night_clear
 python -m preprocess_hanhwa.night_foggy
 python -m preprocess_hanhwa.night_rainy
-python -m preprocess_hanhwa.scenario1
-python -m preprocess_hanhwa.scenario2
-python -m preprocess_hanhwa.scenario3
-python -m preprocess_hanhwa.scenario4
-python -m preprocess_hanhwa.scenario5
+# python -m preprocess_hanhwa.scenario1
+# python -m preprocess_hanhwa.scenario2
+# python -m preprocess_hanhwa.scenario3
+# python -m preprocess_hanhwa.scenario4
+# python -m preprocess_hanhwa.scenario5

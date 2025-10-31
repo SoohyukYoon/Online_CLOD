@@ -400,6 +400,7 @@ class FreqDataset(MemoryDataset):
         self.alpha = 1.0                  # smoothing constant in 1/(usage+α)
         self.beta = 1.0
         self.usage_decay = 0.995
+        self.use_mosaic_mixup=False
 
     def replace_sample(self, sample, idx=None):
         data_class = sample.get('label', None)
