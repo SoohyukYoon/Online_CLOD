@@ -95,13 +95,15 @@ class AdaptiveFreezeSelection(SampleSelectionFreqBalanced):
                         infos.append(info)
 
                 
-                elif "fisher" in self.selection_method:
-                    self.optimizer.zero_grad()
-                    loss_item = self.model(inps, targets)
-                    loss = loss_item["total_loss"]
+                # elif "fisher" in self.selection_method:
+                #     self.optimizer.zero_grad()
+                #     loss_item = self.model(inps, targets)
+                #     loss = loss_item["total_loss"]
 
-                    info = 0
-                
+                #     info = 0
+            stream_info = infos[:len(self.temp_batch)]
+            memory_info = infos[len(self.temp_batch):]
+            self.memory.update_info(memory_info)
             if self.train_count > 2:
                 if self.unfreeze_rate < 1.0:
                     self.get_freeze_idx(loss)
@@ -119,12 +121,12 @@ class AdaptiveFreezeSelection(SampleSelectionFreqBalanced):
                 loss.backward()
                 self.optimizer.step()
                 
-            if "fisher" in self.selection_method:
-                for n, p in self.model.named_parameters():
-                    if "neck" in n and p.requires_grad == True:
-                        grad = p.grad.detach().cpu().numpy()
-                        info += (grad**2).sum()
-                infos = len(targets)*[info] 
+            # if "fisher" in self.selection_method:
+            #     for n, p in self.model.named_parameters():
+            #         if "neck" in n and p.requires_grad == True:
+            #             grad = p.grad.detach().cpu().numpy()
+            #             info += (grad**2).sum()
+            #     infos = len(targets)*[info] 
             
             if not self.frozen:
                 self.calculate_fisher()
@@ -142,10 +144,6 @@ class AdaptiveFreezeSelection(SampleSelectionFreqBalanced):
             self.unfreeze_layers()
             self.freeze_idx = []
             self.train_count += 1
-            
-            stream_info = infos[:len(self.temp_batch)]
-            memory_info = infos[len(self.temp_batch):]
-            self.memory.update_info(memory_info)
 
         return total_loss / iterations, stream_info
 

@@ -43,6 +43,8 @@ def get_statistics(dataset: str):
         return 9, 'data/military_synthetic/images', 'data/military_synthetic/annotations'
     elif dataset == 'VisDrone_3_4':
         return 7, 'data/VisDrone2019-VID/images', 'data/VisDrone2019-VID/annotations'
+    elif dataset == 'COCO_70_10' or dataset == 'COCO_60_20':
+        return 80, 'data/coco/images', 'data/coco/annotations'
     else:
         raise ValueError("Wrong dataset name")
 
@@ -60,6 +62,10 @@ def get_pretrained_statistics(dataset: str):
         return 9, 'data/military_synthetic_domain_source/images', 'data/military_synthetic_domain_source/annotations'
     elif dataset == 'VisDrone_3_4':
         return 3, 'data/VisDrone2019-VID-3/images', 'data/VisDrone2019-VID-3/annotations'
+    elif dataset == 'COCO_70_10':
+        return 70, 'data/coco_70/images', 'data/coco_70/annotations'
+    elif dataset == 'COCO_60_20':
+        return 60, 'data/coco_60/images', 'data/coco_60/annotations'
     else:
         raise ValueError("Wrong dataset name")
     
@@ -76,6 +82,10 @@ def get_exposed_classes(dataset: str):
         return ['fishing vessel', 'warship', 'merchant vessel', 'fixed-wing aircraft', 'rotary-wing aircraft', 'Unmanned Aerial Vehicle', 'bird', 'leaflet', 'waste bomb']
     elif dataset == 'VisDrone_3_4':
         return ['people', 'bicycle', 'car']
+    elif dataset == 'COCO_70_10':
+        return ['person', 'bicycle', 'car', 'motorcycle', 'airplane', 'bus', 'train', 'truck', 'boat', 'traffic light', 'fire hydrant', 'stop sign', 'parking meter', 'bench', 'bird', 'cat', 'dog', 'horse', 'sheep', 'cow', 'elephant', 'bear', 'zebra', 'giraffe', 'backpack', 'umbrella', 'handbag', 'tie', 'suitcase', 'frisbee', 'skis', 'snowboard', 'sports ball', 'kite', 'baseball bat', 'baseball glove', 'skateboard', 'surfboard', 'tennis racket', 'bottle', 'wine glass', 'cup', 'fork', 'knife', 'spoon', 'bowl', 'banana', 'apple', 'sandwich', 'orange', 'broccoli', 'carrot', 'hot dog', 'pizza', 'donut', 'cake', 'chair', 'couch', 'potted plant', 'bed', 'dining table', 'toilet', 'tv', 'laptop', 'mouse', 'remote', 'keyboard', 'cell phone', 'microwave', 'oven']#, 'toaster', 'sink', 'refrigerator', 'book', 'clock', 'vase', 'scissors', 'teddy bear', 'hair drier', 'toothbrush']
+    elif dataset == 'COCO_60_20':
+        return ['person', 'bicycle', 'car', 'motorcycle', 'airplane', 'bus', 'train', 'truck', 'boat', 'traffic light', 'fire hydrant', 'stop sign', 'parking meter', 'bench', 'bird', 'cat', 'dog', 'horse', 'sheep', 'cow', 'elephant', 'bear', 'zebra', 'giraffe', 'backpack', 'umbrella', 'handbag', 'tie', 'suitcase', 'frisbee', 'skis', 'snowboard', 'sports ball', 'kite', 'baseball bat', 'baseball glove', 'skateboard', 'surfboard', 'tennis racket', 'bottle', 'wine glass', 'cup', 'fork', 'knife', 'spoon', 'bowl', 'banana', 'apple', 'sandwich', 'orange', 'broccoli', 'carrot', 'hot dog', 'pizza', 'donut', 'cake', 'chair', 'couch', 'potted plant', 'bed']#, 'dining table', 'toilet', 'tv', 'laptop', 'mouse', 'remote', 'keyboard', 'cell phone', 'microwave', 'oven', 'toaster', 'sink', 'refrigerator', 'book', 'clock', 'vase', 'scissors', 'teddy bear', 'hair drier', 'toothbrush']
 def get_train_datalist(dataset, sigma, repeat, rnd_seed):
     with open(f"collections/{dataset}/{dataset}_sigma{sigma}_repeat{repeat}_seed{rnd_seed}.json") as fp:
         train_list = json.load(fp)
@@ -186,7 +196,7 @@ class MemoryDataset(COCODataset):
         
         for i in range(len(label)):
             if is_stream:
-                if self.dataset == 'VOC_10_10' or self.dataset == 'VOC_15_5' or self.dataset == 'VisDrone_3_4':
+                if self.dataset == 'VOC_10_10' or self.dataset == 'VOC_15_5' or self.dataset == 'VisDrone_3_4' or 'COCO' in self.dataset:
                     if self.contiguous_class2id[self.ori_id2class[label[i]['category_id']]] <= data_class: # == data_class:
                         indices_to_keep.append(i)
                 else:
@@ -200,6 +210,12 @@ class MemoryDataset(COCODataset):
                         indices_to_keep.append(i)
                 elif self.dataset == 'VisDrone_3_4':
                     if self.contiguous_class2id[self.ori_id2class[label[i]['category_id']]] < 3:
+                        indices_to_keep.append(i)
+                elif self.dataset == 'COCO_70_10':
+                    if self.contiguous_class2id[self.ori_id2class[label[i]['category_id']]] < 70:
+                        indices_to_keep.append(i)
+                elif self.dataset == 'COCO_60_20':
+                    if self.contiguous_class2id[self.ori_id2class[label[i]['category_id']]] < 60:
                         indices_to_keep.append(i)
                 else:
                     indices_to_keep.append(i)
@@ -216,6 +232,8 @@ class MemoryDataset(COCODataset):
             image_files = glob.glob(os.path.join(images_dir, "train","*/*.jpg"))
         elif self.dataset == 'VisDrone_3_4':
             image_files = glob.glob(os.path.join(images_dir, "trainval","*/*/*.jpg"))
+        elif 'COCO' in self.dataset:
+            image_files = glob.glob(os.path.join(images_dir, "train2017","*.jpg"))
         else:
             image_files = glob.glob(os.path.join(images_dir, "train","*.jpg"))
             
@@ -723,6 +741,8 @@ class ClassBalancedDataset(MemoryDataset):
             image_files = glob.glob(os.path.join(images_dir, "train","*/*.jpg"))
         elif self.dataset == 'VisDrone_3_4':
             image_files = glob.glob(os.path.join(images_dir, "trainval","*/*/*.jpg"))
+        elif 'COCO' in self.dataset:
+            image_files = glob.glob(os.path.join(images_dir, "train2017","*.jpg"))
         else:
             image_files = glob.glob(os.path.join(images_dir, "train","*.jpg"))
             
@@ -925,6 +945,8 @@ class FreqClsBalancedDataset(MemoryDataset):
             image_files = glob.glob(os.path.join(images_dir, "train","*/*.jpg"))
         elif self.dataset == 'VisDrone_3_4':
             image_files = glob.glob(os.path.join(images_dir, "trainval","*/*/*.jpg"))
+        elif 'COCO' in self.dataset:
+            image_files = glob.glob(os.path.join(images_dir, "train2017","*.jpg"))
         else:
             image_files = glob.glob(os.path.join(images_dir, "train","*.jpg"))
             

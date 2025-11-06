@@ -73,7 +73,7 @@ def filter_dataset(original_path, output_path, target_dataset, target_labels):
 if __name__ == "__main__":
 
     original_path = Path("./data/coco")
-    output_path   = Path("./data/coco_60")
+    output_path   = Path("./data/coco_70")
     target_datasets = ['train2017', 'val2017']
     
     target_labels = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 27, 28, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 

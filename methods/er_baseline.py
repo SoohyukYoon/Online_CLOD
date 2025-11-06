@@ -71,6 +71,12 @@ class ER:
         elif 'VisDrone_3_4' in self.dataset:
             data_name = 'visdrone'
             config_file = 'configs/damoyolo_tinynasL25_S_VisDrone_3_4.py'
+        elif 'COCO_70_10' in self.dataset:
+            data_name = 'coco'
+            config_file = 'configs/damoyolo_tinynasL25_S_COCO_70_10.py'
+        elif 'COCO_60_20' in self.dataset:
+            data_name = 'coco'
+            config_file = 'configs/damoyolo_tinynasL25_S_COCO_70_10.py'
         self.damo_cfg = parse_config(config_file)
         
         self.exposed_domains = [f'{data_name}_source']
