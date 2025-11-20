@@ -91,8 +91,8 @@ class Harmonious(ER):
         self.optimizer = select_optimizer(self.opt_name, self.model, lr=self.lr, cfg=self.damo_cfg.train.optimizer)
                     
         
-        self.score_thresh = 0.55
-        self.decay_factor = 0.99
+        self.score_thresh = 0.4
+        self.decay_factor = 0.0
         self.ema_model = ModelEMA(self.model, self.decay_factor)
         
     
@@ -141,7 +141,7 @@ class Harmonious(ER):
         if len(sample) > 0:
             self.memory.register_stream(sample)
         for i in range(iterations):
-            data = self.memory.get_batch(batch_size, stream_batch_size, model=(self.ema_model.model,self.model), score_thresh=self.score_thresh)
+            data = self.memory.get_batch(batch_size, stream_batch_size, model=self.model, score_thresh=self.score_thresh)
             self.model.train()
             self.optimizer.zero_grad()
 
@@ -158,7 +158,7 @@ class Harmonious(ER):
             self.total_flops += (len(data[1]) * self.backward_flops)
             
             self.update_schedule()
-            self.ema_model.update(self.model)
+            # self.ema_model.update(self.model)
 
             total_loss += loss.item()
             

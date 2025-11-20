@@ -3622,8 +3622,8 @@ class HarmoniousDataset(MemoryDataset):
                         
                         
                     else:
-                        # boxes, labels, scores = generate_pseudo_labels_harmonious(model, img, score_thresh=score_thresh, transform=self.test_transform, image_sizes=self.image_sizes, device=self.device)
-                        boxes, labels, scores = generate_pseudo_labels_tta_mc_ugpl_first(model, img, device=self.device)
+                        boxes, labels, scores = generate_pseudo_labels_harmonious(model, img, score_thresh=score_thresh, transform=self.test_transform, image_sizes=self.image_sizes, device=self.device)
+                        # boxes, labels, scores = generate_pseudo_labels_tta_mc_ugpl_first(model, img, device=self.device)
                         
                         if len(boxes) > 0:
                             target = BoxList(torch.tensor(boxes), img.size, mode='xyxy')
@@ -3677,8 +3677,8 @@ class HarmoniousDataset(MemoryDataset):
 
                         
                     else: 
-                        # boxes, labels, scores = generate_pseudo_labels_harmonious(model, img, score_thresh=score_thresh, transform=self.test_transform, image_sizes=self.image_sizes, device=self.device)
-                        boxes, labels, scores = generate_pseudo_labels_tta_mc_ugpl_first(model, img, device=self.device)
+                        boxes, labels, scores = generate_pseudo_labels_harmonious(model, img, score_thresh=score_thresh, transform=self.test_transform, image_sizes=self.image_sizes, device=self.device)
+                        # boxes, labels, scores = generate_pseudo_labels_tta_mc_ugpl_first(model, img, device=self.device)
                         
                         if len(boxes) > 0:
                             target = BoxList(torch.tensor(boxes), img.size, mode='xyxy')
