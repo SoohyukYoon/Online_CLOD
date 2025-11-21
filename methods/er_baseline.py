@@ -7,7 +7,7 @@ import os
 import torch
 import torch.nn as nn
 from utils.data_loader import MemoryDataset, get_exposed_classes
-from utils.train_utils import select_model, select_optimizer, select_scheduler, MeanAveragePrecisionCustomized, boxlist_to_pred_dict, boxlist_to_target_dict
+from utils.train_utils import select_model, select_optimizer, select_scheduler, boxlist_to_pred_dict, boxlist_to_target_dict
 #### object detection
 import random
 
@@ -22,6 +22,10 @@ from tqdm import tqdm
 from contextlib import redirect_stdout
 from calflops import calculate_flops
 from utils.flops_utils import blockwise_from_log_file
+
+from damo.apis.detector_inference import compute_on_dataset
+from damo.dataset.datasets.evaluation import evaluate
+from damo.utils.timer import Timer
 
 logger = logging.getLogger()
 
@@ -114,8 +118,8 @@ class ER:
         self.save_path = f'results/{self.dataset}/{self.note}/seed_{self.rnd_seed}'
         
         # test arguments
-        self.metric = MeanAveragePrecisionCustomized(iou_type="bbox", box_format="xyxy",class_metrics=True)#, backend="faster_coco_eval")
-        self.metric.warn_on_many_detections = False
+        # self.metric = MeanAveragePrecisionCustomized(iou_type="bbox", box_format="xyxy",class_metrics=True)#, backend="faster_coco_eval")
+        # self.metric.warn_on_many_detections = False
         
         self.model = self.model.to(self.device)
         
@@ -293,29 +297,62 @@ class ER:
         pass   
 
     def evaluate(self):
-        preds_lists = []
-        targs_lists = []
-        for i, batch in enumerate(tqdm(self.val_loader)):
-            images_obj, targets, _ = batch
-            
-            images_obj = images_obj.to(self.device)
-            with torch.no_grad():
-                predicts = self.model(images_obj)
-            
-            preds_list = [boxlist_to_pred_dict(p) for p in predicts]
-            targs_list = [boxlist_to_target_dict(t) for t in targets]
-            preds_lists.extend(preds_list)
-            targs_lists.extend(targs_list)
-        self.metric(preds_lists, targs_lists)
+        # alternative eval
+        inference_timer = Timer()
+        predictions = compute_on_dataset(self.model, self.val_loader, self.device, inference_timer)
         
-        # pdb.set_trace()
-        epoch_metrics = self.metric.compute()
-        del epoch_metrics["classes"]
+        extra_args = dict(
+            box_only=False,
+            iou_types=('bbox', ),
+            expected_results=(),
+            expected_results_sigma_tol=4,
+        )
+        result = evaluate(self.val_loader.dataset, predictions, None, **extra_args)
+        
+        coco_eval = result[2]
+        prec = coco_eval.eval['precision']  # [T, R, K, A, M]
+        iou_thrs = coco_eval.params.iouThrs
+        cat_ids = coco_eval.params.catIds
+        area_idx = 0   # all
+        maxdet_idx = -1  # use last (usually 100)
+
+        t = np.where(np.isclose(iou_thrs, 0.5))[0][0]
+
+        ap50_per_class = []
+        for k, catId in enumerate(cat_ids):
+            
+            s = prec[t, :, k, area_idx, maxdet_idx]
+            s = s[s > -1] 
+            ap50_per_class.append(np.mean(s) if s.size else float("nan"))
+
         eval_dict = {
-            "avg_mAP50": sum(epoch_metrics['map50_per_class'].tolist()[:self.num_learned_class])/self.num_learned_class,
-            "classwise_mAP50": epoch_metrics['map50_per_class'].tolist()[:self.num_learned_class]
+            "avg_mAP50": sum(ap50_per_class[:self.num_learned_class])/self.num_learned_class,
+            "classwise_mAP50": ap50_per_class[:self.num_learned_class]
         }
-        self.metric.reset()
+        
+        # preds_lists = []
+        # targs_lists = []
+        # for i, batch in enumerate(tqdm(self.val_loader)):
+        #     images_obj, targets, _ = batch
+            
+        #     images_obj = images_obj.to(self.device)
+        #     with torch.no_grad():
+        #         predicts = self.model(images_obj)
+            
+        #     preds_list = [boxlist_to_pred_dict(p) for p in predicts]
+        #     targs_list = [boxlist_to_target_dict(t) for t in targets]
+        #     preds_lists.extend(preds_list)
+        #     targs_lists.extend(targs_list)
+        # self.metric(preds_lists, targs_lists)
+        
+        # # pdb.set_trace()
+        # epoch_metrics = self.metric.compute()
+        # del epoch_metrics["classes"]
+        # eval_dict = {
+        #     "avg_mAP50": sum(epoch_metrics['map50_per_class'].tolist()[:self.num_learned_class])/self.num_learned_class,
+        #     "classwise_mAP50": epoch_metrics['map50_per_class'].tolist()[:self.num_learned_class]
+        # }
+        # self.metric.reset()
         return eval_dict
 
     def online_evaluate(self, sample_num, data_time):

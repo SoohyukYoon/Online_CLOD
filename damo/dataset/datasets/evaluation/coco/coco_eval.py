@@ -61,14 +61,14 @@ def do_coco_evaluation(
                            expected_results_sigma_tol)
     if output_folder:
         torch.save(results, os.path.join(output_folder, 'coco_results.pth'))
-    return results, coco_results
+    return results, coco_results, res
 
 
 def prepare_for_coco_detection(predictions, dataset):
     # assert isinstance(dataset, COCODataset)
     coco_results = []
     for image_id, prediction in enumerate(predictions):
-        # prediction = predictions[prediction]
+        prediction = predictions[prediction]
         original_id = dataset.id_to_img_map[image_id]
         if len(prediction) == 0:
             continue
