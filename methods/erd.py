@@ -10,8 +10,8 @@ class ERD(ER):
     def __init__(self, n_classes, device, **kwargs):
         super().__init__(n_classes, device, **kwargs)
         self.old_model = None
-        self.lambda_cls = kwargs.get("lambda_cls", 1.0)
-        self.lambda_reg = kwargs.get("lambda_reg", 1.0)
+        self.lambda_cls = kwargs.get("lambda_cls", 0.5)
+        self.lambda_reg = kwargs.get("lambda_reg", 0.5)
         self.alpha_cls = kwargs.get("alpha_cls", 2.0)
         self.alpha_reg = kwargs.get("alpha_reg", 2.0)
         logger.info(f"[ERD INIT] λ_cls: {self.lambda_cls}, λ_reg: {self.lambda_reg}, α_cls: {self.alpha_cls}, α_reg: {self.alpha_reg}")

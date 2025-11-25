@@ -80,7 +80,7 @@ class DatasetCatalog(object):
             'ann_file': 'voc/annotations/instances_train.json'
         },
         'voc_val': {
-            'img_dir': 'voc/images/test2007',
+            'img_dir': 'voc/images/val/test2007',
             'ann_file': 'voc/annotations/instances_test2007.json'
         },
         

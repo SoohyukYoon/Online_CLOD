@@ -494,7 +494,7 @@ class FreqDataset(MemoryDataset):
             self.stream_data.append(entry)
     
     @torch.no_grad()
-    def get_batch(self, batch_size, stream_batch_size=0, weight_method= "cls_usage"):
+    def get_batch(self, batch_size, stream_batch_size=0, weight_method= None):
         assert batch_size >= stream_batch_size
         stream_batch_size = min(stream_batch_size, len(self.stream_data))
         batch_size = min(batch_size, stream_batch_size + len(self.buffer))
@@ -1105,7 +1105,7 @@ class FreqClsBalancedDataset(MemoryDataset):
             self.stream_data.append(entry)
 
     @torch.no_grad()
-    def get_batch(self, batch_size, stream_batch_size=0, weight_method= "cls_usage"):
+    def get_batch(self, batch_size, stream_batch_size=0, weight_method= None):
         assert batch_size >= stream_batch_size
         stream_batch_size = min(stream_batch_size, len(self.stream_data))
         batch_size = min(batch_size, stream_batch_size + len(self.buffer))

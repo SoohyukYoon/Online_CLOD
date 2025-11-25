@@ -62,7 +62,7 @@ def select_model(dataset, cfg):
     elif dataset == 'COCO_60_20':
         pretrained_path = "./damo_pretrain_outputs_w/coco_60/pretrain_coco_60/damo_pretrain_coco_60.pth"
         if os.path.exists(pretrained_path):
-            state_dict = torch.load(pretrained_path, map_location='cpu')
+            state_dict = torch.load(pretrained_path, map_location='cpu', weights_only=True)
             model.load_state_dict(state_dict['model'])
     else:
         print("Pretrained model not found")
