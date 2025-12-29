@@ -46,9 +46,9 @@ def get_statistics(dataset: str):
     elif dataset == 'COCO_70_10' or dataset == 'COCO_60_20':
         return 80, 'data/coco/images', 'data/coco/annotations'
     elif dataset == 'HS_TOD_class':
-        return 8, 'data/HS_tod_winter/images', 'data/HS_tod_winter/annotations'
+        return 8, 'data/HS_TOD_winter/images', 'data/HS_TOD_winter/annotations'
     elif dataset == 'HS_TOD_domain':
-        return 1, 'data/HS_tod_winter/images', 'data/HS_tod_winter/annotations'
+        return 1, 'data/HS_TOD_winter/images', 'data/HS_TOD_winter/annotations'
     else:
         raise ValueError("Wrong dataset name")
 
