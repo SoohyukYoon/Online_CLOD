@@ -45,6 +45,10 @@ def get_statistics(dataset: str):
         return 7, 'data/VisDrone2019-VID/images', 'data/VisDrone2019-VID/annotations'
     elif dataset == 'COCO_70_10' or dataset == 'COCO_60_20':
         return 80, 'data/coco/images', 'data/coco/annotations'
+    elif dataset == 'HS_TOD_class':
+        return 8, 'data/HS_tod_winter/images', 'data/HS_tod_winter/annotations'
+    elif dataset == 'HS_TOD_domain':
+        return 1, 'data/HS_tod_winter/images', 'data/HS_tod_winter/annotations'
     else:
         raise ValueError("Wrong dataset name")
 
@@ -66,6 +70,8 @@ def get_pretrained_statistics(dataset: str):
         return 70, 'data/coco_70/images', 'data/coco_70/annotations'
     elif dataset == 'COCO_60_20':
         return 60, 'data/coco_60/images', 'data/coco_60/annotations'
+    elif dataset == 'HS_TOD_class' or dataset == 'HS_TOD_domain':
+        return 1, '', ''
     else:
         raise ValueError("Wrong dataset name")
     
@@ -86,6 +92,9 @@ def get_exposed_classes(dataset: str):
         return ['person', 'bicycle', 'car', 'motorcycle', 'airplane', 'bus', 'train', 'truck', 'boat', 'traffic light', 'fire hydrant', 'stop sign', 'parking meter', 'bench', 'bird', 'cat', 'dog', 'horse', 'sheep', 'cow', 'elephant', 'bear', 'zebra', 'giraffe', 'backpack', 'umbrella', 'handbag', 'tie', 'suitcase', 'frisbee', 'skis', 'snowboard', 'sports ball', 'kite', 'baseball bat', 'baseball glove', 'skateboard', 'surfboard', 'tennis racket', 'bottle', 'wine glass', 'cup', 'fork', 'knife', 'spoon', 'bowl', 'banana', 'apple', 'sandwich', 'orange', 'broccoli', 'carrot', 'hot dog', 'pizza', 'donut', 'cake', 'chair', 'couch', 'potted plant', 'bed', 'dining table', 'toilet', 'tv', 'laptop', 'mouse', 'remote', 'keyboard', 'cell phone', 'microwave', 'oven']#, 'toaster', 'sink', 'refrigerator', 'book', 'clock', 'vase', 'scissors', 'teddy bear', 'hair drier', 'toothbrush']
     elif dataset == 'COCO_60_20':
         return ['person', 'bicycle', 'car', 'motorcycle', 'airplane', 'bus', 'train', 'truck', 'boat', 'traffic light', 'fire hydrant', 'stop sign', 'parking meter', 'bench', 'bird', 'cat', 'dog', 'horse', 'sheep', 'cow', 'elephant', 'bear', 'zebra', 'giraffe', 'backpack', 'umbrella', 'handbag', 'tie', 'suitcase', 'frisbee', 'skis', 'snowboard', 'sports ball', 'kite', 'baseball bat', 'baseball glove', 'skateboard', 'surfboard', 'tennis racket', 'bottle', 'wine glass', 'cup', 'fork', 'knife', 'spoon', 'bowl', 'banana', 'apple', 'sandwich', 'orange', 'broccoli', 'carrot', 'hot dog', 'pizza', 'donut', 'cake', 'chair', 'couch', 'potted plant', 'bed']#, 'dining table', 'toilet', 'tv', 'laptop', 'mouse', 'remote', 'keyboard', 'cell phone', 'microwave', 'oven', 'toaster', 'sink', 'refrigerator', 'book', 'clock', 'vase', 'scissors', 'teddy bear', 'hair drier', 'toothbrush']
+    elif dataset == 'HS_TOD_class' or dataset == 'HS_TOD_domain':
+        return ['person']
+    
 def get_train_datalist(dataset, sigma, repeat, rnd_seed):
     with open(f"collections/{dataset}/{dataset}_sigma{sigma}_repeat{repeat}_seed{rnd_seed}.json") as fp:
         train_list = json.load(fp)
@@ -131,7 +140,8 @@ class MemoryDataset(COCODataset):
             annotations = json.load(f)
             self.name2id = {ann['file_name'].split('.')[0]: ann['id'] for ann in annotations['images']}
         
-        self.build_initial_buffer(init_buffer_size)
+        if 'HS_TOD' not in self.dataset:
+            self.build_initial_buffer(init_buffer_size)
 
         n_classes, image_dir, label_path = get_statistics(dataset=self.dataset)
         self.image_dir = image_dir
@@ -196,7 +206,7 @@ class MemoryDataset(COCODataset):
         
         for i in range(len(label)):
             if is_stream:
-                if self.dataset == 'VOC_10_10' or self.dataset == 'VOC_15_5' or self.dataset == 'VisDrone_3_4' or 'COCO' in self.dataset:
+                if self.dataset == 'VOC_10_10' or self.dataset == 'VOC_15_5' or self.dataset == 'VisDrone_3_4' or 'COCO' in self.dataset or self.dataset == 'HS_TOD_class':
                     if self.contiguous_class2id[self.ori_id2class[label[i]['category_id']]] <= data_class: # == data_class:
                         indices_to_keep.append(i)
                 else:
@@ -699,7 +709,8 @@ class ClassBalancedDataset(MemoryDataset):
             annotations = json.load(f)
             self.name2id = {ann['file_name'].split('.')[0]: ann['id'] for ann in annotations['images']}
         
-        self.build_initial_buffer(init_buffer_size)
+        if 'HS_TOD' not in self.dataset:
+            self.build_initial_buffer(init_buffer_size)
 
         n_classes, image_dir, label_path = get_statistics(dataset=self.dataset)
         self.image_dir = image_dir
@@ -899,7 +910,8 @@ class FreqClsBalancedDataset(MemoryDataset):
             annotations = json.load(f)
             self.name2id = {ann['file_name'].split('.')[0]: ann['id'] for ann in annotations['images']}
         
-        self.build_initial_buffer(init_buffer_size)
+        if 'HS_TOD' not in self.dataset:
+            self.build_initial_buffer(init_buffer_size)
 
         n_classes, image_dir, label_path = get_statistics(dataset=self.dataset)
         self.image_dir = image_dir
@@ -2970,8 +2982,8 @@ class FreqClsBalancedPseudoDataset(MemoryDataset):
         with open(ann_file, 'r') as f:
             annotations = json.load(f)
             self.name2id = {ann['file_name'].split('.')[0]: ann['id'] for ann in annotations['images']}
-        
-        self.build_initial_buffer(init_buffer_size)
+        if 'HS_TOD' not in self.dataset:
+            self.build_initial_buffer(init_buffer_size)
 
         n_classes, image_dir, label_path = get_statistics(dataset=self.dataset)
         self.image_dir = image_dir
@@ -3388,8 +3400,8 @@ class HarmoniousDataset(MemoryDataset):
         with open(ann_file, 'r') as f:
             annotations = json.load(f)
             self.name2id = {ann['file_name'].split('.')[0]: ann['id'] for ann in annotations['images']}
-        
-        self.build_initial_buffer(init_buffer_size)
+        if 'HS_TOD' not in self.dataset:
+            self.build_initial_buffer(init_buffer_size)
 
         n_classes, image_dir, label_path = get_statistics(dataset=self.dataset)
         self.image_dir = image_dir

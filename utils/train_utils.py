@@ -64,6 +64,11 @@ def select_model(dataset, cfg):
         if os.path.exists(pretrained_path):
             state_dict = torch.load(pretrained_path, map_location='cpu', weights_only=True)
             model.load_state_dict(state_dict['model'])
+    elif 'TOD' in dataset:
+        pretrained_path = './damo_pretrain_outputs_w/HS_tod/damo_yolo_s.pth'
+        if os.path.exists(pretrained_path):
+            state_dict = torch.load(pretrained_path, map_location='cpu', weights_only=True)
+            model.load_state_dict(state_dict['model'])
     else:
         print("Pretrained model not found")
 

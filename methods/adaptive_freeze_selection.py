@@ -11,8 +11,8 @@ class AdaptiveFreezeSelection(SampleSelectionFreqBalanced):
     def __init__(self, n_classes, device, **kwargs):
         super().__init__(n_classes=n_classes, device=device, **kwargs)
         # Information based freezing
-        self.unfreeze_rate = 0.0
-        self.fisher_ema_ratio = 0.01
+        self.unfreeze_rate = kwargs['unfreeze_rate']
+        self.fisher_ema_ratio = kwargs['fisher_ema_ratio']
         self.fisher = [0.0 for _ in range(self.num_blocks)]
         self.last_grad_mean = 0.0
         # autograd_hacks.add_hooks(self.model)  # install once – cheap

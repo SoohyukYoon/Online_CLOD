@@ -281,7 +281,27 @@ class DatasetCatalog(object):
         'military_synthetic_val': {
             'img_dir': 'military_synthetic/images/val',
             'ann_file': 'military_synthetic/annotations/instances_val_area.json'
-        }
+        },
+        
+        # HS TOD winter dataset
+        'TOD_winter_domain_train': {
+            'img_dir': 'HS_TOD_winter/images/train',
+            'ann_file': 'HS_TOD_winter/annotations/annotations_domain_train.json'
+        },
+        'TOD_winter_domain_val': {
+            'img_dir': 'HS_TOD_winter/images/test',
+            'ann_file': 'HS_TOD_winter/annotations/annotations_domain_test.json'
+        },
+        'TOD_winter_class_train': {
+            'img_dir': 'HS_TOD_winter/images/train',
+            'ann_file': 'HS_TOD_winter/annotations/annotations_train.json'
+        },
+        'TOD_winter_class_val': {
+            'img_dir': 'HS_TOD_winter/images/test',
+            'ann_file': 'HS_TOD_winter/annotations/annotations_test.json'
+        },
+        
+        
         }
 
     @staticmethod

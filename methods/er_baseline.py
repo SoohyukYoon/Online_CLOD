@@ -81,6 +81,10 @@ class ER:
         elif 'COCO_60_20' in self.dataset:
             data_name = 'coco'
             config_file = 'configs/damoyolo_tinynasL25_S_COCO_60_20.py'
+        elif 'HS_TOD' in self.dataset:
+            data_name = self.dataset # 'tod_class' or 'tod_domain'
+            config_file = f'configs/damoyolo_tinynasL25_S_{self.dataset}.py'
+            
         self.damo_cfg = parse_config(config_file)
         
         self.exposed_domains = [f'{data_name}_source']

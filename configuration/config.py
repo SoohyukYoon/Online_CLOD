@@ -65,6 +65,8 @@ def base_parser():
 
     parser.add_argument("--selection_method", type=str, default="loss")
     parser.add_argument("--priority_selection", type=str, default="high")
+    parser.add_argument("--unfreeze_rate", type=float, default=0.0)
+    parser.add_argument("--fisher_ema_ratio", type=float, default=0.01)
 
     args = parser.parse_args()
     return args

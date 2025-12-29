@@ -74,7 +74,7 @@ class Config(metaclass=ABCMeta):
         self.miscs = miscs
 
     def get_data(self, name):
-        if any(keyword in name for keyword in ['coco', 'voc', 'shift', 'military', 'visdrone']):
+        if any(keyword in name for keyword in ['coco', 'voc', 'shift', 'military', 'visdrone', 'TOD']):
             data_dir = DatasetCatalog.DATA_DIR
             attrs = DatasetCatalog.DATASETS[name]
             args = dict(
