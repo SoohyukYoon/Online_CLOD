@@ -300,7 +300,26 @@ class DatasetCatalog(object):
             'img_dir': 'HS_TOD_winter/images/test',
             'ann_file': 'HS_TOD_winter/annotations/annotations_test.json'
         },
-        
+        'TOD_winter_class_new_train': {
+            'img_dir': 'HS_TOD_winter/images/train',
+            'ann_file': 'HS_TOD_winter/annotations/annotations_new_train.json'
+        },
+        'TOD_winter_class_new_val': {
+            'img_dir': 'HS_TOD_winter/images/test',
+            'ann_file': 'HS_TOD_winter/annotations/annotations_new_test.json'
+        },
+        'TOD_winter_HONG': {
+            'img_dir': 'HS_TOD_winter/images/test',
+            'ann_file': 'HS_TOD_winter/annotations/annotations_domain_test_HONG.json'
+        },
+        'TOD_winter_PC': {
+            'img_dir': 'HS_TOD_winter/images/test',
+            'ann_file': 'HS_TOD_winter/annotations/annotations_domain_test_PC.json'
+        },
+        'TOD_winter_YOUNG': {
+            'img_dir': 'HS_TOD_winter/images/test',
+            'ann_file': 'HS_TOD_winter/annotations/annotations_domain_test_YOUNG.json'
+        },
         
         }
 

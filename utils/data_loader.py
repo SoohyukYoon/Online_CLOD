@@ -45,7 +45,7 @@ def get_statistics(dataset: str):
         return 7, 'data/VisDrone2019-VID/images', 'data/VisDrone2019-VID/annotations'
     elif dataset == 'COCO_70_10' or dataset == 'COCO_60_20':
         return 80, 'data/coco/images', 'data/coco/annotations'
-    elif dataset == 'HS_TOD_class':
+    elif dataset == 'HS_TOD_class' or dataset == 'HS_TOD_class_new':
         return 8, 'data/HS_TOD_winter/images', 'data/HS_TOD_winter/annotations'
     elif dataset == 'HS_TOD_domain':
         return 1, 'data/HS_TOD_winter/images', 'data/HS_TOD_winter/annotations'
@@ -70,7 +70,7 @@ def get_pretrained_statistics(dataset: str):
         return 70, 'data/coco_70/images', 'data/coco_70/annotations'
     elif dataset == 'COCO_60_20':
         return 60, 'data/coco_60/images', 'data/coco_60/annotations'
-    elif dataset == 'HS_TOD_class' or dataset == 'HS_TOD_domain':
+    elif dataset == 'HS_TOD_class' or dataset == 'HS_TOD_domain' or dataset == 'HS_TOD_class_new':
         return 1, '', ''
     else:
         raise ValueError("Wrong dataset name")
@@ -92,7 +92,7 @@ def get_exposed_classes(dataset: str):
         return ['person', 'bicycle', 'car', 'motorcycle', 'airplane', 'bus', 'train', 'truck', 'boat', 'traffic light', 'fire hydrant', 'stop sign', 'parking meter', 'bench', 'bird', 'cat', 'dog', 'horse', 'sheep', 'cow', 'elephant', 'bear', 'zebra', 'giraffe', 'backpack', 'umbrella', 'handbag', 'tie', 'suitcase', 'frisbee', 'skis', 'snowboard', 'sports ball', 'kite', 'baseball bat', 'baseball glove', 'skateboard', 'surfboard', 'tennis racket', 'bottle', 'wine glass', 'cup', 'fork', 'knife', 'spoon', 'bowl', 'banana', 'apple', 'sandwich', 'orange', 'broccoli', 'carrot', 'hot dog', 'pizza', 'donut', 'cake', 'chair', 'couch', 'potted plant', 'bed', 'dining table', 'toilet', 'tv', 'laptop', 'mouse', 'remote', 'keyboard', 'cell phone', 'microwave', 'oven']#, 'toaster', 'sink', 'refrigerator', 'book', 'clock', 'vase', 'scissors', 'teddy bear', 'hair drier', 'toothbrush']
     elif dataset == 'COCO_60_20':
         return ['person', 'bicycle', 'car', 'motorcycle', 'airplane', 'bus', 'train', 'truck', 'boat', 'traffic light', 'fire hydrant', 'stop sign', 'parking meter', 'bench', 'bird', 'cat', 'dog', 'horse', 'sheep', 'cow', 'elephant', 'bear', 'zebra', 'giraffe', 'backpack', 'umbrella', 'handbag', 'tie', 'suitcase', 'frisbee', 'skis', 'snowboard', 'sports ball', 'kite', 'baseball bat', 'baseball glove', 'skateboard', 'surfboard', 'tennis racket', 'bottle', 'wine glass', 'cup', 'fork', 'knife', 'spoon', 'bowl', 'banana', 'apple', 'sandwich', 'orange', 'broccoli', 'carrot', 'hot dog', 'pizza', 'donut', 'cake', 'chair', 'couch', 'potted plant', 'bed']#, 'dining table', 'toilet', 'tv', 'laptop', 'mouse', 'remote', 'keyboard', 'cell phone', 'microwave', 'oven', 'toaster', 'sink', 'refrigerator', 'book', 'clock', 'vase', 'scissors', 'teddy bear', 'hair drier', 'toothbrush']
-    elif dataset == 'HS_TOD_class' or dataset == 'HS_TOD_domain':
+    elif dataset == 'HS_TOD_class' or dataset == 'HS_TOD_domain' or dataset == 'HS_TOD_class_new':
         return ['person']
     
 def get_train_datalist(dataset, sigma, repeat, rnd_seed):
@@ -138,7 +138,7 @@ class MemoryDataset(COCODataset):
         
         with open(ann_file, 'r') as f:
             annotations = json.load(f)
-            self.name2id = {ann['file_name'].split('.')[0]: ann['id'] for ann in annotations['images']}
+            self.name2id = {re.sub(r'\.(jpg|jpeg|png)$', '', ann['file_name'], flags=re.I): ann['id'] for ann in annotations['images']}
         
         if 'HS_TOD' not in self.dataset:
             self.build_initial_buffer(init_buffer_size)
@@ -187,7 +187,10 @@ class MemoryDataset(COCODataset):
         return img, anno, idx
 
     def load_data(self, img_path, is_stream, data_class=None):
-        img_path = re.sub(r'\.(jpg|jpeg|png|JPG|JPEG|PNG)$', '', img_path)
+        # debug
+        img_path = re.sub(r'\.(jpg|jpeg|png)$', '', img_path, flags=re.I)
+        #print("[DEBUG] after splitext:", img_path)
+
         try:
             if not is_stream and self.dataset == 'VisDrone_3_4':
                 img_path = 'sequences/'+img_path
@@ -206,7 +209,7 @@ class MemoryDataset(COCODataset):
         
         for i in range(len(label)):
             if is_stream:
-                if self.dataset == 'VOC_10_10' or self.dataset == 'VOC_15_5' or self.dataset == 'VisDrone_3_4' or 'COCO' in self.dataset or self.dataset == 'HS_TOD_class':
+                if self.dataset == 'VOC_10_10' or self.dataset == 'VOC_15_5' or self.dataset == 'VisDrone_3_4' or 'COCO' in self.dataset or 'HS_TOD_class' in self.dataset:
                     if self.contiguous_class2id[self.ori_id2class[label[i]['category_id']]] <= data_class: # == data_class:
                         indices_to_keep.append(i)
                 else:
@@ -707,7 +710,11 @@ class ClassBalancedDataset(MemoryDataset):
         
         with open(ann_file, 'r') as f:
             annotations = json.load(f)
-            self.name2id = {ann['file_name'].split('.')[0]: ann['id'] for ann in annotations['images']}
+            self.name2id = {re.sub(r'\.(jpg|jpeg|png)$', '', ann['file_name'], flags=re.I): ann['id'] for ann in annotations['images']}
+            #print("[DEBUG] data_loader file:", __file__)
+            #print("[DEBUG] ann_file:", ann_file)
+            #print("[DEBUG] sample name2id key:", next(iter(self.name2id.keys())))
+
         
         if 'HS_TOD' not in self.dataset:
             self.build_initial_buffer(init_buffer_size)
@@ -908,7 +915,7 @@ class FreqClsBalancedDataset(MemoryDataset):
         
         with open(ann_file, 'r') as f:
             annotations = json.load(f)
-            self.name2id = {ann['file_name'].split('.')[0]: ann['id'] for ann in annotations['images']}
+            self.name2id = {re.sub(r'\.(jpg|jpeg|png)$', '', ann['file_name'], flags=re.I): ann['id'] for ann in annotations['images']}
         
         if 'HS_TOD' not in self.dataset:
             self.build_initial_buffer(init_buffer_size)
@@ -2981,7 +2988,8 @@ class FreqClsBalancedPseudoDataset(MemoryDataset):
         
         with open(ann_file, 'r') as f:
             annotations = json.load(f)
-            self.name2id = {ann['file_name'].split('.')[0]: ann['id'] for ann in annotations['images']}
+            self.name2id = {re.sub(r'\.(jpg|jpeg|png)$', '', ann['file_name'], flags=re.I): ann['id'] for ann in annotations['images']}
+            
         if 'HS_TOD' not in self.dataset:
             self.build_initial_buffer(init_buffer_size)
 
@@ -3399,7 +3407,8 @@ class HarmoniousDataset(MemoryDataset):
         
         with open(ann_file, 'r') as f:
             annotations = json.load(f)
-            self.name2id = {ann['file_name'].split('.')[0]: ann['id'] for ann in annotations['images']}
+            self.name2id = {re.sub(r'\.(jpg|jpeg|png)$', '', ann['file_name'], flags=re.I): ann['id'] for ann in annotations['images']}
+            
         if 'HS_TOD' not in self.dataset:
             self.build_initial_buffer(init_buffer_size)
 

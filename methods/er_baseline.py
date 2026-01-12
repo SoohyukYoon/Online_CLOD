@@ -538,7 +538,25 @@ class ER:
                 average = sum(clean) / len(clean) if clean else 0.0
                 eval_dict['avg_mAP50'] += average / len(domain_list)
                 eval_dict["classwise_mAP50"].append(average)
-                
+        elif 'HS_TOD_domain' in self.dataset:
+            eval_dict = {"avg_mAP50":0, "classwise_mAP50":[]}
+            domain_list = ['TOD_winter_HONG', 'TOD_winter_PC', 'TOD_winter_YOUNG']
+            for data_name in domain_list:
+                datasets = build_dataset(self.damo_cfg, [data_name], is_train=False)
+                dataloaders = build_dataloader(
+                    datasets,
+                    self.damo_cfg.test.augment,
+                    batch_size=self.damo_cfg.train.batch_size,
+                    is_train=False,
+                    num_workers=self.damo_cfg.train.get('num_workers', 8)
+                )
+                self.val_loader = dataloaders[0]
+
+                eval_dict_sub = self.evaluate()
+                clean = [v for v in eval_dict_sub['classwise_mAP50'] if v != -1]
+                average = sum(clean) / len(clean) if clean else 0.0
+                eval_dict['avg_mAP50'] += average / len(domain_list)
+                eval_dict["classwise_mAP50"].append(average)
         else:
             eval_dict = self.evaluate()
 
