@@ -33,43 +33,25 @@ def equalize_image(image_path):
     y_channel = img_ycrcb[:, :, 0]
     img_w, img_h = y_channel.shape[:2]
     
-    # Calculate histogram
-    histogram_data = {}
-    for pixel_value in range(256):
-        histogram_data[pixel_value] = 0
-    
-    for i in range(img_w):
-        for j in range(img_h):
-            pixel_value = int(y_channel[i, j])
-            histogram_data[pixel_value] += 1
+    # Calculate histogram using numpy
+    histogram, _ = np.histogram(y_channel, bins=256, range=(0, 256))
     
     # Calculate cumulative distribution function (CDF)
-    cdf = {}
-    cumulative = 0
-    total_pixels = img_w * img_h
-    for pixel_value in range(256):
-        cumulative += histogram_data[pixel_value]
-        cdf[pixel_value] = cumulative
+    cdf = np.cumsum(histogram)
     
     # Find min and max CDF values
-    min_cdf = min(cdf.values())
-    max_cdf = max(cdf.values())
+    min_cdf = cdf[cdf > 0].min() if np.any(cdf > 0) else 0
+    max_cdf = cdf[-1]
     cdf_range = max_cdf - min_cdf
     
     # Normalize CDF to 0-255 range and create mapping
-    equalized_mapping = {}
-    for pixel_value in range(256):
-        if cdf_range > 0:
-            equalized_mapping[pixel_value] = int(255 * (cdf[pixel_value] - min_cdf) / cdf_range)
-        else:
-            equalized_mapping[pixel_value] = pixel_value
+    if cdf_range > 0:
+        equalized_mapping = (255 * (cdf - min_cdf) / cdf_range).astype(np.uint8)
+    else:
+        equalized_mapping = np.arange(256, dtype=np.uint8)
     
-    # Apply histogram equalization to Y channel
-    equalized_y = np.zeros((img_w, img_h), dtype=np.uint8)
-    for i in range(img_w):
-        for j in range(img_h):
-            original_value = int(y_channel[i, j])
-            equalized_y[i, j] = equalized_mapping[original_value]
+    # Apply histogram equalization to Y channel using vectorized operations
+    equalized_y = equalized_mapping[y_channel]
     
     # Replace Y channel with equalized version
     img_ycrcb[:, :, 0] = equalized_y
@@ -104,16 +86,15 @@ def filter_dataset(original_path, output_path, target_dataset):
     labels_data['annotations'] = filtered_annotations
 
     # copy and equalize images
+    count = 0 
     for image in labels_data['images']:
+        print(count)
+        count += 1 
         filename = image['file_name']
 
-        src_dir = original_path / 'images' / target_dataset
-
-        matches = list(src_dir.glob(f"{filename}"))
-        if not matches:
-            raise FileNotFoundError(f"No file found for image_id={filename} in {src_dir}")
-        
-        src_file = matches[0]
+        src_file = original_path / 'images' / target_dataset / filename
+        if not src_file.exists():
+            raise FileNotFoundError(f"No file found for image_id={filename} in {src_file.parent}")
         dest_dir = output_path / 'images' / target_dataset
         os.makedirs(dest_dir, exist_ok=True)
         
