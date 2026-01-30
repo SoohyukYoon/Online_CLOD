@@ -41,7 +41,10 @@ class ER:
         self.mode = kwargs["mode"]
         self.lr = kwargs["lr"]
         self.batch_size = kwargs["batchsize"]
-        self.temp_batchsize = kwargs.get("temp_batchsize") or (self.batch_size // 2)
+        self.temp_batchsize = kwargs["temp_batchsize"] 
+        print("temp_batchsize: ", self.temp_batchsize)
+        self.score_threshold = kwargs["score_threshold"]
+        print("score_threshold: ", self.score_threshold)
         self.memory_size = kwargs["memory_size"] - self.temp_batchsize
         self.model_name = kwargs["model_name"]
         self.opt_name = kwargs["opt_name"]
@@ -303,7 +306,7 @@ class ER:
     def evaluate(self):
         # alternative eval
         inference_timer = Timer()
-        predictions = compute_on_dataset(self.model, self.val_loader, self.device, inference_timer)
+        predictions = compute_on_dataset(self.model, self.val_loader, self.device, inference_timer, dataset_name=self.dataset, batch_size=self.temp_batchsize, score_threshold=self.score_threshold)
         
         extra_args = dict(
             box_only=False,
@@ -413,7 +416,7 @@ class ER:
                     datasets,
                     self.damo_cfg.test.augment,
                     batch_size=self.damo_cfg.train.batch_size,
-                    is_train=False,
+                    is_train=False, 
                     num_workers=self.damo_cfg.train.get('num_workers', 8)
                 )
                 self.val_loader = dataloaders[0]

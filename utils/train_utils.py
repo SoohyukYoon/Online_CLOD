@@ -72,7 +72,7 @@ def select_model(dataset, cfg):
     else:
         print("Pretrained model not found")
 
-    print(model)
+    #print(model)
     
     return model
 

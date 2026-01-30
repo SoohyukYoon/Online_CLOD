@@ -60,13 +60,15 @@ def base_parser():
 
     # Eval period
     parser.add_argument("--eval_period", type=int, default=100, help="evaluation period for true online setup")
-    parser.add_argument("--temp_batchsize", type=int, help="temporary batch size, for true online")
     parser.add_argument("--online_iter", type=float, default=1, help="number of model updates per samples seen.")
 
     parser.add_argument("--selection_method", type=str, default="loss")
     parser.add_argument("--priority_selection", type=str, default="high")
     parser.add_argument("--unfreeze_rate", type=float, default=0.0)
     parser.add_argument("--fisher_ema_ratio", type=float, default=0.01)
+
+    parser.add_argument("--score_threshold", type=float, default=0.5)
+    parser.add_argument("--temp_batchsize", type=int, default=4)
 
     args = parser.parse_args()
     return args

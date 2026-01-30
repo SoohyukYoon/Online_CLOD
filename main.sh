@@ -1,9 +1,9 @@
 #/bin/bash
 
 # CIL CONFIG
-NOTE="er_freq_balanced" # Short description of the experiment. (WARNING: logs/results with the same note will be overwritten!)
-MODE="er_freq_balanced"
-DATASET="HS_TOD_domain" # VOC_10_10 BDD_domain SHIFT_domain MILITARY_SYNTHETIC_domain_1 MILITARY_SYNTHETIC_domain_2 MILITARY_SYNTHETIC_domain_3
+NOTE="er_pseudo" # Short description of the experiment. (WARNING: logs/results with the same note will be overwritten!)
+MODE="er_pseudo"
+DATASET="SHIFT_domain_small2" # VOC_10_10 BDD_domain SHIFT_domain MILITARY_SYNTHETIC_domain_1 MILITARY_SYNTHETIC_domain_2 MILITARY_SYNTHETIC_domain_3
 # DATASET="SHIFT_domain_small" # VOC_10_10 BDD_domain SHIFT_domain MILITARY_SYNTHETIC_domain_1 MILITARY_SYNTHETIC_domain_2 MILITARY_SYNTHETIC_domain_3
 # DATASET="VOC_15_5"
 SIGMA=10
@@ -46,7 +46,8 @@ elif [ "$DATASET" == "SHIFT_domain_small" ]; then
 elif [ "$DATASET" == "SHIFT_domain_small2" ]; then
     MEM_SIZE=500 ONLINE_ITER=1
     MODEL_NAME="damo" EVAL_PERIOD=1000
-    BATCHSIZE=16; LR=2e-6 OPT_NAME="SGD" SCHED_NAME="default"
+    BATCHSIZE=16; LR=1e-6 OPT_NAME="SGD" SCHED_NAME="default"
+    SCORE_THRESHOLD=0.45 TEMP_BATCHSIZE=4
 elif [[ "$DATASET" == *"SHIFT_hanhwa"* ]]; then
     MEM_SIZE=500 ONLINE_ITER=1
     MODEL_NAME="damo" EVAL_PERIOD=1000
@@ -71,5 +72,6 @@ do
     --model_name $MODEL_NAME --opt_name $OPT_NAME --sched_name $SCHED_NAME \
     --lr $LR --batchsize $BATCHSIZE \
     --memory_size $MEM_SIZE  --online_iter $ONLINE_ITER \
-    --note $NOTE --eval_period $EVAL_PERIOD $USE_AMP # > new_${MODE}_${DATASET}_mem${MEM_SIZE}_lr${LR}_online_iter${ONLINE_ITER}_seed${RND_SEED}_mosaic${MOSAIC}_mixup${MIXUP}.out 2>&1 &
+    --score_threshold $SCORE_THRESHOLD  --temp_batchsize $TEMP_BATCHSIZE \
+    --note $NOTE --eval_period $EVAL_PERIOD $USE_AMP > ${DATASET}_${TEMP_BATCHSIZE}_${SCORE_THRESHOLD}.out 2>&1 &
 done

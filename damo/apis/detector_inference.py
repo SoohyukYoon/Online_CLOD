@@ -3,15 +3,23 @@
 import os
 
 import torch
+import cv2
+import numpy as np
 from loguru import logger
 from tqdm import tqdm
 
 from damo.dataset.datasets.evaluation import evaluate
 from damo.utils import all_gather, get_world_size, is_main_process, synchronize
 from damo.utils.timer import Timer, get_time_str
+from damo.structures.boxlist_ops import boxlist_iou
+from damo.utils.boxes import filter_results
+
+# Global counter for sample_count
+_sample_count = 0
 
 
-def compute_on_dataset(model, data_loader, device, timer=None, tta=False):
+def compute_on_dataset(model, data_loader, device, timer=None, tta=False,
+                       dataset_name=None, batch_size=None, score_threshold=None, dataset=None):
     model.eval()
     results_dict = {}
     cpu_device = torch.device('cpu')
@@ -28,7 +36,46 @@ def compute_on_dataset(model, data_loader, device, timer=None, tta=False):
         results_dict.update(
             {img_id: result
              for img_id, result in zip(image_ids, output)})
+
+        # Process only the first image in the batch
+        output_reduced = nms_for_visual_analysis()
+        create_bbox()
+        if gt_has_zero_IoU():
+            create_bbox()
+
     return results_dict
+
+def gt_has_zero_IoU(target, output_reduced):
+    """
+    If a GT-bbox has IoU==0 to every predicted bounding box return True immediately
+    """
+
+
+def nms_for_visual_analysis(output, threshold=0.9):
+    """
+    Returns a new set of bboxes that have little overlap, uses the returned set for create_bbox()
+    """
+
+
+def create_bbox(image, target, output_reduced, gt_missing=False, image_id=None,
+                dataset_name=None, batch_size=None, score_threshold=None):
+    """
+    Creates a new image that overlays GT and predicted bbox over the sample image. 
+    Overlay GT bbox, and predicted class and its confidence score is right above the bbox in red
+    Overlay predicted bbox, and predicted class and its confidence score is right above the bbox in red
+
+    Make the predicted class and confidence scores in the following format: 
+    {class_index},{confidence score without the 0 or ., i.e. 0.36 -> 36 or 0.07 -> 7}, i.e. 0,3 -- 
+    """
+  
+
+def store_bbox(img_np, gt_missing, image_id, dataset_name, batch_size, score_threshold):
+    """
+    Stores the bbox overlayed image in
+    results/{dataset}_{temp_batchsize}_{score_threshold}_{no_GT or None}
+    in which the image is named {original file name}_{sample_count} where the image type is jpg  
+    """
+   
 
 
 def _accumulate_predictions_from_multiple_gpus(predictions_per_gpu,
@@ -77,8 +124,15 @@ def inference(
     total_timer = Timer()
     inference_timer = Timer()
     total_timer.tic()
+    # Get batch_size from data_loader if available
+    batch_size = getattr(data_loader, 'batch_size', None) or getattr(data_loader.batch_sampler, 'batch_size', None)
+    # Get score_threshold from model config if available
+    score_threshold = getattr(model.head, 'nms_conf_thre', None) if hasattr(model, 'head') else None
     predictions = compute_on_dataset(model, data_loader, device,
-                                     inference_timer)
+                                     inference_timer,
+                                     dataset_name=dataset_name,
+                                     batch_size=batch_size,
+                                     score_threshold=score_threshold)
     # wait for all processes to complete before measuring the time
     if multi_gpu_infer:
         synchronize()
