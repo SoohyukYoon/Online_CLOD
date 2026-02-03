@@ -45,9 +45,9 @@ elif [ "$DATASET" == "SHIFT_domain_small" ]; then
     BATCHSIZE=16; LR=1e-5 OPT_NAME="SGD" SCHED_NAME="default"
 elif [ "$DATASET" == "SHIFT_domain_small2" ]; then
     MEM_SIZE=500 ONLINE_ITER=1
-    MODEL_NAME="damo" EVAL_PERIOD=1000
+    MODEL_NAME="damo" EVAL_PERIOD=1
     BATCHSIZE=16; LR=1e-6 OPT_NAME="SGD" SCHED_NAME="default"
-    SCORE_THRESHOLD=0.45 TEMP_BATCHSIZE=4
+    SCORE_THRESHOLD=0.45 TEMP_BATCHSIZE=1
 elif [[ "$DATASET" == *"SHIFT_hanhwa"* ]]; then
     MEM_SIZE=500 ONLINE_ITER=1
     MODEL_NAME="damo" EVAL_PERIOD=1000

@@ -303,11 +303,14 @@ class ER:
     def update_schedule(self, reset=False):
         pass   
 
-    def evaluate(self):
+    def evaluate(self, sample_num=None):
         # alternative eval
         inference_timer = Timer()
-        predictions = compute_on_dataset(self.model, self.val_loader, self.device, inference_timer, dataset_name=self.dataset, batch_size=self.temp_batchsize, score_threshold=self.score_threshold)
-        
+        predictions = compute_on_dataset(self.model, self.val_loader, self.device, inference_timer, sample_num=sample_num, dataset_name=self.dataset, batch_size=self.temp_batchsize, score_threshold=self.score_threshold)
+        # Convert dict to list (like _accumulate_predictions_from_multiple_gpus does)
+        if isinstance(predictions, dict):
+            image_ids = list(sorted(predictions.keys()))
+            predictions = [predictions[i] for i in image_ids]
         extra_args = dict(
             box_only=False,
             iou_types=('bbox', ),
@@ -421,7 +424,7 @@ class ER:
                 )
                 self.val_loader = dataloaders[0]
 
-                eval_dict_sub = self.evaluate()
+                eval_dict_sub = self.evaluate(sample_num)
                 clean = [v for v in eval_dict_sub['classwise_mAP50'] if v != -1]
                 average = sum(clean) / len(clean) if clean else 0.0
                 eval_dict['avg_mAP50'] += average / 4 #len(self.exposed_domains)

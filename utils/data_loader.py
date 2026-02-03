@@ -182,6 +182,9 @@ class MemoryDataset(COCODataset):
             idx = inp[1]
         else:
             idx = inp
+
+        # Feel like this is the source of all misery -- FUCK this function 
+        # 
         img, anno = super(COCODataset, self).__getitem__(idx)
         # PIL to numpy array
         return img, anno, idx

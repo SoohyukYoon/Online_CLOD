@@ -100,7 +100,7 @@ def main():
         device = torch.device("cuda")
     else:
         device = torch.device("cpu")
-        if args.gpu_transform:
+        if getattr(args, 'gpu_transform', False):
             args.gpu_transform = False
             logger.warning("Augmentation on GPU not available!")
     logger.info(f"Set the device ({device})")

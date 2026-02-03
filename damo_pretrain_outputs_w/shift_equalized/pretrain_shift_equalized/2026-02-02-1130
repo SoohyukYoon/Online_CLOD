@@ -1,0 +1,770 @@
+2026-02-02 11:30:58.363 | INFO     | damo.apis.detector_trainer:__init__:114 - args info: Namespace(config_file='configs/pretrain_shift_equalized.py', local_rank=0, tea_config=None, tea_ckpt=None, opts=[])
+2026-02-02 11:30:58.368 | INFO     | damo.apis.detector_trainer:__init__:115 - cfg value:
+╒═════════╤══════════════════════════════════════════════════════════════════════════════════╕
+│ keys    │ values                                                                           │
+╞═════════╪══════════════════════════════════════════════════════════════════════════════════╡
+│ model   │ {'backbone': {'act': 'relu',                                                     │
+│         │               'name': 'TinyNAS_res',                                             │
+│         │               'net_structure_str': "[ {'class': 'ConvKXBNRELU', 'in': 3, 'k': "  │
+│         │                                    "3, 'nbitsA': 8, 'nbitsW': 8, 'out': 32, "    │
+│         │                                    "'s': 1},\n"                                  │
+│         │                                    "  { 'L': 1,\n"                               │
+│         │                                    "    'btn': 24,\n"                            │
+│         │                                    "    'class': 'SuperResConvK1KX',\n"          │
+│         │                                    "    'in': 32,\n"                             │
+│         │                                    "    'inner_class': 'ResConvK1KX',\n"         │
+│         │                                    "    'k': 3,\n"                               │
+│         │                                    "    'nbitsA': [8, 8],\n"                     │
+│         │                                    "    'nbitsW': [8, 8],\n"                     │
+│         │                                    "    'out': 128,\n"                           │
+│         │                                    "    's': 2},\n"                              │
+│         │                                    "  { 'L': 5,\n"                               │
+│         │                                    "    'btn': 88,\n"                            │
+│         │                                    "    'class': 'SuperResConvK1KX',\n"          │
+│         │                                    "    'in': 128,\n"                            │
+│         │                                    "    'inner_class': 'ResConvK1KX',\n"         │
+│         │                                    "    'k': 3,\n"                               │
+│         │                                    "    'nbitsA': [8, 8, 8, 8, 8, 8, 8, 8, 8, "  │
+│         │                                    '8],\n'                                       │
+│         │                                    "    'nbitsW': [8, 8, 8, 8, 8, 8, 8, 8, 8, "  │
+│         │                                    '8],\n'                                       │
+│         │                                    "    'out': 128,\n"                           │
+│         │                                    "    's': 2},\n"                              │
+│         │                                    "  { 'L': 3,\n"                               │
+│         │                                    "    'btn': 128,\n"                           │
+│         │                                    "    'class': 'SuperResConvK1KX',\n"          │
+│         │                                    "    'in': 128,\n"                            │
+│         │                                    "    'inner_class': 'ResConvK1KX',\n"         │
+│         │                                    "    'k': 3,\n"                               │
+│         │                                    "    'nbitsA': [8, 8, 8, 8, 8, 8],\n"         │
+│         │                                    "    'nbitsW': [8, 8, 8, 8, 8, 8],\n"         │
+│         │                                    "    'out': 256,\n"                           │
+│         │                                    "    's': 2},\n"                              │
+│         │                                    "  { 'L': 2,\n"                               │
+│         │                                    "    'btn': 120,\n"                           │
+│         │                                    "    'class': 'SuperResConvK1KX',\n"          │
+│         │                                    "    'in': 256,\n"                            │
+│         │                                    "    'inner_class': 'ResConvK1KX',\n"         │
+│         │                                    "    'k': 3,\n"                               │
+│         │                                    "    'nbitsA': [8, 8, 8, 8],\n"               │
+│         │                                    "    'nbitsW': [8, 8, 8, 8],\n"               │
+│         │                                    "    'out': 256,\n"                           │
+│         │                                    "    's': 1},\n"                              │
+│         │                                    "  { 'L': 1,\n"                               │
+│         │                                    "    'btn': 144,\n"                           │
+│         │                                    "    'class': 'SuperResConvK1KX',\n"          │
+│         │                                    "    'in': 256,\n"                            │
+│         │                                    "    'inner_class': 'ResConvK1KX',\n"         │
+│         │                                    "    'k': 3,\n"                               │
+│         │                                    "    'nbitsA': [8, 8],\n"                     │
+│         │                                    "    'nbitsW': [8, 8],\n"                     │
+│         │                                    "    'out': 512,\n"                           │
+│         │                                    "    's': 2}]\n",                             │
+│         │               'out_indices': (2, 4, 5),                                          │
+│         │               'reparam': True,                                                   │
+│         │               'use_focus': True,                                                 │
+│         │               'with_spp': True},                                                 │
+│         │  'head': {'act': 'silu',                                                         │
+│         │           'in_channels': [128, 256, 512],                                        │
+│         │           'legacy': False,                                                       │
+│         │           'name': 'ZeroHead',                                                    │
+│         │           'nms_conf_thre': 0.05,                                                 │
+│         │           'nms_iou_thre': 0.7,                                                   │
+│         │           'num_classes': 6,                                                      │
+│         │           'reg_max': 16,                                                         │
+│         │           'stacked_convs': 0},                                                   │
+│         │  'neck': {'act': 'relu',                                                         │
+│         │           'block_name': 'BasicBlock_3x3_Reverse',                                │
+│         │           'depth': 1.0,                                                          │
+│         │           'hidden_ratio': 0.75,                                                  │
+│         │           'in_channels': [128, 256, 512],                                        │
+│         │           'name': 'GiraffeNeckV2',                                               │
+│         │           'out_channels': [128, 256, 512],                                       │
+│         │           'spp': False}}                                                         │
+├─────────┼──────────────────────────────────────────────────────────────────────────────────┤
+│ train   │ {'augment': {'mosaic_mixup': {'degrees': 10.0,                                   │
+│         │                               'keep_ratio': False,                               │
+│         │                               'mixup_prob': 0.15,                                │
+│         │                               'mixup_scale': (0.5, 1.5),                         │
+│         │                               'mosaic_prob': 1.0,                                │
+│         │                               'mosaic_scale': (0.1, 2.0),                        │
+│         │                               'mosaic_size': (640, 640),                         │
+│         │                               'shear': 2.0,                                      │
+│         │                               'translate': 0.2},                                 │
+│         │              'transform': {'autoaug_dict': {'autoaug_params': (6, 9, 5, 3, 3, 4, │
+│         │                                                                2, 4, 4, 4, 5, 2, │
+│         │                                                                4, 1, 4, 2, 6, 4, │
+│         │                                                                2, 2, 2, 6, 2, 2, │
+│         │                                                                2, 0, 5, 1, 3, 0, │
+│         │                                                                8, 5, 2, 8, 7, 5, │
+│         │                                                                1, 3, 3, 3),      │
+│         │                                             'box_prob': 0.3,                     │
+│         │                                             'num_subpolicies': 5,                │
+│         │                                             'scale_splits': [2048, 10240,        │
+│         │                                                              51200]},            │
+│         │                            'flip_prob': 0.5,                                     │
+│         │                            'image_max_range': (640, 640),                        │
+│         │                            'image_mean': [0.0, 0.0, 0.0],                        │
+│         │                            'image_std': [1.0, 1.0, 1.0],                         │
+│         │                            'keep_ratio': False}},                                │
+│         │  'base_lr_per_img': 0.00015625,                                                  │
+│         │  'batch_size': 16,                                                               │
+│         │  'ema': True,                                                                    │
+│         │  'ema_momentum': 0.9998,                                                         │
+│         │  'finetune_path': './damo/damoyolo_tinynasL25_S_456.pth',                        │
+│         │  'min_lr_ratio': 0.05,                                                           │
+│         │  'momentum': 0.9,                                                                │
+│         │  'no_aug_epochs': 16,                                                            │
+│         │  'optimizer': {'lr': 0.04,                                                       │
+│         │                'momentum': 0.9,                                                  │
+│         │                'name': 'SGD',                                                    │
+│         │                'nesterov': True,                                                 │
+│         │                'weight_decay': 0.0005},                                          │
+│         │  'resume_path': None,                                                            │
+│         │  'total_epochs': 300,                                                            │
+│         │  'warmup_epochs': 5,                                                             │
+│         │  'warmup_start_lr': 0,                                                           │
+│         │  'weight_decay': 0.0005}                                                         │
+├─────────┼──────────────────────────────────────────────────────────────────────────────────┤
+│ test    │ {'augment': {'transform': {'flip_prob': 0.0,                                     │
+│         │                            'image_max_range': (640, 640),                        │
+│         │                            'image_mean': [0.0, 0.0, 0.0],                        │
+│         │                            'image_std': [1.0, 1.0, 1.0],                         │
+│         │                            'keep_ratio': False}},                                │
+│         │  'batch_size': 16}                                                               │
+├─────────┼──────────────────────────────────────────────────────────────────────────────────┤
+│ dataset │ {'aspect_ratio_grouping': False,                                                 │
+│         │  'class_names': ['pedestrian', 'car', 'truck', 'bus', 'motorcycle', 'bicycle'],  │
+│         │  'data_dir': None,                                                               │
+│         │  'paths_catalog': '/home/vision/syoon/Online_CLOD/damo/config/paths_catalog.py', │
+│         │  'train_ann': ('shift_train_pretrain_equalized',),                               │
+│         │  'val_ann': ('shift_val_pretrain_equalized',)}                                   │
+├─────────┼──────────────────────────────────────────────────────────────────────────────────┤
+│ miscs   │ {'ckpt_interval_epochs': 100,                                                    │
+│         │  'eval_interval_epochs': 10,                                                     │
+│         │  'exp_name': 'pretrain_shift_equalized',                                         │
+│         │  'num_workers': 4,                                                               │
+│         │  'output_dir': './damo_pretrain_outputs_w/shift_equalized',                      │
+│         │  'print_interval_iters': 50,                                                     │
+│         │  'seed': 1234}                                                                   │
+╘═════════╧══════════════════════════════════════════════════════════════════════════════════╛
+2026-02-02 11:30:58.709 | INFO     | damo.apis.detector_trainer:__init__:124 - model:
+2026-02-02 11:30:58.847 | INFO     | damo.detectors.detector:load_pretrain_detector:42 - Finetune from ./damo/damoyolo_tinynasL25_S_456.pth................
+2026-02-02 11:30:58.927 | INFO     | damo.apis.detector_trainer:__init__:162 - Enable ema model! Ema model will be evaluated and saved.
+2026-02-02 11:30:59.015 | INFO     | torchvision.datasets.coco:__init__:37 - loading annotations into memory...
+2026-02-02 11:31:00.515 | INFO     | torchvision.datasets.coco:__init__:37 - Done (t=1.50s)
+2026-02-02 11:31:00.515 | INFO     | pycocotools.coco:__init__:86 - creating index...
+2026-02-02 11:31:00.636 | INFO     | pycocotools.coco:__init__:86 - index created!
+2026-02-02 11:31:00.639 | INFO     | torchvision.datasets.coco:__init__:37 - loading annotations into memory...
+2026-02-02 11:31:01.024 | INFO     | torchvision.datasets.coco:__init__:37 - Done (t=0.38s)
+2026-02-02 11:31:01.024 | INFO     | pycocotools.coco:__init__:86 - creating index...
+2026-02-02 11:31:01.029 | INFO     | pycocotools.coco:__init__:86 - index created!
+2026-02-02 11:31:11.583 | INFO     | damo.apis.detector_trainer:train:272 - Model Summary: backbone's params(M): 3.84, flops(G): 18.01, latency(ms): 5.930
+neck's params(M): 11.90, flops(G): 18.18, latency(ms): 9.768
+head's params(M): 0.60, flops(G): 1.91, latency(ms): 1.471
+total latency(ms): 19.513, total flops(G): 38.10, total params(M): 16.34
+
+2026-02-02 11:31:13.837 | INFO     | damo.apis.detector_trainer:train:277 - Model: DistributedDataParallel(
+  (module): Detector(
+    (backbone): TinyNAS(
+      (block_list): ModuleList(
+        (0): Focus(
+          (conv): ConvBNAct(
+            (conv): Conv2d(12, 32, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+            (bn): SyncBatchNorm(32, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+            (act): ReLU(inplace=True)
+          )
+        )
+        (1): SuperResStem(
+          (act): ReLU(inplace=True)
+          (block_list): ModuleList(
+            (0): ResConvBlock(
+              (conv1): ConvKXBN(
+                (conv1): Conv2d(32, 24, kernel_size=(1, 1), stride=(1, 1), bias=False)
+                (bn1): SyncBatchNorm(24, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+              )
+              (conv2): RepConv(
+                (nonlinearity): Identity()
+                (rbr_dense): Sequential(
+                  (conv): Conv2d(24, 128, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1), bias=False)
+                  (bn): SyncBatchNorm(128, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+                )
+                (rbr_1x1): Sequential(
+                  (conv): Conv2d(24, 128, kernel_size=(1, 1), stride=(2, 2), bias=False)
+                  (bn): SyncBatchNorm(128, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+                )
+              )
+              (activation_function): ReLU(inplace=True)
+            )
+          )
+        )
+        (2): SuperResStem(
+          (act): ReLU(inplace=True)
+          (block_list): ModuleList(
+            (0): ResConvBlock(
+              (conv1): ConvKXBN(
+                (conv1): Conv2d(128, 88, kernel_size=(1, 1), stride=(1, 1), bias=False)
+                (bn1): SyncBatchNorm(88, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+              )
+              (conv2): RepConv(
+                (nonlinearity): Identity()
+                (rbr_dense): Sequential(
+                  (conv): Conv2d(88, 128, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1), bias=False)
+                  (bn): SyncBatchNorm(128, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+                )
+                (rbr_1x1): Sequential(
+                  (conv): Conv2d(88, 128, kernel_size=(1, 1), stride=(2, 2), bias=False)
+                  (bn): SyncBatchNorm(128, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+                )
+              )
+              (activation_function): ReLU(inplace=True)
+            )
+            (1-4): 4 x ResConvBlock(
+              (conv1): ConvKXBN(
+                (conv1): Conv2d(128, 88, kernel_size=(1, 1), stride=(1, 1), bias=False)
+                (bn1): SyncBatchNorm(88, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+              )
+              (conv2): RepConv(
+                (nonlinearity): Identity()
+                (rbr_dense): Sequential(
+                  (conv): Conv2d(88, 128, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+                  (bn): SyncBatchNorm(128, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+                )
+                (rbr_1x1): Sequential(
+                  (conv): Conv2d(88, 128, kernel_size=(1, 1), stride=(1, 1), bias=False)
+                  (bn): SyncBatchNorm(128, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+                )
+              )
+              (activation_function): ReLU(inplace=True)
+            )
+          )
+        )
+        (3): SuperResStem(
+          (act): ReLU(inplace=True)
+          (block_list): ModuleList(
+            (0): ResConvBlock(
+              (conv1): ConvKXBN(
+                (conv1): Conv2d(128, 128, kernel_size=(1, 1), stride=(1, 1), bias=False)
+                (bn1): SyncBatchNorm(128, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+              )
+              (conv2): RepConv(
+                (nonlinearity): Identity()
+                (rbr_dense): Sequential(
+                  (conv): Conv2d(128, 256, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1), bias=False)
+                  (bn): SyncBatchNorm(256, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+                )
+                (rbr_1x1): Sequential(
+                  (conv): Conv2d(128, 256, kernel_size=(1, 1), stride=(2, 2), bias=False)
+                  (bn): SyncBatchNorm(256, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+                )
+              )
+              (activation_function): ReLU(inplace=True)
+            )
+            (1-2): 2 x ResConvBlock(
+              (conv1): ConvKXBN(
+                (conv1): Conv2d(256, 128, kernel_size=(1, 1), stride=(1, 1), bias=False)
+                (bn1): SyncBatchNorm(128, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+              )
+              (conv2): RepConv(
+                (nonlinearity): Identity()
+                (rbr_dense): Sequential(
+                  (conv): Conv2d(128, 256, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+                  (bn): SyncBatchNorm(256, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+                )
+                (rbr_1x1): Sequential(
+                  (conv): Conv2d(128, 256, kernel_size=(1, 1), stride=(1, 1), bias=False)
+                  (bn): SyncBatchNorm(256, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+                )
+              )
+              (activation_function): ReLU(inplace=True)
+            )
+          )
+        )
+        (4): SuperResStem(
+          (act): ReLU(inplace=True)
+          (block_list): ModuleList(
+            (0-1): 2 x ResConvBlock(
+              (conv1): ConvKXBN(
+                (conv1): Conv2d(256, 120, kernel_size=(1, 1), stride=(1, 1), bias=False)
+                (bn1): SyncBatchNorm(120, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+              )
+              (conv2): RepConv(
+                (nonlinearity): Identity()
+                (rbr_dense): Sequential(
+                  (conv): Conv2d(120, 256, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+                  (bn): SyncBatchNorm(256, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+                )
+                (rbr_1x1): Sequential(
+                  (conv): Conv2d(120, 256, kernel_size=(1, 1), stride=(1, 1), bias=False)
+                  (bn): SyncBatchNorm(256, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+                )
+              )
+              (activation_function): ReLU(inplace=True)
+            )
+          )
+        )
+        (5): SuperResStem(
+          (act): ReLU(inplace=True)
+          (block_list): ModuleList(
+            (0): ResConvBlock(
+              (conv1): ConvKXBN(
+                (conv1): Conv2d(256, 144, kernel_size=(1, 1), stride=(1, 1), bias=False)
+                (bn1): SyncBatchNorm(144, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+              )
+              (conv2): RepConv(
+                (nonlinearity): Identity()
+                (rbr_dense): Sequential(
+                  (conv): Conv2d(144, 512, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1), bias=False)
+                  (bn): SyncBatchNorm(512, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+                )
+                (rbr_1x1): Sequential(
+                  (conv): Conv2d(144, 512, kernel_size=(1, 1), stride=(2, 2), bias=False)
+                  (bn): SyncBatchNorm(512, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+                )
+              )
+              (activation_function): ReLU(inplace=True)
+            )
+            (1): SPPBottleneck(
+              (conv1): ConvBNAct(
+                (conv): Conv2d(512, 256, kernel_size=(1, 1), stride=(1, 1), bias=False)
+                (bn): SyncBatchNorm(256, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+                (act): SiLU(inplace=True)
+              )
+              (m): ModuleList(
+                (0): MaxPool2d(kernel_size=5, stride=1, padding=2, dilation=1, ceil_mode=False)
+                (1): MaxPool2d(kernel_size=9, stride=1, padding=4, dilation=1, ceil_mode=False)
+                (2): MaxPool2d(kernel_size=13, stride=1, padding=6, dilation=1, ceil_mode=False)
+              )
+              (conv2): ConvBNAct(
+                (conv): Conv2d(1024, 512, kernel_size=(1, 1), stride=(1, 1), bias=False)
+                (bn): SyncBatchNorm(512, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+                (act): SiLU(inplace=True)
+              )
+            )
+          )
+        )
+      )
+    )
+    (neck): GiraffeNeckV2(
+      (upsample): Upsample(scale_factor=2.0, mode='nearest')
+      (bu_conv13): ConvBNAct(
+        (conv): Conv2d(256, 256, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1), bias=False)
+        (bn): SyncBatchNorm(256, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+        (act): ReLU(inplace=True)
+      )
+      (merge_3): CSPStage(
+        (conv1): ConvBNAct(
+          (conv): Conv2d(768, 256, kernel_size=(1, 1), stride=(1, 1), bias=False)
+          (bn): SyncBatchNorm(256, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+          (act): ReLU(inplace=True)
+        )
+        (conv2): ConvBNAct(
+          (conv): Conv2d(768, 256, kernel_size=(1, 1), stride=(1, 1), bias=False)
+          (bn): SyncBatchNorm(256, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+          (act): ReLU(inplace=True)
+        )
+        (convs): Sequential(
+          (0): BasicBlock_3x3_Reverse(
+            (conv1): ConvBNAct(
+              (conv): Conv2d(192, 256, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+              (bn): SyncBatchNorm(256, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+              (act): ReLU(inplace=True)
+            )
+            (conv2): RepConv(
+              (nonlinearity): ReLU(inplace=True)
+              (rbr_dense): Sequential(
+                (conv): Conv2d(256, 192, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+                (bn): SyncBatchNorm(192, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+              )
+              (rbr_1x1): Sequential(
+                (conv): Conv2d(256, 192, kernel_size=(1, 1), stride=(1, 1), bias=False)
+                (bn): SyncBatchNorm(192, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+              )
+            )
+          )
+          (1): BasicBlock_3x3_Reverse(
+            (conv1): ConvBNAct(
+              (conv): Conv2d(192, 256, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+              (bn): SyncBatchNorm(256, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+              (act): ReLU(inplace=True)
+            )
+            (conv2): RepConv(
+              (nonlinearity): ReLU(inplace=True)
+              (rbr_dense): Sequential(
+                (conv): Conv2d(256, 192, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+                (bn): SyncBatchNorm(192, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+              )
+              (rbr_1x1): Sequential(
+                (conv): Conv2d(256, 192, kernel_size=(1, 1), stride=(1, 1), bias=False)
+                (bn): SyncBatchNorm(192, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+              )
+            )
+          )
+          (2): BasicBlock_3x3_Reverse(
+            (conv1): ConvBNAct(
+              (conv): Conv2d(192, 256, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+              (bn): SyncBatchNorm(256, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+              (act): ReLU(inplace=True)
+            )
+            (conv2): RepConv(
+              (nonlinearity): ReLU(inplace=True)
+              (rbr_dense): Sequential(
+                (conv): Conv2d(256, 192, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+                (bn): SyncBatchNorm(192, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+              )
+              (rbr_1x1): Sequential(
+                (conv): Conv2d(256, 192, kernel_size=(1, 1), stride=(1, 1), bias=False)
+                (bn): SyncBatchNorm(192, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+              )
+            )
+          )
+        )
+        (conv3): ConvBNAct(
+          (conv): Conv2d(1024, 512, kernel_size=(1, 1), stride=(1, 1), bias=False)
+          (bn): SyncBatchNorm(512, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+          (act): ReLU(inplace=True)
+        )
+      )
+      (bu_conv24): ConvBNAct(
+        (conv): Conv2d(128, 128, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1), bias=False)
+        (bn): SyncBatchNorm(128, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+        (act): ReLU(inplace=True)
+      )
+      (merge_4): CSPStage(
+        (conv1): ConvBNAct(
+          (conv): Conv2d(896, 128, kernel_size=(1, 1), stride=(1, 1), bias=False)
+          (bn): SyncBatchNorm(128, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+          (act): ReLU(inplace=True)
+        )
+        (conv2): ConvBNAct(
+          (conv): Conv2d(896, 128, kernel_size=(1, 1), stride=(1, 1), bias=False)
+          (bn): SyncBatchNorm(128, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+          (act): ReLU(inplace=True)
+        )
+        (convs): Sequential(
+          (0): BasicBlock_3x3_Reverse(
+            (conv1): ConvBNAct(
+              (conv): Conv2d(96, 128, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+              (bn): SyncBatchNorm(128, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+              (act): ReLU(inplace=True)
+            )
+            (conv2): RepConv(
+              (nonlinearity): ReLU(inplace=True)
+              (rbr_dense): Sequential(
+                (conv): Conv2d(128, 96, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+                (bn): SyncBatchNorm(96, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+              )
+              (rbr_1x1): Sequential(
+                (conv): Conv2d(128, 96, kernel_size=(1, 1), stride=(1, 1), bias=False)
+                (bn): SyncBatchNorm(96, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+              )
+            )
+          )
+          (1): BasicBlock_3x3_Reverse(
+            (conv1): ConvBNAct(
+              (conv): Conv2d(96, 128, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+              (bn): SyncBatchNorm(128, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+              (act): ReLU(inplace=True)
+            )
+            (conv2): RepConv(
+              (nonlinearity): ReLU(inplace=True)
+              (rbr_dense): Sequential(
+                (conv): Conv2d(128, 96, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+                (bn): SyncBatchNorm(96, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+              )
+              (rbr_1x1): Sequential(
+                (conv): Conv2d(128, 96, kernel_size=(1, 1), stride=(1, 1), bias=False)
+                (bn): SyncBatchNorm(96, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+              )
+            )
+          )
+          (2): BasicBlock_3x3_Reverse(
+            (conv1): ConvBNAct(
+              (conv): Conv2d(96, 128, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+              (bn): SyncBatchNorm(128, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+              (act): ReLU(inplace=True)
+            )
+            (conv2): RepConv(
+              (nonlinearity): ReLU(inplace=True)
+              (rbr_dense): Sequential(
+                (conv): Conv2d(128, 96, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+                (bn): SyncBatchNorm(96, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+              )
+              (rbr_1x1): Sequential(
+                (conv): Conv2d(128, 96, kernel_size=(1, 1), stride=(1, 1), bias=False)
+                (bn): SyncBatchNorm(96, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+              )
+            )
+          )
+        )
+        (conv3): ConvBNAct(
+          (conv): Conv2d(512, 256, kernel_size=(1, 1), stride=(1, 1), bias=False)
+          (bn): SyncBatchNorm(256, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+          (act): ReLU(inplace=True)
+        )
+      )
+      (merge_5): CSPStage(
+        (conv1): ConvBNAct(
+          (conv): Conv2d(384, 64, kernel_size=(1, 1), stride=(1, 1), bias=False)
+          (bn): SyncBatchNorm(64, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+          (act): ReLU(inplace=True)
+        )
+        (conv2): ConvBNAct(
+          (conv): Conv2d(384, 64, kernel_size=(1, 1), stride=(1, 1), bias=False)
+          (bn): SyncBatchNorm(64, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+          (act): ReLU(inplace=True)
+        )
+        (convs): Sequential(
+          (0): BasicBlock_3x3_Reverse(
+            (conv1): ConvBNAct(
+              (conv): Conv2d(48, 64, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+              (bn): SyncBatchNorm(64, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+              (act): ReLU(inplace=True)
+            )
+            (conv2): RepConv(
+              (nonlinearity): ReLU(inplace=True)
+              (rbr_dense): Sequential(
+                (conv): Conv2d(64, 48, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+                (bn): SyncBatchNorm(48, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+              )
+              (rbr_1x1): Sequential(
+                (conv): Conv2d(64, 48, kernel_size=(1, 1), stride=(1, 1), bias=False)
+                (bn): SyncBatchNorm(48, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+              )
+            )
+          )
+          (1): BasicBlock_3x3_Reverse(
+            (conv1): ConvBNAct(
+              (conv): Conv2d(48, 64, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+              (bn): SyncBatchNorm(64, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+              (act): ReLU(inplace=True)
+            )
+            (conv2): RepConv(
+              (nonlinearity): ReLU(inplace=True)
+              (rbr_dense): Sequential(
+                (conv): Conv2d(64, 48, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+                (bn): SyncBatchNorm(48, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+              )
+              (rbr_1x1): Sequential(
+                (conv): Conv2d(64, 48, kernel_size=(1, 1), stride=(1, 1), bias=False)
+                (bn): SyncBatchNorm(48, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+              )
+            )
+          )
+          (2): BasicBlock_3x3_Reverse(
+            (conv1): ConvBNAct(
+              (conv): Conv2d(48, 64, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+              (bn): SyncBatchNorm(64, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+              (act): ReLU(inplace=True)
+            )
+            (conv2): RepConv(
+              (nonlinearity): ReLU(inplace=True)
+              (rbr_dense): Sequential(
+                (conv): Conv2d(64, 48, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+                (bn): SyncBatchNorm(48, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+              )
+              (rbr_1x1): Sequential(
+                (conv): Conv2d(64, 48, kernel_size=(1, 1), stride=(1, 1), bias=False)
+                (bn): SyncBatchNorm(48, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+              )
+            )
+          )
+        )
+        (conv3): ConvBNAct(
+          (conv): Conv2d(256, 128, kernel_size=(1, 1), stride=(1, 1), bias=False)
+          (bn): SyncBatchNorm(128, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+          (act): ReLU(inplace=True)
+        )
+      )
+      (bu_conv57): ConvBNAct(
+        (conv): Conv2d(128, 128, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1), bias=False)
+        (bn): SyncBatchNorm(128, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+        (act): ReLU(inplace=True)
+      )
+      (merge_7): CSPStage(
+        (conv1): ConvBNAct(
+          (conv): Conv2d(384, 128, kernel_size=(1, 1), stride=(1, 1), bias=False)
+          (bn): SyncBatchNorm(128, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+          (act): ReLU(inplace=True)
+        )
+        (conv2): ConvBNAct(
+          (conv): Conv2d(384, 128, kernel_size=(1, 1), stride=(1, 1), bias=False)
+          (bn): SyncBatchNorm(128, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+          (act): ReLU(inplace=True)
+        )
+        (convs): Sequential(
+          (0): BasicBlock_3x3_Reverse(
+            (conv1): ConvBNAct(
+              (conv): Conv2d(96, 128, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+              (bn): SyncBatchNorm(128, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+              (act): ReLU(inplace=True)
+            )
+            (conv2): RepConv(
+              (nonlinearity): ReLU(inplace=True)
+              (rbr_dense): Sequential(
+                (conv): Conv2d(128, 96, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+                (bn): SyncBatchNorm(96, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+              )
+              (rbr_1x1): Sequential(
+                (conv): Conv2d(128, 96, kernel_size=(1, 1), stride=(1, 1), bias=False)
+                (bn): SyncBatchNorm(96, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+              )
+            )
+          )
+          (1): BasicBlock_3x3_Reverse(
+            (conv1): ConvBNAct(
+              (conv): Conv2d(96, 128, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+              (bn): SyncBatchNorm(128, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+              (act): ReLU(inplace=True)
+            )
+            (conv2): RepConv(
+              (nonlinearity): ReLU(inplace=True)
+              (rbr_dense): Sequential(
+                (conv): Conv2d(128, 96, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+                (bn): SyncBatchNorm(96, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+              )
+              (rbr_1x1): Sequential(
+                (conv): Conv2d(128, 96, kernel_size=(1, 1), stride=(1, 1), bias=False)
+                (bn): SyncBatchNorm(96, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+              )
+            )
+          )
+          (2): BasicBlock_3x3_Reverse(
+            (conv1): ConvBNAct(
+              (conv): Conv2d(96, 128, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+              (bn): SyncBatchNorm(128, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+              (act): ReLU(inplace=True)
+            )
+            (conv2): RepConv(
+              (nonlinearity): ReLU(inplace=True)
+              (rbr_dense): Sequential(
+                (conv): Conv2d(128, 96, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+                (bn): SyncBatchNorm(96, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+              )
+              (rbr_1x1): Sequential(
+                (conv): Conv2d(128, 96, kernel_size=(1, 1), stride=(1, 1), bias=False)
+                (bn): SyncBatchNorm(96, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+              )
+            )
+          )
+        )
+        (conv3): ConvBNAct(
+          (conv): Conv2d(512, 256, kernel_size=(1, 1), stride=(1, 1), bias=False)
+          (bn): SyncBatchNorm(256, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+          (act): ReLU(inplace=True)
+        )
+      )
+      (bu_conv46): ConvBNAct(
+        (conv): Conv2d(256, 256, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1), bias=False)
+        (bn): SyncBatchNorm(256, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+        (act): ReLU(inplace=True)
+      )
+      (bu_conv76): ConvBNAct(
+        (conv): Conv2d(256, 256, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1), bias=False)
+        (bn): SyncBatchNorm(256, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+        (act): ReLU(inplace=True)
+      )
+      (merge_6): CSPStage(
+        (conv1): ConvBNAct(
+          (conv): Conv2d(1024, 256, kernel_size=(1, 1), stride=(1, 1), bias=False)
+          (bn): SyncBatchNorm(256, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+          (act): ReLU(inplace=True)
+        )
+        (conv2): ConvBNAct(
+          (conv): Conv2d(1024, 256, kernel_size=(1, 1), stride=(1, 1), bias=False)
+          (bn): SyncBatchNorm(256, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+          (act): ReLU(inplace=True)
+        )
+        (convs): Sequential(
+          (0): BasicBlock_3x3_Reverse(
+            (conv1): ConvBNAct(
+              (conv): Conv2d(192, 256, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+              (bn): SyncBatchNorm(256, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+              (act): ReLU(inplace=True)
+            )
+            (conv2): RepConv(
+              (nonlinearity): ReLU(inplace=True)
+              (rbr_dense): Sequential(
+                (conv): Conv2d(256, 192, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+                (bn): SyncBatchNorm(192, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+              )
+              (rbr_1x1): Sequential(
+                (conv): Conv2d(256, 192, kernel_size=(1, 1), stride=(1, 1), bias=False)
+                (bn): SyncBatchNorm(192, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+              )
+            )
+          )
+          (1): BasicBlock_3x3_Reverse(
+            (conv1): ConvBNAct(
+              (conv): Conv2d(192, 256, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+              (bn): SyncBatchNorm(256, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+              (act): ReLU(inplace=True)
+            )
+            (conv2): RepConv(
+              (nonlinearity): ReLU(inplace=True)
+              (rbr_dense): Sequential(
+                (conv): Conv2d(256, 192, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+                (bn): SyncBatchNorm(192, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+              )
+              (rbr_1x1): Sequential(
+                (conv): Conv2d(256, 192, kernel_size=(1, 1), stride=(1, 1), bias=False)
+                (bn): SyncBatchNorm(192, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+              )
+            )
+          )
+          (2): BasicBlock_3x3_Reverse(
+            (conv1): ConvBNAct(
+              (conv): Conv2d(192, 256, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+              (bn): SyncBatchNorm(256, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+              (act): ReLU(inplace=True)
+            )
+            (conv2): RepConv(
+              (nonlinearity): ReLU(inplace=True)
+              (rbr_dense): Sequential(
+                (conv): Conv2d(256, 192, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+                (bn): SyncBatchNorm(192, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+              )
+              (rbr_1x1): Sequential(
+                (conv): Conv2d(256, 192, kernel_size=(1, 1), stride=(1, 1), bias=False)
+                (bn): SyncBatchNorm(192, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+              )
+            )
+          )
+        )
+        (conv3): ConvBNAct(
+          (conv): Conv2d(1024, 512, kernel_size=(1, 1), stride=(1, 1), bias=False)
+          (bn): SyncBatchNorm(512, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+          (act): ReLU(inplace=True)
+        )
+      )
+    )
+    (head): ZeroHead(
+      (integral): Integral()
+      (loss_dfl): DistributionFocalLoss()
+      (loss_cls): QualityFocalLoss()
+      (loss_bbox): GIoULoss()
+      (cls_convs): ModuleList(
+        (0-2): 3 x ModuleList()
+      )
+      (reg_convs): ModuleList(
+        (0-2): 3 x ModuleList()
+      )
+      (gfl_cls): ModuleList(
+        (0): Conv2d(128, 6, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+        (1): Conv2d(256, 6, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+        (2): Conv2d(512, 6, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+      )
+      (gfl_reg): ModuleList(
+        (0): Conv2d(128, 68, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+        (1): Conv2d(256, 68, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+        (2): Conv2d(512, 68, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+      )
+      (scales): ModuleList(
+        (0-2): 3 x Scale()
+      )
+    )
+  )
+)
+2026-02-02 11:31:13.838 | INFO     | damo.apis.detector_trainer:train:279 - Training start...
+2026-02-02 11:31:30.360 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 1/300, iter: 50/1300, mem: 1840Mb, iter_time: 0.330s, model_time: 0.310s, total_loss: 2.7, loss_cls: 0.2, loss_bbox: 1.7, loss_dfl: 0.7, lr: 1.421e-07, size: (640, 640), ETA: 1 day, 11:47:17
+2026-02-02 11:31:45.174 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 1/300, iter: 100/1300, mem: 1840Mb, iter_time: 0.296s, model_time: 0.283s, total_loss: 2.3, loss_cls: 0.2, loss_bbox: 1.5, loss_dfl: 0.7, lr: 5.799e-07, size: (640, 640), ETA: 1 day, 9:56:09

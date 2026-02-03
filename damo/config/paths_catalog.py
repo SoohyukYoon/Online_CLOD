@@ -95,6 +95,18 @@ class DatasetCatalog(object):
             # 'img_dir': '/disk1/jhpark/clod/data/shift_source/images/val',
             'ann_file': 'shift_source/annotations/instances_val.json'
         },
+
+        'shift_train_pretrain_equalized': {
+            'img_dir': 'shift_source_equalized/images/train',
+            # 'img_dir': '/disk1/jhpark/clod/data/shift_source/images/train',
+            'ann_file': 'shift_source_equalized/annotations/instances_train.json'
+        } ,
+
+        'shift_val_pretrain_equalized': {
+            'img_dir': 'shift_source_equalized/images/val',
+            # 'img_dir': '/disk1/jhpark/clod/data/shift_source/images/val',
+            'ann_file': 'shift_source_equalized/annotations/instances_val.json'
+        },
         
         'shift_train': {
             'img_dir': 'shift/images/train',

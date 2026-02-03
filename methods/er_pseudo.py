@@ -55,7 +55,7 @@ class ERPseudo(ER):
         
         self.temp_batch.append(sample)
         self.num_updates += self.online_iter
-        if len(self.temp_batch) == 8:
+        if len(self.temp_batch) == 1:
             iteration = int(self.num_updates)
             if iteration != 0:
                 train_loss = self.online_train(self.temp_batch, self.batch_size, n_worker,

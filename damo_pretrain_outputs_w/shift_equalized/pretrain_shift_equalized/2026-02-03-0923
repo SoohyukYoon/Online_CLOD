@@ -1,0 +1,1088 @@
+2026-02-03 09:23:57.257 | INFO     | damo.apis.detector_trainer:__init__:114 - args info: Namespace(config_file='configs/pretrain_shift_equalized.py', local_rank=0, tea_config=None, tea_ckpt=None, opts=[])
+2026-02-03 09:23:57.262 | INFO     | damo.apis.detector_trainer:__init__:115 - cfg value:
+╒═════════╤══════════════════════════════════════════════════════════════════════════════════╕
+│ keys    │ values                                                                           │
+╞═════════╪══════════════════════════════════════════════════════════════════════════════════╡
+│ model   │ {'backbone': {'act': 'relu',                                                     │
+│         │               'name': 'TinyNAS_res',                                             │
+│         │               'net_structure_str': "[ {'class': 'ConvKXBNRELU', 'in': 3, 'k': "  │
+│         │                                    "3, 'nbitsA': 8, 'nbitsW': 8, 'out': 32, "    │
+│         │                                    "'s': 1},\n"                                  │
+│         │                                    "  { 'L': 1,\n"                               │
+│         │                                    "    'btn': 24,\n"                            │
+│         │                                    "    'class': 'SuperResConvK1KX',\n"          │
+│         │                                    "    'in': 32,\n"                             │
+│         │                                    "    'inner_class': 'ResConvK1KX',\n"         │
+│         │                                    "    'k': 3,\n"                               │
+│         │                                    "    'nbitsA': [8, 8],\n"                     │
+│         │                                    "    'nbitsW': [8, 8],\n"                     │
+│         │                                    "    'out': 128,\n"                           │
+│         │                                    "    's': 2},\n"                              │
+│         │                                    "  { 'L': 5,\n"                               │
+│         │                                    "    'btn': 88,\n"                            │
+│         │                                    "    'class': 'SuperResConvK1KX',\n"          │
+│         │                                    "    'in': 128,\n"                            │
+│         │                                    "    'inner_class': 'ResConvK1KX',\n"         │
+│         │                                    "    'k': 3,\n"                               │
+│         │                                    "    'nbitsA': [8, 8, 8, 8, 8, 8, 8, 8, 8, "  │
+│         │                                    '8],\n'                                       │
+│         │                                    "    'nbitsW': [8, 8, 8, 8, 8, 8, 8, 8, 8, "  │
+│         │                                    '8],\n'                                       │
+│         │                                    "    'out': 128,\n"                           │
+│         │                                    "    's': 2},\n"                              │
+│         │                                    "  { 'L': 3,\n"                               │
+│         │                                    "    'btn': 128,\n"                           │
+│         │                                    "    'class': 'SuperResConvK1KX',\n"          │
+│         │                                    "    'in': 128,\n"                            │
+│         │                                    "    'inner_class': 'ResConvK1KX',\n"         │
+│         │                                    "    'k': 3,\n"                               │
+│         │                                    "    'nbitsA': [8, 8, 8, 8, 8, 8],\n"         │
+│         │                                    "    'nbitsW': [8, 8, 8, 8, 8, 8],\n"         │
+│         │                                    "    'out': 256,\n"                           │
+│         │                                    "    's': 2},\n"                              │
+│         │                                    "  { 'L': 2,\n"                               │
+│         │                                    "    'btn': 120,\n"                           │
+│         │                                    "    'class': 'SuperResConvK1KX',\n"          │
+│         │                                    "    'in': 256,\n"                            │
+│         │                                    "    'inner_class': 'ResConvK1KX',\n"         │
+│         │                                    "    'k': 3,\n"                               │
+│         │                                    "    'nbitsA': [8, 8, 8, 8],\n"               │
+│         │                                    "    'nbitsW': [8, 8, 8, 8],\n"               │
+│         │                                    "    'out': 256,\n"                           │
+│         │                                    "    's': 1},\n"                              │
+│         │                                    "  { 'L': 1,\n"                               │
+│         │                                    "    'btn': 144,\n"                           │
+│         │                                    "    'class': 'SuperResConvK1KX',\n"          │
+│         │                                    "    'in': 256,\n"                            │
+│         │                                    "    'inner_class': 'ResConvK1KX',\n"         │
+│         │                                    "    'k': 3,\n"                               │
+│         │                                    "    'nbitsA': [8, 8],\n"                     │
+│         │                                    "    'nbitsW': [8, 8],\n"                     │
+│         │                                    "    'out': 512,\n"                           │
+│         │                                    "    's': 2}]\n",                             │
+│         │               'out_indices': (2, 4, 5),                                          │
+│         │               'reparam': True,                                                   │
+│         │               'use_focus': True,                                                 │
+│         │               'with_spp': True},                                                 │
+│         │  'head': {'act': 'silu',                                                         │
+│         │           'in_channels': [128, 256, 512],                                        │
+│         │           'legacy': False,                                                       │
+│         │           'name': 'ZeroHead',                                                    │
+│         │           'nms_conf_thre': 0.05,                                                 │
+│         │           'nms_iou_thre': 0.7,                                                   │
+│         │           'num_classes': 6,                                                      │
+│         │           'reg_max': 16,                                                         │
+│         │           'stacked_convs': 0},                                                   │
+│         │  'neck': {'act': 'relu',                                                         │
+│         │           'block_name': 'BasicBlock_3x3_Reverse',                                │
+│         │           'depth': 1.0,                                                          │
+│         │           'hidden_ratio': 0.75,                                                  │
+│         │           'in_channels': [128, 256, 512],                                        │
+│         │           'name': 'GiraffeNeckV2',                                               │
+│         │           'out_channels': [128, 256, 512],                                       │
+│         │           'spp': False}}                                                         │
+├─────────┼──────────────────────────────────────────────────────────────────────────────────┤
+│ train   │ {'augment': {'mosaic_mixup': {'degrees': 10.0,                                   │
+│         │                               'keep_ratio': False,                               │
+│         │                               'mixup_prob': 0.15,                                │
+│         │                               'mixup_scale': (0.5, 1.5),                         │
+│         │                               'mosaic_prob': 1.0,                                │
+│         │                               'mosaic_scale': (0.1, 2.0),                        │
+│         │                               'mosaic_size': (640, 640),                         │
+│         │                               'shear': 2.0,                                      │
+│         │                               'translate': 0.2},                                 │
+│         │              'transform': {'autoaug_dict': {'autoaug_params': (6, 9, 5, 3, 3, 4, │
+│         │                                                                2, 4, 4, 4, 5, 2, │
+│         │                                                                4, 1, 4, 2, 6, 4, │
+│         │                                                                2, 2, 2, 6, 2, 2, │
+│         │                                                                2, 0, 5, 1, 3, 0, │
+│         │                                                                8, 5, 2, 8, 7, 5, │
+│         │                                                                1, 3, 3, 3),      │
+│         │                                             'box_prob': 0.3,                     │
+│         │                                             'num_subpolicies': 5,                │
+│         │                                             'scale_splits': [2048, 10240,        │
+│         │                                                              51200]},            │
+│         │                            'flip_prob': 0.5,                                     │
+│         │                            'image_max_range': (640, 640),                        │
+│         │                            'image_mean': [0.0, 0.0, 0.0],                        │
+│         │                            'image_std': [1.0, 1.0, 1.0],                         │
+│         │                            'keep_ratio': False}},                                │
+│         │  'base_lr_per_img': 0.00015625,                                                  │
+│         │  'batch_size': 16,                                                               │
+│         │  'ema': True,                                                                    │
+│         │  'ema_momentum': 0.9998,                                                         │
+│         │  'finetune_path': './damo/damoyolo_tinynasL25_S_456.pth',                        │
+│         │  'min_lr_ratio': 0.05,                                                           │
+│         │  'momentum': 0.9,                                                                │
+│         │  'no_aug_epochs': 16,                                                            │
+│         │  'optimizer': {'lr': 0.04,                                                       │
+│         │                'momentum': 0.9,                                                  │
+│         │                'name': 'SGD',                                                    │
+│         │                'nesterov': True,                                                 │
+│         │                'weight_decay': 0.0005},                                          │
+│         │  'resume_path': None,                                                            │
+│         │  'total_epochs': 300,                                                            │
+│         │  'warmup_epochs': 5,                                                             │
+│         │  'warmup_start_lr': 0,                                                           │
+│         │  'weight_decay': 0.0005}                                                         │
+├─────────┼──────────────────────────────────────────────────────────────────────────────────┤
+│ test    │ {'augment': {'transform': {'flip_prob': 0.0,                                     │
+│         │                            'image_max_range': (640, 640),                        │
+│         │                            'image_mean': [0.0, 0.0, 0.0],                        │
+│         │                            'image_std': [1.0, 1.0, 1.0],                         │
+│         │                            'keep_ratio': False}},                                │
+│         │  'batch_size': 16}                                                               │
+├─────────┼──────────────────────────────────────────────────────────────────────────────────┤
+│ dataset │ {'aspect_ratio_grouping': False,                                                 │
+│         │  'class_names': ['pedestrian', 'car', 'truck', 'bus', 'motorcycle', 'bicycle'],  │
+│         │  'data_dir': None,                                                               │
+│         │  'paths_catalog': '/home/vision/syoon/Online_CLOD/damo/config/paths_catalog.py', │
+│         │  'train_ann': ('shift_train_pretrain_equalized',),                               │
+│         │  'val_ann': ('shift_val_pretrain_equalized',)}                                   │
+├─────────┼──────────────────────────────────────────────────────────────────────────────────┤
+│ miscs   │ {'ckpt_interval_epochs': 100,                                                    │
+│         │  'eval_interval_epochs': 10,                                                     │
+│         │  'exp_name': 'pretrain_shift_equalized',                                         │
+│         │  'num_workers': 4,                                                               │
+│         │  'output_dir': './damo_pretrain_outputs_w/shift_equalized',                      │
+│         │  'print_interval_iters': 50,                                                     │
+│         │  'seed': 1234}                                                                   │
+╘═════════╧══════════════════════════════════════════════════════════════════════════════════╛
+2026-02-03 09:23:57.607 | INFO     | damo.apis.detector_trainer:__init__:124 - model:
+2026-02-03 09:23:57.746 | INFO     | damo.detectors.detector:load_pretrain_detector:42 - Finetune from ./damo/damoyolo_tinynasL25_S_456.pth................
+2026-02-03 09:23:57.823 | INFO     | damo.apis.detector_trainer:__init__:162 - Enable ema model! Ema model will be evaluated and saved.
+2026-02-03 09:23:57.907 | INFO     | torchvision.datasets.coco:__init__:37 - loading annotations into memory...
+2026-02-03 09:23:59.361 | INFO     | torchvision.datasets.coco:__init__:37 - Done (t=1.45s)
+2026-02-03 09:23:59.362 | INFO     | pycocotools.coco:__init__:86 - creating index...
+2026-02-03 09:23:59.479 | INFO     | pycocotools.coco:__init__:86 - index created!
+2026-02-03 09:23:59.482 | INFO     | torchvision.datasets.coco:__init__:37 - loading annotations into memory...
+2026-02-03 09:23:59.949 | INFO     | torchvision.datasets.coco:__init__:37 - Done (t=0.47s)
+2026-02-03 09:23:59.949 | INFO     | pycocotools.coco:__init__:86 - creating index...
+2026-02-03 09:23:59.963 | INFO     | pycocotools.coco:__init__:86 - index created!
+2026-02-03 09:24:10.743 | INFO     | damo.apis.detector_trainer:train:272 - Model Summary: backbone's params(M): 3.84, flops(G): 18.01, latency(ms): 6.051
+neck's params(M): 11.90, flops(G): 18.18, latency(ms): 11.530
+head's params(M): 0.60, flops(G): 1.91, latency(ms): 1.524
+total latency(ms): 19.950, total flops(G): 38.10, total params(M): 16.34
+
+2026-02-03 09:24:12.783 | INFO     | damo.apis.detector_trainer:train:277 - Model: DistributedDataParallel(
+  (module): Detector(
+    (backbone): TinyNAS(
+      (block_list): ModuleList(
+        (0): Focus(
+          (conv): ConvBNAct(
+            (conv): Conv2d(12, 32, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+            (bn): SyncBatchNorm(32, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+            (act): ReLU(inplace=True)
+          )
+        )
+        (1): SuperResStem(
+          (act): ReLU(inplace=True)
+          (block_list): ModuleList(
+            (0): ResConvBlock(
+              (conv1): ConvKXBN(
+                (conv1): Conv2d(32, 24, kernel_size=(1, 1), stride=(1, 1), bias=False)
+                (bn1): SyncBatchNorm(24, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+              )
+              (conv2): RepConv(
+                (nonlinearity): Identity()
+                (rbr_dense): Sequential(
+                  (conv): Conv2d(24, 128, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1), bias=False)
+                  (bn): SyncBatchNorm(128, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+                )
+                (rbr_1x1): Sequential(
+                  (conv): Conv2d(24, 128, kernel_size=(1, 1), stride=(2, 2), bias=False)
+                  (bn): SyncBatchNorm(128, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+                )
+              )
+              (activation_function): ReLU(inplace=True)
+            )
+          )
+        )
+        (2): SuperResStem(
+          (act): ReLU(inplace=True)
+          (block_list): ModuleList(
+            (0): ResConvBlock(
+              (conv1): ConvKXBN(
+                (conv1): Conv2d(128, 88, kernel_size=(1, 1), stride=(1, 1), bias=False)
+                (bn1): SyncBatchNorm(88, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+              )
+              (conv2): RepConv(
+                (nonlinearity): Identity()
+                (rbr_dense): Sequential(
+                  (conv): Conv2d(88, 128, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1), bias=False)
+                  (bn): SyncBatchNorm(128, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+                )
+                (rbr_1x1): Sequential(
+                  (conv): Conv2d(88, 128, kernel_size=(1, 1), stride=(2, 2), bias=False)
+                  (bn): SyncBatchNorm(128, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+                )
+              )
+              (activation_function): ReLU(inplace=True)
+            )
+            (1-4): 4 x ResConvBlock(
+              (conv1): ConvKXBN(
+                (conv1): Conv2d(128, 88, kernel_size=(1, 1), stride=(1, 1), bias=False)
+                (bn1): SyncBatchNorm(88, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+              )
+              (conv2): RepConv(
+                (nonlinearity): Identity()
+                (rbr_dense): Sequential(
+                  (conv): Conv2d(88, 128, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+                  (bn): SyncBatchNorm(128, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+                )
+                (rbr_1x1): Sequential(
+                  (conv): Conv2d(88, 128, kernel_size=(1, 1), stride=(1, 1), bias=False)
+                  (bn): SyncBatchNorm(128, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+                )
+              )
+              (activation_function): ReLU(inplace=True)
+            )
+          )
+        )
+        (3): SuperResStem(
+          (act): ReLU(inplace=True)
+          (block_list): ModuleList(
+            (0): ResConvBlock(
+              (conv1): ConvKXBN(
+                (conv1): Conv2d(128, 128, kernel_size=(1, 1), stride=(1, 1), bias=False)
+                (bn1): SyncBatchNorm(128, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+              )
+              (conv2): RepConv(
+                (nonlinearity): Identity()
+                (rbr_dense): Sequential(
+                  (conv): Conv2d(128, 256, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1), bias=False)
+                  (bn): SyncBatchNorm(256, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+                )
+                (rbr_1x1): Sequential(
+                  (conv): Conv2d(128, 256, kernel_size=(1, 1), stride=(2, 2), bias=False)
+                  (bn): SyncBatchNorm(256, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+                )
+              )
+              (activation_function): ReLU(inplace=True)
+            )
+            (1-2): 2 x ResConvBlock(
+              (conv1): ConvKXBN(
+                (conv1): Conv2d(256, 128, kernel_size=(1, 1), stride=(1, 1), bias=False)
+                (bn1): SyncBatchNorm(128, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+              )
+              (conv2): RepConv(
+                (nonlinearity): Identity()
+                (rbr_dense): Sequential(
+                  (conv): Conv2d(128, 256, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+                  (bn): SyncBatchNorm(256, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+                )
+                (rbr_1x1): Sequential(
+                  (conv): Conv2d(128, 256, kernel_size=(1, 1), stride=(1, 1), bias=False)
+                  (bn): SyncBatchNorm(256, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+                )
+              )
+              (activation_function): ReLU(inplace=True)
+            )
+          )
+        )
+        (4): SuperResStem(
+          (act): ReLU(inplace=True)
+          (block_list): ModuleList(
+            (0-1): 2 x ResConvBlock(
+              (conv1): ConvKXBN(
+                (conv1): Conv2d(256, 120, kernel_size=(1, 1), stride=(1, 1), bias=False)
+                (bn1): SyncBatchNorm(120, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+              )
+              (conv2): RepConv(
+                (nonlinearity): Identity()
+                (rbr_dense): Sequential(
+                  (conv): Conv2d(120, 256, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+                  (bn): SyncBatchNorm(256, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+                )
+                (rbr_1x1): Sequential(
+                  (conv): Conv2d(120, 256, kernel_size=(1, 1), stride=(1, 1), bias=False)
+                  (bn): SyncBatchNorm(256, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+                )
+              )
+              (activation_function): ReLU(inplace=True)
+            )
+          )
+        )
+        (5): SuperResStem(
+          (act): ReLU(inplace=True)
+          (block_list): ModuleList(
+            (0): ResConvBlock(
+              (conv1): ConvKXBN(
+                (conv1): Conv2d(256, 144, kernel_size=(1, 1), stride=(1, 1), bias=False)
+                (bn1): SyncBatchNorm(144, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+              )
+              (conv2): RepConv(
+                (nonlinearity): Identity()
+                (rbr_dense): Sequential(
+                  (conv): Conv2d(144, 512, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1), bias=False)
+                  (bn): SyncBatchNorm(512, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+                )
+                (rbr_1x1): Sequential(
+                  (conv): Conv2d(144, 512, kernel_size=(1, 1), stride=(2, 2), bias=False)
+                  (bn): SyncBatchNorm(512, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+                )
+              )
+              (activation_function): ReLU(inplace=True)
+            )
+            (1): SPPBottleneck(
+              (conv1): ConvBNAct(
+                (conv): Conv2d(512, 256, kernel_size=(1, 1), stride=(1, 1), bias=False)
+                (bn): SyncBatchNorm(256, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+                (act): SiLU(inplace=True)
+              )
+              (m): ModuleList(
+                (0): MaxPool2d(kernel_size=5, stride=1, padding=2, dilation=1, ceil_mode=False)
+                (1): MaxPool2d(kernel_size=9, stride=1, padding=4, dilation=1, ceil_mode=False)
+                (2): MaxPool2d(kernel_size=13, stride=1, padding=6, dilation=1, ceil_mode=False)
+              )
+              (conv2): ConvBNAct(
+                (conv): Conv2d(1024, 512, kernel_size=(1, 1), stride=(1, 1), bias=False)
+                (bn): SyncBatchNorm(512, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+                (act): SiLU(inplace=True)
+              )
+            )
+          )
+        )
+      )
+    )
+    (neck): GiraffeNeckV2(
+      (upsample): Upsample(scale_factor=2.0, mode='nearest')
+      (bu_conv13): ConvBNAct(
+        (conv): Conv2d(256, 256, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1), bias=False)
+        (bn): SyncBatchNorm(256, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+        (act): ReLU(inplace=True)
+      )
+      (merge_3): CSPStage(
+        (conv1): ConvBNAct(
+          (conv): Conv2d(768, 256, kernel_size=(1, 1), stride=(1, 1), bias=False)
+          (bn): SyncBatchNorm(256, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+          (act): ReLU(inplace=True)
+        )
+        (conv2): ConvBNAct(
+          (conv): Conv2d(768, 256, kernel_size=(1, 1), stride=(1, 1), bias=False)
+          (bn): SyncBatchNorm(256, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+          (act): ReLU(inplace=True)
+        )
+        (convs): Sequential(
+          (0): BasicBlock_3x3_Reverse(
+            (conv1): ConvBNAct(
+              (conv): Conv2d(192, 256, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+              (bn): SyncBatchNorm(256, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+              (act): ReLU(inplace=True)
+            )
+            (conv2): RepConv(
+              (nonlinearity): ReLU(inplace=True)
+              (rbr_dense): Sequential(
+                (conv): Conv2d(256, 192, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+                (bn): SyncBatchNorm(192, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+              )
+              (rbr_1x1): Sequential(
+                (conv): Conv2d(256, 192, kernel_size=(1, 1), stride=(1, 1), bias=False)
+                (bn): SyncBatchNorm(192, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+              )
+            )
+          )
+          (1): BasicBlock_3x3_Reverse(
+            (conv1): ConvBNAct(
+              (conv): Conv2d(192, 256, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+              (bn): SyncBatchNorm(256, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+              (act): ReLU(inplace=True)
+            )
+            (conv2): RepConv(
+              (nonlinearity): ReLU(inplace=True)
+              (rbr_dense): Sequential(
+                (conv): Conv2d(256, 192, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+                (bn): SyncBatchNorm(192, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+              )
+              (rbr_1x1): Sequential(
+                (conv): Conv2d(256, 192, kernel_size=(1, 1), stride=(1, 1), bias=False)
+                (bn): SyncBatchNorm(192, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+              )
+            )
+          )
+          (2): BasicBlock_3x3_Reverse(
+            (conv1): ConvBNAct(
+              (conv): Conv2d(192, 256, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+              (bn): SyncBatchNorm(256, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+              (act): ReLU(inplace=True)
+            )
+            (conv2): RepConv(
+              (nonlinearity): ReLU(inplace=True)
+              (rbr_dense): Sequential(
+                (conv): Conv2d(256, 192, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+                (bn): SyncBatchNorm(192, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+              )
+              (rbr_1x1): Sequential(
+                (conv): Conv2d(256, 192, kernel_size=(1, 1), stride=(1, 1), bias=False)
+                (bn): SyncBatchNorm(192, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+              )
+            )
+          )
+        )
+        (conv3): ConvBNAct(
+          (conv): Conv2d(1024, 512, kernel_size=(1, 1), stride=(1, 1), bias=False)
+          (bn): SyncBatchNorm(512, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+          (act): ReLU(inplace=True)
+        )
+      )
+      (bu_conv24): ConvBNAct(
+        (conv): Conv2d(128, 128, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1), bias=False)
+        (bn): SyncBatchNorm(128, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+        (act): ReLU(inplace=True)
+      )
+      (merge_4): CSPStage(
+        (conv1): ConvBNAct(
+          (conv): Conv2d(896, 128, kernel_size=(1, 1), stride=(1, 1), bias=False)
+          (bn): SyncBatchNorm(128, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+          (act): ReLU(inplace=True)
+        )
+        (conv2): ConvBNAct(
+          (conv): Conv2d(896, 128, kernel_size=(1, 1), stride=(1, 1), bias=False)
+          (bn): SyncBatchNorm(128, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+          (act): ReLU(inplace=True)
+        )
+        (convs): Sequential(
+          (0): BasicBlock_3x3_Reverse(
+            (conv1): ConvBNAct(
+              (conv): Conv2d(96, 128, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+              (bn): SyncBatchNorm(128, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+              (act): ReLU(inplace=True)
+            )
+            (conv2): RepConv(
+              (nonlinearity): ReLU(inplace=True)
+              (rbr_dense): Sequential(
+                (conv): Conv2d(128, 96, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+                (bn): SyncBatchNorm(96, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+              )
+              (rbr_1x1): Sequential(
+                (conv): Conv2d(128, 96, kernel_size=(1, 1), stride=(1, 1), bias=False)
+                (bn): SyncBatchNorm(96, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+              )
+            )
+          )
+          (1): BasicBlock_3x3_Reverse(
+            (conv1): ConvBNAct(
+              (conv): Conv2d(96, 128, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+              (bn): SyncBatchNorm(128, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+              (act): ReLU(inplace=True)
+            )
+            (conv2): RepConv(
+              (nonlinearity): ReLU(inplace=True)
+              (rbr_dense): Sequential(
+                (conv): Conv2d(128, 96, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+                (bn): SyncBatchNorm(96, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+              )
+              (rbr_1x1): Sequential(
+                (conv): Conv2d(128, 96, kernel_size=(1, 1), stride=(1, 1), bias=False)
+                (bn): SyncBatchNorm(96, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+              )
+            )
+          )
+          (2): BasicBlock_3x3_Reverse(
+            (conv1): ConvBNAct(
+              (conv): Conv2d(96, 128, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+              (bn): SyncBatchNorm(128, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+              (act): ReLU(inplace=True)
+            )
+            (conv2): RepConv(
+              (nonlinearity): ReLU(inplace=True)
+              (rbr_dense): Sequential(
+                (conv): Conv2d(128, 96, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+                (bn): SyncBatchNorm(96, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+              )
+              (rbr_1x1): Sequential(
+                (conv): Conv2d(128, 96, kernel_size=(1, 1), stride=(1, 1), bias=False)
+                (bn): SyncBatchNorm(96, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+              )
+            )
+          )
+        )
+        (conv3): ConvBNAct(
+          (conv): Conv2d(512, 256, kernel_size=(1, 1), stride=(1, 1), bias=False)
+          (bn): SyncBatchNorm(256, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+          (act): ReLU(inplace=True)
+        )
+      )
+      (merge_5): CSPStage(
+        (conv1): ConvBNAct(
+          (conv): Conv2d(384, 64, kernel_size=(1, 1), stride=(1, 1), bias=False)
+          (bn): SyncBatchNorm(64, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+          (act): ReLU(inplace=True)
+        )
+        (conv2): ConvBNAct(
+          (conv): Conv2d(384, 64, kernel_size=(1, 1), stride=(1, 1), bias=False)
+          (bn): SyncBatchNorm(64, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+          (act): ReLU(inplace=True)
+        )
+        (convs): Sequential(
+          (0): BasicBlock_3x3_Reverse(
+            (conv1): ConvBNAct(
+              (conv): Conv2d(48, 64, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+              (bn): SyncBatchNorm(64, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+              (act): ReLU(inplace=True)
+            )
+            (conv2): RepConv(
+              (nonlinearity): ReLU(inplace=True)
+              (rbr_dense): Sequential(
+                (conv): Conv2d(64, 48, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+                (bn): SyncBatchNorm(48, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+              )
+              (rbr_1x1): Sequential(
+                (conv): Conv2d(64, 48, kernel_size=(1, 1), stride=(1, 1), bias=False)
+                (bn): SyncBatchNorm(48, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+              )
+            )
+          )
+          (1): BasicBlock_3x3_Reverse(
+            (conv1): ConvBNAct(
+              (conv): Conv2d(48, 64, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+              (bn): SyncBatchNorm(64, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+              (act): ReLU(inplace=True)
+            )
+            (conv2): RepConv(
+              (nonlinearity): ReLU(inplace=True)
+              (rbr_dense): Sequential(
+                (conv): Conv2d(64, 48, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+                (bn): SyncBatchNorm(48, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+              )
+              (rbr_1x1): Sequential(
+                (conv): Conv2d(64, 48, kernel_size=(1, 1), stride=(1, 1), bias=False)
+                (bn): SyncBatchNorm(48, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+              )
+            )
+          )
+          (2): BasicBlock_3x3_Reverse(
+            (conv1): ConvBNAct(
+              (conv): Conv2d(48, 64, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+              (bn): SyncBatchNorm(64, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+              (act): ReLU(inplace=True)
+            )
+            (conv2): RepConv(
+              (nonlinearity): ReLU(inplace=True)
+              (rbr_dense): Sequential(
+                (conv): Conv2d(64, 48, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+                (bn): SyncBatchNorm(48, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+              )
+              (rbr_1x1): Sequential(
+                (conv): Conv2d(64, 48, kernel_size=(1, 1), stride=(1, 1), bias=False)
+                (bn): SyncBatchNorm(48, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+              )
+            )
+          )
+        )
+        (conv3): ConvBNAct(
+          (conv): Conv2d(256, 128, kernel_size=(1, 1), stride=(1, 1), bias=False)
+          (bn): SyncBatchNorm(128, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+          (act): ReLU(inplace=True)
+        )
+      )
+      (bu_conv57): ConvBNAct(
+        (conv): Conv2d(128, 128, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1), bias=False)
+        (bn): SyncBatchNorm(128, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+        (act): ReLU(inplace=True)
+      )
+      (merge_7): CSPStage(
+        (conv1): ConvBNAct(
+          (conv): Conv2d(384, 128, kernel_size=(1, 1), stride=(1, 1), bias=False)
+          (bn): SyncBatchNorm(128, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+          (act): ReLU(inplace=True)
+        )
+        (conv2): ConvBNAct(
+          (conv): Conv2d(384, 128, kernel_size=(1, 1), stride=(1, 1), bias=False)
+          (bn): SyncBatchNorm(128, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+          (act): ReLU(inplace=True)
+        )
+        (convs): Sequential(
+          (0): BasicBlock_3x3_Reverse(
+            (conv1): ConvBNAct(
+              (conv): Conv2d(96, 128, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+              (bn): SyncBatchNorm(128, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+              (act): ReLU(inplace=True)
+            )
+            (conv2): RepConv(
+              (nonlinearity): ReLU(inplace=True)
+              (rbr_dense): Sequential(
+                (conv): Conv2d(128, 96, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+                (bn): SyncBatchNorm(96, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+              )
+              (rbr_1x1): Sequential(
+                (conv): Conv2d(128, 96, kernel_size=(1, 1), stride=(1, 1), bias=False)
+                (bn): SyncBatchNorm(96, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+              )
+            )
+          )
+          (1): BasicBlock_3x3_Reverse(
+            (conv1): ConvBNAct(
+              (conv): Conv2d(96, 128, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+              (bn): SyncBatchNorm(128, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+              (act): ReLU(inplace=True)
+            )
+            (conv2): RepConv(
+              (nonlinearity): ReLU(inplace=True)
+              (rbr_dense): Sequential(
+                (conv): Conv2d(128, 96, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+                (bn): SyncBatchNorm(96, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+              )
+              (rbr_1x1): Sequential(
+                (conv): Conv2d(128, 96, kernel_size=(1, 1), stride=(1, 1), bias=False)
+                (bn): SyncBatchNorm(96, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+              )
+            )
+          )
+          (2): BasicBlock_3x3_Reverse(
+            (conv1): ConvBNAct(
+              (conv): Conv2d(96, 128, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+              (bn): SyncBatchNorm(128, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+              (act): ReLU(inplace=True)
+            )
+            (conv2): RepConv(
+              (nonlinearity): ReLU(inplace=True)
+              (rbr_dense): Sequential(
+                (conv): Conv2d(128, 96, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+                (bn): SyncBatchNorm(96, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+              )
+              (rbr_1x1): Sequential(
+                (conv): Conv2d(128, 96, kernel_size=(1, 1), stride=(1, 1), bias=False)
+                (bn): SyncBatchNorm(96, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+              )
+            )
+          )
+        )
+        (conv3): ConvBNAct(
+          (conv): Conv2d(512, 256, kernel_size=(1, 1), stride=(1, 1), bias=False)
+          (bn): SyncBatchNorm(256, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+          (act): ReLU(inplace=True)
+        )
+      )
+      (bu_conv46): ConvBNAct(
+        (conv): Conv2d(256, 256, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1), bias=False)
+        (bn): SyncBatchNorm(256, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+        (act): ReLU(inplace=True)
+      )
+      (bu_conv76): ConvBNAct(
+        (conv): Conv2d(256, 256, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1), bias=False)
+        (bn): SyncBatchNorm(256, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+        (act): ReLU(inplace=True)
+      )
+      (merge_6): CSPStage(
+        (conv1): ConvBNAct(
+          (conv): Conv2d(1024, 256, kernel_size=(1, 1), stride=(1, 1), bias=False)
+          (bn): SyncBatchNorm(256, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+          (act): ReLU(inplace=True)
+        )
+        (conv2): ConvBNAct(
+          (conv): Conv2d(1024, 256, kernel_size=(1, 1), stride=(1, 1), bias=False)
+          (bn): SyncBatchNorm(256, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+          (act): ReLU(inplace=True)
+        )
+        (convs): Sequential(
+          (0): BasicBlock_3x3_Reverse(
+            (conv1): ConvBNAct(
+              (conv): Conv2d(192, 256, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+              (bn): SyncBatchNorm(256, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+              (act): ReLU(inplace=True)
+            )
+            (conv2): RepConv(
+              (nonlinearity): ReLU(inplace=True)
+              (rbr_dense): Sequential(
+                (conv): Conv2d(256, 192, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+                (bn): SyncBatchNorm(192, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+              )
+              (rbr_1x1): Sequential(
+                (conv): Conv2d(256, 192, kernel_size=(1, 1), stride=(1, 1), bias=False)
+                (bn): SyncBatchNorm(192, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+              )
+            )
+          )
+          (1): BasicBlock_3x3_Reverse(
+            (conv1): ConvBNAct(
+              (conv): Conv2d(192, 256, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+              (bn): SyncBatchNorm(256, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+              (act): ReLU(inplace=True)
+            )
+            (conv2): RepConv(
+              (nonlinearity): ReLU(inplace=True)
+              (rbr_dense): Sequential(
+                (conv): Conv2d(256, 192, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+                (bn): SyncBatchNorm(192, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+              )
+              (rbr_1x1): Sequential(
+                (conv): Conv2d(256, 192, kernel_size=(1, 1), stride=(1, 1), bias=False)
+                (bn): SyncBatchNorm(192, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+              )
+            )
+          )
+          (2): BasicBlock_3x3_Reverse(
+            (conv1): ConvBNAct(
+              (conv): Conv2d(192, 256, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+              (bn): SyncBatchNorm(256, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+              (act): ReLU(inplace=True)
+            )
+            (conv2): RepConv(
+              (nonlinearity): ReLU(inplace=True)
+              (rbr_dense): Sequential(
+                (conv): Conv2d(256, 192, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+                (bn): SyncBatchNorm(192, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+              )
+              (rbr_1x1): Sequential(
+                (conv): Conv2d(256, 192, kernel_size=(1, 1), stride=(1, 1), bias=False)
+                (bn): SyncBatchNorm(192, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+              )
+            )
+          )
+        )
+        (conv3): ConvBNAct(
+          (conv): Conv2d(1024, 512, kernel_size=(1, 1), stride=(1, 1), bias=False)
+          (bn): SyncBatchNorm(512, eps=0.001, momentum=0.03, affine=True, track_running_stats=True)
+          (act): ReLU(inplace=True)
+        )
+      )
+    )
+    (head): ZeroHead(
+      (integral): Integral()
+      (loss_dfl): DistributionFocalLoss()
+      (loss_cls): QualityFocalLoss()
+      (loss_bbox): GIoULoss()
+      (cls_convs): ModuleList(
+        (0-2): 3 x ModuleList()
+      )
+      (reg_convs): ModuleList(
+        (0-2): 3 x ModuleList()
+      )
+      (gfl_cls): ModuleList(
+        (0): Conv2d(128, 6, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+        (1): Conv2d(256, 6, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+        (2): Conv2d(512, 6, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+      )
+      (gfl_reg): ModuleList(
+        (0): Conv2d(128, 68, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+        (1): Conv2d(256, 68, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+        (2): Conv2d(512, 68, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+      )
+      (scales): ModuleList(
+        (0-2): 3 x Scale()
+      )
+    )
+  )
+)
+2026-02-03 09:24:12.783 | INFO     | damo.apis.detector_trainer:train:279 - Training start...
+2026-02-03 09:24:29.379 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 1/300, iter: 50/1300, mem: 1897Mb, iter_time: 0.332s, model_time: 0.308s, total_loss: 2.4, loss_cls: 0.2, loss_bbox: 1.6, loss_dfl: 0.7, lr: 1.421e-07, size: (640, 640), ETA: 1 day, 11:56:47
+2026-02-03 09:24:43.934 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 1/300, iter: 100/1300, mem: 1897Mb, iter_time: 0.291s, model_time: 0.277s, total_loss: 2.6, loss_cls: 0.2, loss_bbox: 1.7, loss_dfl: 0.7, lr: 5.799e-07, size: (640, 640), ETA: 1 day, 9:44:08
+2026-02-03 09:24:58.976 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 1/300, iter: 150/1300, mem: 1898Mb, iter_time: 0.301s, model_time: 0.282s, total_loss: 2.3, loss_cls: 0.2, loss_bbox: 1.5, loss_dfl: 0.6, lr: 1.314e-06, size: (640, 640), ETA: 1 day, 9:20:47
+2026-02-03 09:25:15.389 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 1/300, iter: 200/1300, mem: 1899Mb, iter_time: 0.328s, model_time: 0.298s, total_loss: 2.3, loss_cls: 0.2, loss_bbox: 1.5, loss_dfl: 0.7, lr: 2.343e-06, size: (640, 640), ETA: 1 day, 9:53:32
+2026-02-03 09:25:31.761 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 1/300, iter: 250/1300, mem: 1899Mb, iter_time: 0.327s, model_time: 0.297s, total_loss: 2.5, loss_cls: 0.2, loss_bbox: 1.6, loss_dfl: 0.7, lr: 3.669e-06, size: (640, 640), ETA: 1 day, 10:12:01
+2026-02-03 09:25:48.254 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 1/300, iter: 300/1300, mem: 1899Mb, iter_time: 0.330s, model_time: 0.299s, total_loss: 2.4, loss_cls: 0.2, loss_bbox: 1.5, loss_dfl: 0.7, lr: 5.290e-06, size: (640, 640), ETA: 1 day, 10:26:53
+2026-02-03 09:26:04.666 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 1/300, iter: 350/1300, mem: 1899Mb, iter_time: 0.328s, model_time: 0.298s, total_loss: 2.3, loss_cls: 0.2, loss_bbox: 1.5, loss_dfl: 0.6, lr: 7.207e-06, size: (640, 640), ETA: 1 day, 10:35:54
+2026-02-03 09:26:21.006 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 1/300, iter: 400/1300, mem: 1902Mb, iter_time: 0.327s, model_time: 0.297s, total_loss: 2.7, loss_cls: 0.3, loss_bbox: 1.7, loss_dfl: 0.8, lr: 9.420e-06, size: (640, 640), ETA: 1 day, 10:41:26
+2026-02-03 09:26:37.859 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 1/300, iter: 450/1300, mem: 1902Mb, iter_time: 0.337s, model_time: 0.296s, total_loss: 2.0, loss_cls: 0.2, loss_bbox: 1.2, loss_dfl: 0.6, lr: 1.193e-05, size: (640, 640), ETA: 1 day, 10:53:05
+2026-02-03 09:26:54.269 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 1/300, iter: 500/1300, mem: 1902Mb, iter_time: 0.328s, model_time: 0.299s, total_loss: 1.7, loss_cls: 0.2, loss_bbox: 0.9, loss_dfl: 0.6, lr: 1.473e-05, size: (640, 640), ETA: 1 day, 10:56:35
+2026-02-03 09:27:10.642 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 1/300, iter: 550/1300, mem: 1902Mb, iter_time: 0.327s, model_time: 0.298s, total_loss: 1.7, loss_cls: 0.3, loss_bbox: 0.8, loss_dfl: 0.6, lr: 1.783e-05, size: (640, 640), ETA: 1 day, 10:58:58
+2026-02-03 09:27:27.020 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 1/300, iter: 600/1300, mem: 1902Mb, iter_time: 0.328s, model_time: 0.298s, total_loss: 1.7, loss_cls: 0.3, loss_bbox: 0.9, loss_dfl: 0.6, lr: 2.123e-05, size: (640, 640), ETA: 1 day, 11:00:57
+2026-02-03 09:27:43.387 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 1/300, iter: 650/1300, mem: 1902Mb, iter_time: 0.327s, model_time: 0.298s, total_loss: 1.4, loss_cls: 0.3, loss_bbox: 0.7, loss_dfl: 0.5, lr: 2.492e-05, size: (640, 640), ETA: 1 day, 11:02:30
+2026-02-03 09:28:00.326 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 1/300, iter: 700/1300, mem: 1902Mb, iter_time: 0.339s, model_time: 0.308s, total_loss: 1.3, loss_cls: 0.3, loss_bbox: 0.7, loss_dfl: 0.4, lr: 2.891e-05, size: (640, 640), ETA: 1 day, 11:09:04
+2026-02-03 09:28:16.729 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 1/300, iter: 750/1300, mem: 1902Mb, iter_time: 0.328s, model_time: 0.298s, total_loss: 1.3, loss_cls: 0.3, loss_bbox: 0.7, loss_dfl: 0.4, lr: 3.320e-05, size: (640, 640), ETA: 1 day, 11:10:06
+2026-02-03 09:28:33.186 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 1/300, iter: 800/1300, mem: 1902Mb, iter_time: 0.329s, model_time: 0.299s, total_loss: 1.2, loss_cls: 0.3, loss_bbox: 0.6, loss_dfl: 0.3, lr: 3.778e-05, size: (640, 640), ETA: 1 day, 11:11:24
+2026-02-03 09:28:49.713 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 1/300, iter: 850/1300, mem: 1902Mb, iter_time: 0.331s, model_time: 0.300s, total_loss: 1.2, loss_cls: 0.3, loss_bbox: 0.6, loss_dfl: 0.3, lr: 4.265e-05, size: (640, 640), ETA: 1 day, 11:13:03
+2026-02-03 09:29:06.168 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 1/300, iter: 900/1300, mem: 1902Mb, iter_time: 0.329s, model_time: 0.299s, total_loss: 1.1, loss_cls: 0.3, loss_bbox: 0.6, loss_dfl: 0.3, lr: 4.782e-05, size: (640, 640), ETA: 1 day, 11:13:59
+2026-02-03 09:29:22.681 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 1/300, iter: 950/1300, mem: 1902Mb, iter_time: 0.330s, model_time: 0.300s, total_loss: 1.0, loss_cls: 0.2, loss_bbox: 0.5, loss_dfl: 0.3, lr: 5.329e-05, size: (640, 640), ETA: 1 day, 11:15:10
+2026-02-03 09:29:39.537 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 1/300, iter: 1000/1300, mem: 1902Mb, iter_time: 0.337s, model_time: 0.307s, total_loss: 1.1, loss_cls: 0.2, loss_bbox: 0.6, loss_dfl: 0.3, lr: 5.905e-05, size: (640, 640), ETA: 1 day, 11:18:26
+2026-02-03 09:29:56.073 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 1/300, iter: 1050/1300, mem: 1902Mb, iter_time: 0.331s, model_time: 0.300s, total_loss: 1.1, loss_cls: 0.3, loss_bbox: 0.6, loss_dfl: 0.3, lr: 6.511e-05, size: (640, 640), ETA: 1 day, 11:19:23
+2026-02-03 09:30:12.561 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 1/300, iter: 1100/1300, mem: 1902Mb, iter_time: 0.330s, model_time: 0.300s, total_loss: 1.1, loss_cls: 0.2, loss_bbox: 0.5, loss_dfl: 0.3, lr: 7.147e-05, size: (640, 640), ETA: 1 day, 11:19:56
+2026-02-03 09:30:28.986 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 1/300, iter: 1150/1300, mem: 1902Mb, iter_time: 0.329s, model_time: 0.299s, total_loss: 0.9, loss_cls: 0.2, loss_bbox: 0.5, loss_dfl: 0.2, lr: 7.812e-05, size: (640, 640), ETA: 1 day, 11:20:04
+2026-02-03 09:30:45.434 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 1/300, iter: 1200/1300, mem: 1902Mb, iter_time: 0.329s, model_time: 0.299s, total_loss: 0.9, loss_cls: 0.2, loss_bbox: 0.5, loss_dfl: 0.2, lr: 8.507e-05, size: (640, 640), ETA: 1 day, 11:20:17
+2026-02-03 09:31:01.938 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 1/300, iter: 1250/1300, mem: 1902Mb, iter_time: 0.330s, model_time: 0.300s, total_loss: 0.9, loss_cls: 0.2, loss_bbox: 0.5, loss_dfl: 0.2, lr: 9.231e-05, size: (640, 640), ETA: 1 day, 11:20:46
+2026-02-03 09:31:17.547 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 1/300, iter: 0/1300, mem: 1902Mb, iter_time: 0.312s, model_time: 0.289s, total_loss: 1.0, loss_cls: 0.2, loss_bbox: 0.5, loss_dfl: 0.2, lr: 9.985e-05, size: (640, 640), ETA: 1 day, 11:16:43
+2026-02-03 09:31:32.092 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 2/300, iter: 50/1300, mem: 1902Mb, iter_time: 0.291s, model_time: 0.276s, total_loss: 0.9, loss_cls: 0.2, loss_bbox: 0.5, loss_dfl: 0.2, lr: 1.077e-04, size: (640, 640), ETA: 1 day, 11:07:51
+2026-02-03 09:31:47.090 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 2/300, iter: 100/1300, mem: 1902Mb, iter_time: 0.300s, model_time: 0.284s, total_loss: 1.0, loss_cls: 0.2, loss_bbox: 0.5, loss_dfl: 0.2, lr: 1.158e-04, size: (640, 640), ETA: 1 day, 11:01:41
+2026-02-03 09:32:01.623 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 2/300, iter: 150/1300, mem: 1902Mb, iter_time: 0.291s, model_time: 0.276s, total_loss: 1.0, loss_cls: 0.2, loss_bbox: 0.5, loss_dfl: 0.3, lr: 1.242e-04, size: (640, 640), ETA: 1 day, 10:53:52
+2026-02-03 09:32:16.152 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 2/300, iter: 200/1300, mem: 1902Mb, iter_time: 0.291s, model_time: 0.276s, total_loss: 0.9, loss_cls: 0.2, loss_bbox: 0.5, loss_dfl: 0.2, lr: 1.330e-04, size: (640, 640), ETA: 1 day, 10:46:31
+2026-02-03 09:32:30.668 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 2/300, iter: 250/1300, mem: 1902Mb, iter_time: 0.290s, model_time: 0.276s, total_loss: 0.9, loss_cls: 0.2, loss_bbox: 0.5, loss_dfl: 0.2, lr: 1.420e-04, size: (640, 640), ETA: 1 day, 10:39:35
+2026-02-03 09:32:45.224 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 2/300, iter: 300/1300, mem: 1902Mb, iter_time: 0.291s, model_time: 0.276s, total_loss: 1.0, loss_cls: 0.2, loss_bbox: 0.5, loss_dfl: 0.2, lr: 1.513e-04, size: (640, 640), ETA: 1 day, 10:33:14
+2026-02-03 09:32:59.768 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 2/300, iter: 350/1300, mem: 1902Mb, iter_time: 0.291s, model_time: 0.277s, total_loss: 0.9, loss_cls: 0.2, loss_bbox: 0.5, loss_dfl: 0.2, lr: 1.609e-04, size: (640, 640), ETA: 1 day, 10:27:12
+2026-02-03 09:33:14.234 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 2/300, iter: 400/1300, mem: 1902Mb, iter_time: 0.289s, model_time: 0.275s, total_loss: 0.9, loss_cls: 0.2, loss_bbox: 0.5, loss_dfl: 0.2, lr: 1.708e-04, size: (640, 640), ETA: 1 day, 10:21:13
+2026-02-03 09:33:29.123 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 2/300, iter: 450/1300, mem: 1902Mb, iter_time: 0.298s, model_time: 0.276s, total_loss: 0.9, loss_cls: 0.2, loss_bbox: 0.5, loss_dfl: 0.2, lr: 1.810e-04, size: (640, 640), ETA: 1 day, 10:17:07
+2026-02-03 09:33:43.695 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 2/300, iter: 500/1300, mem: 1902Mb, iter_time: 0.291s, model_time: 0.277s, total_loss: 0.8, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 1.915e-04, size: (640, 640), ETA: 1 day, 10:12:06
+2026-02-03 09:33:53.653 | INFO     | damo.base_models.heads.zero_head:loss:428 - No Positive Samples on cuda:0! May cause performance decrease. loss_bbox:0.000, loss_dfl:0.000, loss_qfl:0.011 
+2026-02-03 09:33:58.175 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 2/300, iter: 550/1300, mem: 1902Mb, iter_time: 0.290s, model_time: 0.276s, total_loss: 0.8, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 2.023e-04, size: (640, 640), ETA: 1 day, 10:07:00
+2026-02-03 09:34:12.716 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 2/300, iter: 600/1300, mem: 1902Mb, iter_time: 0.291s, model_time: 0.277s, total_loss: 0.9, loss_cls: 0.2, loss_bbox: 0.5, loss_dfl: 0.2, lr: 2.134e-04, size: (640, 640), ETA: 1 day, 10:02:23
+2026-02-03 09:34:27.737 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 2/300, iter: 650/1300, mem: 1902Mb, iter_time: 0.300s, model_time: 0.287s, total_loss: 0.9, loss_cls: 0.2, loss_bbox: 0.5, loss_dfl: 0.2, lr: 2.248e-04, size: (640, 640), ETA: 1 day, 9:59:35
+2026-02-03 09:34:42.296 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 2/300, iter: 700/1300, mem: 1902Mb, iter_time: 0.291s, model_time: 0.277s, total_loss: 0.9, loss_cls: 0.2, loss_bbox: 0.5, loss_dfl: 0.2, lr: 2.364e-04, size: (640, 640), ETA: 1 day, 9:55:25
+2026-02-03 09:34:56.823 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 2/300, iter: 750/1300, mem: 1902Mb, iter_time: 0.291s, model_time: 0.277s, total_loss: 0.8, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 2.484e-04, size: (640, 640), ETA: 1 day, 9:51:20
+2026-02-03 09:35:11.353 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 2/300, iter: 800/1300, mem: 1902Mb, iter_time: 0.291s, model_time: 0.277s, total_loss: 0.9, loss_cls: 0.2, loss_bbox: 0.5, loss_dfl: 0.2, lr: 2.607e-04, size: (640, 640), ETA: 1 day, 9:47:26
+2026-02-03 09:35:25.897 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 2/300, iter: 850/1300, mem: 1902Mb, iter_time: 0.291s, model_time: 0.277s, total_loss: 0.9, loss_cls: 0.2, loss_bbox: 0.5, loss_dfl: 0.2, lr: 2.733e-04, size: (640, 640), ETA: 1 day, 9:43:46
+2026-02-03 09:35:40.442 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 2/300, iter: 900/1300, mem: 1902Mb, iter_time: 0.291s, model_time: 0.277s, total_loss: 0.9, loss_cls: 0.2, loss_bbox: 0.5, loss_dfl: 0.2, lr: 2.861e-04, size: (640, 640), ETA: 1 day, 9:40:14
+2026-02-03 09:35:55.000 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 2/300, iter: 950/1300, mem: 1902Mb, iter_time: 0.291s, model_time: 0.278s, total_loss: 0.8, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 2.993e-04, size: (640, 640), ETA: 1 day, 9:36:54
+2026-02-03 09:36:09.520 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 2/300, iter: 1000/1300, mem: 1902Mb, iter_time: 0.290s, model_time: 0.276s, total_loss: 0.9, loss_cls: 0.2, loss_bbox: 0.5, loss_dfl: 0.2, lr: 3.127e-04, size: (640, 640), ETA: 1 day, 9:33:36
+2026-02-03 09:36:24.048 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 2/300, iter: 1050/1300, mem: 1902Mb, iter_time: 0.291s, model_time: 0.277s, total_loss: 0.9, loss_cls: 0.2, loss_bbox: 0.5, loss_dfl: 0.2, lr: 3.265e-04, size: (640, 640), ETA: 1 day, 9:30:27
+2026-02-03 09:36:38.564 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 2/300, iter: 1100/1300, mem: 1902Mb, iter_time: 0.290s, model_time: 0.277s, total_loss: 0.8, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 3.405e-04, size: (640, 640), ETA: 1 day, 9:27:23
+2026-02-03 09:36:53.080 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 2/300, iter: 1150/1300, mem: 1902Mb, iter_time: 0.290s, model_time: 0.277s, total_loss: 0.7, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 3.549e-04, size: (640, 640), ETA: 1 day, 9:24:26
+2026-02-03 09:37:07.585 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 2/300, iter: 1200/1300, mem: 1902Mb, iter_time: 0.290s, model_time: 0.276s, total_loss: 0.8, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 3.695e-04, size: (640, 640), ETA: 1 day, 9:21:33
+2026-02-03 09:37:22.013 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 2/300, iter: 1250/1300, mem: 1902Mb, iter_time: 0.289s, model_time: 0.275s, total_loss: 0.9, loss_cls: 0.2, loss_bbox: 0.5, loss_dfl: 0.2, lr: 3.845e-04, size: (640, 640), ETA: 1 day, 9:18:36
+2026-02-03 09:37:36.493 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 2/300, iter: 0/1300, mem: 1902Mb, iter_time: 0.290s, model_time: 0.276s, total_loss: 0.8, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 3.997e-04, size: (640, 640), ETA: 1 day, 9:15:52
+2026-02-03 09:37:50.961 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 3/300, iter: 50/1300, mem: 1902Mb, iter_time: 0.289s, model_time: 0.276s, total_loss: 0.8, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 4.152e-04, size: (640, 640), ETA: 1 day, 9:13:12
+2026-02-03 09:38:05.915 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 3/300, iter: 100/1300, mem: 1902Mb, iter_time: 0.299s, model_time: 0.285s, total_loss: 0.7, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 4.310e-04, size: (640, 640), ETA: 1 day, 9:11:47
+2026-02-03 09:38:20.389 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 3/300, iter: 150/1300, mem: 1902Mb, iter_time: 0.289s, model_time: 0.276s, total_loss: 0.8, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 4.472e-04, size: (640, 640), ETA: 1 day, 9:09:17
+2026-02-03 09:38:34.827 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 3/300, iter: 200/1300, mem: 1902Mb, iter_time: 0.289s, model_time: 0.276s, total_loss: 0.8, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 4.636e-04, size: (640, 640), ETA: 1 day, 9:06:47
+2026-02-03 09:38:49.713 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 3/300, iter: 250/1300, mem: 1902Mb, iter_time: 0.298s, model_time: 0.276s, total_loss: 0.8, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 4.803e-04, size: (640, 640), ETA: 1 day, 9:05:23
+2026-02-03 09:39:04.158 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 3/300, iter: 300/1300, mem: 1902Mb, iter_time: 0.289s, model_time: 0.276s, total_loss: 0.8, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 4.973e-04, size: (640, 640), ETA: 1 day, 9:03:02
+2026-02-03 09:39:18.630 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 3/300, iter: 350/1300, mem: 1902Mb, iter_time: 0.289s, model_time: 0.276s, total_loss: 0.8, loss_cls: 0.2, loss_bbox: 0.5, loss_dfl: 0.2, lr: 5.146e-04, size: (640, 640), ETA: 1 day, 9:00:49
+2026-02-03 09:39:33.060 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 3/300, iter: 400/1300, mem: 1902Mb, iter_time: 0.289s, model_time: 0.275s, total_loss: 0.7, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 5.322e-04, size: (640, 640), ETA: 1 day, 8:58:35
+2026-02-03 09:39:47.555 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 3/300, iter: 450/1300, mem: 1902Mb, iter_time: 0.290s, model_time: 0.277s, total_loss: 0.8, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 5.501e-04, size: (640, 640), ETA: 1 day, 8:56:33
+2026-02-03 09:40:02.068 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 3/300, iter: 500/1300, mem: 1902Mb, iter_time: 0.290s, model_time: 0.277s, total_loss: 0.8, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 5.683e-04, size: (640, 640), ETA: 1 day, 8:54:36
+2026-02-03 09:40:16.555 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 3/300, iter: 550/1300, mem: 1902Mb, iter_time: 0.290s, model_time: 0.276s, total_loss: 0.8, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 5.868e-04, size: (640, 640), ETA: 1 day, 8:52:40
+2026-02-03 09:40:31.080 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 3/300, iter: 600/1300, mem: 1902Mb, iter_time: 0.290s, model_time: 0.277s, total_loss: 0.8, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 6.055e-04, size: (640, 640), ETA: 1 day, 8:50:51
+2026-02-03 09:40:45.609 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 3/300, iter: 650/1300, mem: 1902Mb, iter_time: 0.291s, model_time: 0.277s, total_loss: 0.8, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 6.246e-04, size: (640, 640), ETA: 1 day, 8:49:06
+2026-02-03 09:41:00.153 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 3/300, iter: 700/1300, mem: 1902Mb, iter_time: 0.291s, model_time: 0.277s, total_loss: 0.9, loss_cls: 0.2, loss_bbox: 0.5, loss_dfl: 0.2, lr: 6.440e-04, size: (640, 640), ETA: 1 day, 8:47:25
+2026-02-03 09:41:14.735 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 3/300, iter: 750/1300, mem: 1902Mb, iter_time: 0.292s, model_time: 0.278s, total_loss: 0.8, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 6.637e-04, size: (640, 640), ETA: 1 day, 8:45:51
+2026-02-03 09:41:29.289 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 3/300, iter: 800/1300, mem: 1902Mb, iter_time: 0.291s, model_time: 0.278s, total_loss: 0.8, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 6.836e-04, size: (640, 640), ETA: 1 day, 8:44:16
+2026-02-03 09:41:43.863 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 3/300, iter: 850/1300, mem: 1902Mb, iter_time: 0.291s, model_time: 0.278s, total_loss: 0.9, loss_cls: 0.2, loss_bbox: 0.5, loss_dfl: 0.2, lr: 7.039e-04, size: (640, 640), ETA: 1 day, 8:42:46
+2026-02-03 09:41:58.458 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 3/300, iter: 900/1300, mem: 1902Mb, iter_time: 0.292s, model_time: 0.279s, total_loss: 0.9, loss_cls: 0.2, loss_bbox: 0.5, loss_dfl: 0.2, lr: 7.244e-04, size: (640, 640), ETA: 1 day, 8:41:20
+2026-02-03 09:42:13.417 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 3/300, iter: 950/1300, mem: 1902Mb, iter_time: 0.299s, model_time: 0.278s, total_loss: 0.8, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 7.453e-04, size: (640, 640), ETA: 1 day, 8:40:36
+2026-02-03 09:42:27.901 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 3/300, iter: 1000/1300, mem: 1902Mb, iter_time: 0.290s, model_time: 0.276s, total_loss: 0.8, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 7.664e-04, size: (640, 640), ETA: 1 day, 8:39:02
+2026-02-03 09:42:42.355 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 3/300, iter: 1050/1300, mem: 1902Mb, iter_time: 0.289s, model_time: 0.276s, total_loss: 0.9, loss_cls: 0.2, loss_bbox: 0.5, loss_dfl: 0.2, lr: 7.879e-04, size: (640, 640), ETA: 1 day, 8:37:27
+2026-02-03 09:42:56.809 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 3/300, iter: 1100/1300, mem: 1902Mb, iter_time: 0.289s, model_time: 0.276s, total_loss: 0.7, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 8.096e-04, size: (640, 640), ETA: 1 day, 8:35:54
+2026-02-03 09:43:11.276 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 3/300, iter: 1150/1300, mem: 1902Mb, iter_time: 0.289s, model_time: 0.276s, total_loss: 0.8, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 8.317e-04, size: (640, 640), ETA: 1 day, 8:34:24
+2026-02-03 09:43:26.151 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 3/300, iter: 1200/1300, mem: 1902Mb, iter_time: 0.297s, model_time: 0.283s, total_loss: 0.9, loss_cls: 0.2, loss_bbox: 0.5, loss_dfl: 0.2, lr: 8.540e-04, size: (640, 640), ETA: 1 day, 8:33:38
+2026-02-03 09:43:40.648 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 3/300, iter: 1250/1300, mem: 1902Mb, iter_time: 0.290s, model_time: 0.276s, total_loss: 0.8, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 8.766e-04, size: (640, 640), ETA: 1 day, 8:32:15
+2026-02-03 09:43:55.124 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 3/300, iter: 0/1300, mem: 1902Mb, iter_time: 0.290s, model_time: 0.276s, total_loss: 0.8, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 8.995e-04, size: (640, 640), ETA: 1 day, 8:30:51
+2026-02-03 09:44:09.645 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 4/300, iter: 50/1300, mem: 1902Mb, iter_time: 0.290s, model_time: 0.277s, total_loss: 0.8, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 9.228e-04, size: (640, 640), ETA: 1 day, 8:29:34
+2026-02-03 09:44:24.086 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 4/300, iter: 100/1300, mem: 1902Mb, iter_time: 0.289s, model_time: 0.275s, total_loss: 0.7, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 9.463e-04, size: (640, 640), ETA: 1 day, 8:28:10
+2026-02-03 09:44:38.577 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 4/300, iter: 150/1300, mem: 1902Mb, iter_time: 0.290s, model_time: 0.276s, total_loss: 0.8, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 9.701e-04, size: (640, 640), ETA: 1 day, 8:26:53
+2026-02-03 09:44:53.459 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 4/300, iter: 200/1300, mem: 1902Mb, iter_time: 0.298s, model_time: 0.284s, total_loss: 0.8, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 9.942e-04, size: (640, 640), ETA: 1 day, 8:26:14
+2026-02-03 09:45:07.999 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 4/300, iter: 250/1300, mem: 1902Mb, iter_time: 0.291s, model_time: 0.277s, total_loss: 0.7, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 1.019e-03, size: (640, 640), ETA: 1 day, 8:25:04
+2026-02-03 09:45:22.405 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 4/300, iter: 300/1300, mem: 1902Mb, iter_time: 0.288s, model_time: 0.275s, total_loss: 0.8, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 1.043e-03, size: (640, 640), ETA: 1 day, 8:23:43
+2026-02-03 09:45:36.849 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 4/300, iter: 350/1300, mem: 1902Mb, iter_time: 0.289s, model_time: 0.275s, total_loss: 0.9, loss_cls: 0.2, loss_bbox: 0.5, loss_dfl: 0.2, lr: 1.068e-03, size: (640, 640), ETA: 1 day, 8:22:27
+2026-02-03 09:45:51.257 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 4/300, iter: 400/1300, mem: 1902Mb, iter_time: 0.288s, model_time: 0.275s, total_loss: 0.7, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 1.094e-03, size: (640, 640), ETA: 1 day, 8:21:09
+2026-02-03 09:46:05.717 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 4/300, iter: 450/1300, mem: 1902Mb, iter_time: 0.289s, model_time: 0.275s, total_loss: 0.8, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 1.119e-03, size: (640, 640), ETA: 1 day, 8:19:58
+2026-02-03 09:46:20.182 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 4/300, iter: 500/1300, mem: 1902Mb, iter_time: 0.289s, model_time: 0.276s, total_loss: 0.8, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 1.145e-03, size: (640, 640), ETA: 1 day, 8:18:48
+2026-02-03 09:46:34.688 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 4/300, iter: 550/1300, mem: 1902Mb, iter_time: 0.290s, model_time: 0.276s, total_loss: 0.8, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 1.171e-03, size: (640, 640), ETA: 1 day, 8:17:42
+2026-02-03 09:46:49.625 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 4/300, iter: 600/1300, mem: 1902Mb, iter_time: 0.299s, model_time: 0.285s, total_loss: 0.8, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 1.198e-03, size: (640, 640), ETA: 1 day, 8:17:15
+2026-02-03 09:47:04.148 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 4/300, iter: 650/1300, mem: 1902Mb, iter_time: 0.290s, model_time: 0.277s, total_loss: 0.7, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 1.224e-03, size: (640, 640), ETA: 1 day, 8:16:13
+2026-02-03 09:47:18.665 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 4/300, iter: 700/1300, mem: 1902Mb, iter_time: 0.290s, model_time: 0.277s, total_loss: 0.9, loss_cls: 0.2, loss_bbox: 0.5, loss_dfl: 0.2, lr: 1.252e-03, size: (640, 640), ETA: 1 day, 8:15:12
+2026-02-03 09:47:33.174 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 4/300, iter: 750/1300, mem: 1902Mb, iter_time: 0.290s, model_time: 0.277s, total_loss: 0.8, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 1.279e-03, size: (640, 640), ETA: 1 day, 8:14:11
+2026-02-03 09:47:47.676 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 4/300, iter: 800/1300, mem: 1902Mb, iter_time: 0.290s, model_time: 0.277s, total_loss: 0.8, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 1.307e-03, size: (640, 640), ETA: 1 day, 8:13:10
+2026-02-03 09:48:02.204 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 4/300, iter: 850/1300, mem: 1902Mb, iter_time: 0.291s, model_time: 0.277s, total_loss: 0.7, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 1.334e-03, size: (640, 640), ETA: 1 day, 8:12:13
+2026-02-03 09:48:16.708 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 4/300, iter: 900/1300, mem: 1902Mb, iter_time: 0.290s, model_time: 0.276s, total_loss: 0.8, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 1.363e-03, size: (640, 640), ETA: 1 day, 8:11:14
+2026-02-03 09:48:31.587 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 4/300, iter: 950/1300, mem: 1902Mb, iter_time: 0.298s, model_time: 0.276s, total_loss: 0.8, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 1.391e-03, size: (640, 640), ETA: 1 day, 8:10:46
+2026-02-03 09:48:46.073 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 4/300, iter: 1000/1300, mem: 1902Mb, iter_time: 0.290s, model_time: 0.276s, total_loss: 0.8, loss_cls: 0.2, loss_bbox: 0.5, loss_dfl: 0.2, lr: 1.420e-03, size: (640, 640), ETA: 1 day, 8:09:48
+2026-02-03 09:49:00.525 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 4/300, iter: 1050/1300, mem: 1902Mb, iter_time: 0.289s, model_time: 0.276s, total_loss: 0.7, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 1.449e-03, size: (640, 640), ETA: 1 day, 8:08:48
+2026-02-03 09:49:15.021 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 4/300, iter: 1100/1300, mem: 1902Mb, iter_time: 0.290s, model_time: 0.276s, total_loss: 0.8, loss_cls: 0.2, loss_bbox: 0.5, loss_dfl: 0.2, lr: 1.479e-03, size: (640, 640), ETA: 1 day, 8:07:52
+2026-02-03 09:49:29.929 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 4/300, iter: 1150/1300, mem: 1902Mb, iter_time: 0.298s, model_time: 0.285s, total_loss: 0.8, loss_cls: 0.2, loss_bbox: 0.5, loss_dfl: 0.2, lr: 1.508e-03, size: (640, 640), ETA: 1 day, 8:07:28
+2026-02-03 09:49:44.462 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 4/300, iter: 1200/1300, mem: 1902Mb, iter_time: 0.291s, model_time: 0.277s, total_loss: 0.8, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 1.538e-03, size: (640, 640), ETA: 1 day, 8:06:36
+2026-02-03 09:49:59.007 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 4/300, iter: 1250/1300, mem: 1902Mb, iter_time: 0.291s, model_time: 0.277s, total_loss: 0.8, loss_cls: 0.2, loss_bbox: 0.5, loss_dfl: 0.2, lr: 1.569e-03, size: (640, 640), ETA: 1 day, 8:05:46
+2026-02-03 09:50:13.540 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 4/300, iter: 0/1300, mem: 1902Mb, iter_time: 0.291s, model_time: 0.277s, total_loss: 0.8, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 1.599e-03, size: (640, 640), ETA: 1 day, 8:04:55
+2026-02-03 09:50:28.044 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 5/300, iter: 50/1300, mem: 1902Mb, iter_time: 0.290s, model_time: 0.277s, total_loss: 0.8, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 1.630e-03, size: (640, 640), ETA: 1 day, 8:04:03
+2026-02-03 09:50:42.495 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 5/300, iter: 100/1300, mem: 1902Mb, iter_time: 0.289s, model_time: 0.276s, total_loss: 0.8, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 1.662e-03, size: (640, 640), ETA: 1 day, 8:03:08
+2026-02-03 09:50:57.024 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 5/300, iter: 150/1300, mem: 1902Mb, iter_time: 0.291s, model_time: 0.277s, total_loss: 0.8, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 1.693e-03, size: (640, 640), ETA: 1 day, 8:02:20
+2026-02-03 09:51:11.529 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 5/300, iter: 200/1300, mem: 1902Mb, iter_time: 0.290s, model_time: 0.277s, total_loss: 0.8, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 1.725e-03, size: (640, 640), ETA: 1 day, 8:01:30
+2026-02-03 09:51:26.070 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 5/300, iter: 250/1300, mem: 1902Mb, iter_time: 0.291s, model_time: 0.277s, total_loss: 0.7, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 1.757e-03, size: (640, 640), ETA: 1 day, 8:00:43
+2026-02-03 09:51:40.586 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 5/300, iter: 300/1300, mem: 1902Mb, iter_time: 0.290s, model_time: 0.277s, total_loss: 0.8, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 1.789e-03, size: (640, 640), ETA: 1 day, 7:59:56
+2026-02-03 09:51:55.139 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 5/300, iter: 350/1300, mem: 1902Mb, iter_time: 0.291s, model_time: 0.278s, total_loss: 0.8, loss_cls: 0.2, loss_bbox: 0.5, loss_dfl: 0.2, lr: 1.822e-03, size: (640, 640), ETA: 1 day, 7:59:11
+2026-02-03 09:52:10.009 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 5/300, iter: 400/1300, mem: 1902Mb, iter_time: 0.297s, model_time: 0.284s, total_loss: 0.8, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 1.855e-03, size: (640, 640), ETA: 1 day, 7:58:49
+2026-02-03 09:52:24.836 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 5/300, iter: 450/1300, mem: 1902Mb, iter_time: 0.297s, model_time: 0.283s, total_loss: 0.8, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 1.888e-03, size: (640, 640), ETA: 1 day, 7:58:24
+2026-02-03 09:52:39.680 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 5/300, iter: 500/1300, mem: 1902Mb, iter_time: 0.297s, model_time: 0.283s, total_loss: 0.8, loss_cls: 0.2, loss_bbox: 0.5, loss_dfl: 0.2, lr: 1.922e-03, size: (640, 640), ETA: 1 day, 7:58:00
+2026-02-03 09:52:54.483 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 5/300, iter: 550/1300, mem: 1902Mb, iter_time: 0.296s, model_time: 0.282s, total_loss: 0.7, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 1.956e-03, size: (640, 640), ETA: 1 day, 7:57:34
+2026-02-03 09:53:09.770 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 5/300, iter: 600/1300, mem: 1902Mb, iter_time: 0.306s, model_time: 0.291s, total_loss: 0.8, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 1.990e-03, size: (640, 640), ETA: 1 day, 7:57:40
+2026-02-03 09:53:24.592 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 5/300, iter: 650/1300, mem: 1902Mb, iter_time: 0.296s, model_time: 0.283s, total_loss: 0.8, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 2.024e-03, size: (640, 640), ETA: 1 day, 7:57:15
+2026-02-03 09:53:39.366 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 5/300, iter: 700/1300, mem: 1902Mb, iter_time: 0.295s, model_time: 0.282s, total_loss: 0.7, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 2.059e-03, size: (640, 640), ETA: 1 day, 7:56:47
+2026-02-03 09:53:54.582 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 5/300, iter: 750/1300, mem: 1902Mb, iter_time: 0.304s, model_time: 0.284s, total_loss: 0.7, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 2.094e-03, size: (640, 640), ETA: 1 day, 7:56:48
+2026-02-03 09:54:09.363 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 5/300, iter: 800/1300, mem: 1902Mb, iter_time: 0.296s, model_time: 0.283s, total_loss: 0.7, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 2.129e-03, size: (640, 640), ETA: 1 day, 7:56:20
+2026-02-03 09:54:24.132 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 5/300, iter: 850/1300, mem: 1902Mb, iter_time: 0.295s, model_time: 0.283s, total_loss: 0.8, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 2.165e-03, size: (640, 640), ETA: 1 day, 7:55:53
+2026-02-03 09:54:38.938 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 5/300, iter: 900/1300, mem: 1902Mb, iter_time: 0.296s, model_time: 0.283s, total_loss: 0.7, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 2.201e-03, size: (640, 640), ETA: 1 day, 7:55:27
+2026-02-03 09:54:53.700 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 5/300, iter: 950/1300, mem: 1902Mb, iter_time: 0.295s, model_time: 0.282s, total_loss: 0.7, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 2.237e-03, size: (640, 640), ETA: 1 day, 7:54:59
+2026-02-03 09:55:08.480 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 5/300, iter: 1000/1300, mem: 1902Mb, iter_time: 0.296s, model_time: 0.282s, total_loss: 0.7, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 2.274e-03, size: (640, 640), ETA: 1 day, 7:54:33
+2026-02-03 09:55:23.273 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 5/300, iter: 1050/1300, mem: 1902Mb, iter_time: 0.296s, model_time: 0.283s, total_loss: 0.8, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 2.311e-03, size: (640, 640), ETA: 1 day, 7:54:07
+2026-02-03 09:55:38.193 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 5/300, iter: 1100/1300, mem: 1902Mb, iter_time: 0.298s, model_time: 0.285s, total_loss: 0.8, loss_cls: 0.2, loss_bbox: 0.5, loss_dfl: 0.2, lr: 2.348e-03, size: (640, 640), ETA: 1 day, 7:53:50
+2026-02-03 09:55:52.993 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 5/300, iter: 1150/1300, mem: 1902Mb, iter_time: 0.296s, model_time: 0.283s, total_loss: 0.7, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 2.385e-03, size: (640, 640), ETA: 1 day, 7:53:25
+2026-02-03 09:56:07.794 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 5/300, iter: 1200/1300, mem: 1902Mb, iter_time: 0.296s, model_time: 0.283s, total_loss: 0.7, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.1, lr: 2.423e-03, size: (640, 640), ETA: 1 day, 7:53:00
+2026-02-03 09:56:22.621 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 5/300, iter: 1250/1300, mem: 1902Mb, iter_time: 0.297s, model_time: 0.283s, total_loss: 0.8, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 2.461e-03, size: (640, 640), ETA: 1 day, 7:52:37
+2026-02-03 09:56:37.429 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 5/300, iter: 0/1300, mem: 1902Mb, iter_time: 0.296s, model_time: 0.283s, total_loss: 0.8, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 2.499e-03, size: (640, 640), ETA: 1 day, 7:52:13
+2026-02-03 09:56:52.294 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 6/300, iter: 50/1300, mem: 1902Mb, iter_time: 0.297s, model_time: 0.284s, total_loss: 0.8, loss_cls: 0.2, loss_bbox: 0.5, loss_dfl: 0.2, lr: 2.500e-03, size: (640, 640), ETA: 1 day, 7:51:53
+2026-02-03 09:57:07.167 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 6/300, iter: 100/1300, mem: 1902Mb, iter_time: 0.297s, model_time: 0.284s, total_loss: 0.8, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 2.500e-03, size: (640, 640), ETA: 1 day, 7:51:33
+2026-02-03 09:57:22.444 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 6/300, iter: 150/1300, mem: 1902Mb, iter_time: 0.306s, model_time: 0.283s, total_loss: 0.7, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 2.500e-03, size: (640, 640), ETA: 1 day, 7:51:37
+2026-02-03 09:57:37.311 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 6/300, iter: 200/1300, mem: 1902Mb, iter_time: 0.297s, model_time: 0.284s, total_loss: 0.8, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 2.500e-03, size: (640, 640), ETA: 1 day, 7:51:16
+2026-02-03 09:57:52.141 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 6/300, iter: 250/1300, mem: 1902Mb, iter_time: 0.297s, model_time: 0.283s, total_loss: 0.9, loss_cls: 0.2, loss_bbox: 0.5, loss_dfl: 0.2, lr: 2.500e-03, size: (640, 640), ETA: 1 day, 7:50:54
+2026-02-03 09:58:06.972 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 6/300, iter: 300/1300, mem: 1902Mb, iter_time: 0.297s, model_time: 0.283s, total_loss: 0.8, loss_cls: 0.2, loss_bbox: 0.5, loss_dfl: 0.2, lr: 2.500e-03, size: (640, 640), ETA: 1 day, 7:50:32
+2026-02-03 09:58:22.248 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 6/300, iter: 350/1300, mem: 1902Mb, iter_time: 0.306s, model_time: 0.292s, total_loss: 0.7, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.1, lr: 2.500e-03, size: (640, 640), ETA: 1 day, 7:50:35
+2026-02-03 09:58:37.093 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 6/300, iter: 400/1300, mem: 1902Mb, iter_time: 0.297s, model_time: 0.282s, total_loss: 0.8, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 2.500e-03, size: (640, 640), ETA: 1 day, 7:50:13
+2026-02-03 09:58:51.926 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 6/300, iter: 450/1300, mem: 1902Mb, iter_time: 0.297s, model_time: 0.283s, total_loss: 0.8, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 2.500e-03, size: (640, 640), ETA: 1 day, 7:49:52
+2026-02-03 09:59:07.069 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 6/300, iter: 500/1300, mem: 1902Mb, iter_time: 0.303s, model_time: 0.285s, total_loss: 0.8, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 2.500e-03, size: (640, 640), ETA: 1 day, 7:49:47
+2026-02-03 09:59:23.594 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 6/300, iter: 550/1300, mem: 1902Mb, iter_time: 0.330s, model_time: 0.300s, total_loss: 0.8, loss_cls: 0.2, loss_bbox: 0.5, loss_dfl: 0.2, lr: 2.500e-03, size: (640, 640), ETA: 1 day, 7:50:57
+2026-02-03 09:59:40.021 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 6/300, iter: 600/1300, mem: 1902Mb, iter_time: 0.329s, model_time: 0.298s, total_loss: 0.8, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 2.500e-03, size: (640, 640), ETA: 1 day, 7:52:00
+2026-02-03 09:59:56.438 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 6/300, iter: 650/1300, mem: 1902Mb, iter_time: 0.328s, model_time: 0.298s, total_loss: 0.6, loss_cls: 0.1, loss_bbox: 0.4, loss_dfl: 0.1, lr: 2.500e-03, size: (640, 640), ETA: 1 day, 7:53:02
+2026-02-03 10:00:13.175 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 6/300, iter: 700/1300, mem: 1902Mb, iter_time: 0.335s, model_time: 0.304s, total_loss: 0.8, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 2.500e-03, size: (640, 640), ETA: 1 day, 7:54:20
+2026-02-03 10:00:29.672 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 6/300, iter: 750/1300, mem: 1902Mb, iter_time: 0.330s, model_time: 0.299s, total_loss: 0.7, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 2.500e-03, size: (640, 640), ETA: 1 day, 7:55:24
+2026-02-03 10:00:46.204 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 6/300, iter: 800/1300, mem: 1902Mb, iter_time: 0.331s, model_time: 0.300s, total_loss: 0.8, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 2.500e-03, size: (640, 640), ETA: 1 day, 7:56:29
+2026-02-03 10:01:02.410 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 6/300, iter: 850/1300, mem: 1902Mb, iter_time: 0.324s, model_time: 0.296s, total_loss: 0.7, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.1, lr: 2.500e-03, size: (640, 640), ETA: 1 day, 7:57:15
+2026-02-03 10:01:16.942 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 6/300, iter: 900/1300, mem: 1902Mb, iter_time: 0.291s, model_time: 0.276s, total_loss: 0.7, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 2.500e-03, size: (640, 640), ETA: 1 day, 7:56:34
+2026-02-03 10:01:31.565 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 6/300, iter: 950/1300, mem: 1902Mb, iter_time: 0.292s, model_time: 0.278s, total_loss: 0.8, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 2.500e-03, size: (640, 640), ETA: 1 day, 7:55:59
+2026-02-03 10:01:46.107 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 6/300, iter: 1000/1300, mem: 1902Mb, iter_time: 0.291s, model_time: 0.277s, total_loss: 0.7, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 2.500e-03, size: (640, 640), ETA: 1 day, 7:55:19
+2026-02-03 10:02:00.637 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 6/300, iter: 1050/1300, mem: 1902Mb, iter_time: 0.291s, model_time: 0.277s, total_loss: 0.7, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 2.500e-03, size: (640, 640), ETA: 1 day, 7:54:39
+2026-02-03 10:02:15.762 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 6/300, iter: 1100/1300, mem: 1902Mb, iter_time: 0.303s, model_time: 0.287s, total_loss: 0.7, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 2.500e-03, size: (640, 640), ETA: 1 day, 7:54:29
+2026-02-03 10:02:30.642 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 6/300, iter: 1150/1300, mem: 1902Mb, iter_time: 0.298s, model_time: 0.284s, total_loss: 0.7, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 2.500e-03, size: (640, 640), ETA: 1 day, 7:54:07
+2026-02-03 10:02:45.491 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 6/300, iter: 1200/1300, mem: 1902Mb, iter_time: 0.297s, model_time: 0.283s, total_loss: 0.7, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 2.500e-03, size: (640, 640), ETA: 1 day, 7:53:44
+2026-02-03 10:03:00.273 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 6/300, iter: 1250/1300, mem: 1902Mb, iter_time: 0.296s, model_time: 0.281s, total_loss: 0.8, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 2.500e-03, size: (640, 640), ETA: 1 day, 7:53:17
+2026-02-03 10:03:15.091 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 6/300, iter: 0/1300, mem: 1902Mb, iter_time: 0.296s, model_time: 0.282s, total_loss: 0.7, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.1, lr: 2.500e-03, size: (640, 640), ETA: 1 day, 7:52:52
+2026-02-03 10:03:29.915 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 7/300, iter: 50/1300, mem: 1902Mb, iter_time: 0.296s, model_time: 0.282s, total_loss: 0.7, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 2.500e-03, size: (640, 640), ETA: 1 day, 7:52:28
+2026-02-03 10:03:44.755 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 7/300, iter: 100/1300, mem: 1902Mb, iter_time: 0.297s, model_time: 0.283s, total_loss: 0.7, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 2.500e-03, size: (640, 640), ETA: 1 day, 7:52:05
+2026-02-03 10:03:59.959 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 7/300, iter: 150/1300, mem: 1902Mb, iter_time: 0.304s, model_time: 0.282s, total_loss: 0.6, loss_cls: 0.2, loss_bbox: 0.3, loss_dfl: 0.1, lr: 2.500e-03, size: (640, 640), ETA: 1 day, 7:51:59
+2026-02-03 10:04:14.732 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 7/300, iter: 200/1300, mem: 1902Mb, iter_time: 0.295s, model_time: 0.281s, total_loss: 0.8, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 2.500e-03, size: (640, 640), ETA: 1 day, 7:51:32
+2026-02-03 10:04:29.532 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 7/300, iter: 250/1300, mem: 1902Mb, iter_time: 0.296s, model_time: 0.282s, total_loss: 0.8, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 2.500e-03, size: (640, 640), ETA: 1 day, 7:51:07
+2026-02-03 10:04:44.332 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 7/300, iter: 300/1300, mem: 1902Mb, iter_time: 0.296s, model_time: 0.282s, total_loss: 0.7, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 2.500e-03, size: (640, 640), ETA: 1 day, 7:50:42
+2026-02-03 10:04:52.920 | INFO     | damo.base_models.heads.zero_head:loss:428 - No Positive Samples on cuda:0! May cause performance decrease. loss_bbox:0.000, loss_dfl:0.000, loss_qfl:0.004 
+2026-02-03 10:04:59.619 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 7/300, iter: 350/1300, mem: 1902Mb, iter_time: 0.306s, model_time: 0.292s, total_loss: 0.7, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 2.500e-03, size: (640, 640), ETA: 1 day, 7:50:40
+2026-02-03 10:05:14.398 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 7/300, iter: 400/1300, mem: 1902Mb, iter_time: 0.296s, model_time: 0.282s, total_loss: 0.7, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 2.500e-03, size: (640, 640), ETA: 1 day, 7:50:15
+2026-02-03 10:05:29.223 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 7/300, iter: 450/1300, mem: 1902Mb, iter_time: 0.297s, model_time: 0.282s, total_loss: 0.7, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.1, lr: 2.500e-03, size: (640, 640), ETA: 1 day, 7:49:51
+2026-02-03 10:05:44.042 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 7/300, iter: 500/1300, mem: 1902Mb, iter_time: 0.296s, model_time: 0.282s, total_loss: 0.7, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 2.500e-03, size: (640, 640), ETA: 1 day, 7:49:27
+2026-02-03 10:05:58.890 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 7/300, iter: 550/1300, mem: 1902Mb, iter_time: 0.297s, model_time: 0.283s, total_loss: 0.8, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 2.500e-03, size: (640, 640), ETA: 1 day, 7:49:05
+2026-02-03 10:06:13.728 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 7/300, iter: 600/1300, mem: 1902Mb, iter_time: 0.297s, model_time: 0.283s, total_loss: 0.8, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 2.500e-03, size: (640, 640), ETA: 1 day, 7:48:42
+2026-02-03 10:06:28.510 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 7/300, iter: 650/1300, mem: 1902Mb, iter_time: 0.296s, model_time: 0.282s, total_loss: 0.7, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 2.500e-03, size: (640, 640), ETA: 1 day, 7:48:17
+2026-02-03 10:06:43.297 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 7/300, iter: 700/1300, mem: 1902Mb, iter_time: 0.296s, model_time: 0.282s, total_loss: 0.6, loss_cls: 0.1, loss_bbox: 0.3, loss_dfl: 0.1, lr: 2.500e-03, size: (640, 640), ETA: 1 day, 7:47:52
+2026-02-03 10:06:58.097 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 7/300, iter: 750/1300, mem: 1902Mb, iter_time: 0.296s, model_time: 0.282s, total_loss: 0.8, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 2.500e-03, size: (640, 640), ETA: 1 day, 7:47:28
+2026-02-03 10:07:12.927 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 7/300, iter: 800/1300, mem: 1902Mb, iter_time: 0.297s, model_time: 0.282s, total_loss: 0.7, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 2.500e-03, size: (640, 640), ETA: 1 day, 7:47:06
+2026-02-03 10:07:27.721 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 7/300, iter: 850/1300, mem: 1902Mb, iter_time: 0.296s, model_time: 0.282s, total_loss: 0.7, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 2.500e-03, size: (640, 640), ETA: 1 day, 7:46:42
+2026-02-03 10:07:42.499 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 7/300, iter: 900/1300, mem: 1902Mb, iter_time: 0.296s, model_time: 0.281s, total_loss: 0.7, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 2.500e-03, size: (640, 640), ETA: 1 day, 7:46:17
+2026-02-03 10:07:57.308 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 7/300, iter: 950/1300, mem: 1902Mb, iter_time: 0.296s, model_time: 0.282s, total_loss: 0.7, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 2.500e-03, size: (640, 640), ETA: 1 day, 7:45:54
+2026-02-03 10:08:12.111 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 7/300, iter: 1000/1300, mem: 1902Mb, iter_time: 0.296s, model_time: 0.282s, total_loss: 0.7, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 2.500e-03, size: (640, 640), ETA: 1 day, 7:45:30
+2026-02-03 10:08:26.924 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 7/300, iter: 1050/1300, mem: 1902Mb, iter_time: 0.296s, model_time: 0.282s, total_loss: 0.8, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 2.500e-03, size: (640, 640), ETA: 1 day, 7:45:07
+2026-02-03 10:08:42.184 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 7/300, iter: 1100/1300, mem: 1902Mb, iter_time: 0.305s, model_time: 0.290s, total_loss: 0.7, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 2.500e-03, size: (640, 640), ETA: 1 day, 7:45:04
+2026-02-03 10:08:56.922 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 7/300, iter: 1150/1300, mem: 1902Mb, iter_time: 0.295s, model_time: 0.281s, total_loss: 0.7, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 2.500e-03, size: (640, 640), ETA: 1 day, 7:44:38
+2026-02-03 10:09:12.123 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 7/300, iter: 1200/1300, mem: 1902Mb, iter_time: 0.304s, model_time: 0.281s, total_loss: 0.7, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 2.500e-03, size: (640, 640), ETA: 1 day, 7:44:31
+2026-02-03 10:09:26.919 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 7/300, iter: 1250/1300, mem: 1902Mb, iter_time: 0.296s, model_time: 0.282s, total_loss: 0.8, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 2.500e-03, size: (640, 640), ETA: 1 day, 7:44:08
+2026-02-03 10:09:41.622 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 7/300, iter: 0/1300, mem: 1902Mb, iter_time: 0.294s, model_time: 0.280s, total_loss: 0.7, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 2.500e-03, size: (640, 640), ETA: 1 day, 7:43:41
+2026-02-03 10:09:56.412 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 8/300, iter: 50/1300, mem: 1902Mb, iter_time: 0.296s, model_time: 0.282s, total_loss: 0.7, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 2.500e-03, size: (640, 640), ETA: 1 day, 7:43:17
+2026-02-03 10:10:11.235 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 8/300, iter: 100/1300, mem: 1902Mb, iter_time: 0.296s, model_time: 0.282s, total_loss: 0.7, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 2.500e-03, size: (640, 640), ETA: 1 day, 7:42:55
+2026-02-03 10:10:26.047 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 8/300, iter: 150/1300, mem: 1902Mb, iter_time: 0.296s, model_time: 0.282s, total_loss: 0.7, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 2.500e-03, size: (640, 640), ETA: 1 day, 7:42:33
+2026-02-03 10:10:40.879 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 8/300, iter: 200/1300, mem: 1902Mb, iter_time: 0.297s, model_time: 0.282s, total_loss: 0.7, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 2.500e-03, size: (640, 640), ETA: 1 day, 7:42:11
+2026-02-03 10:10:55.652 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 8/300, iter: 250/1300, mem: 1902Mb, iter_time: 0.295s, model_time: 0.281s, total_loss: 0.7, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 2.500e-03, size: (640, 640), ETA: 1 day, 7:41:48
+2026-02-03 10:11:10.465 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 8/300, iter: 300/1300, mem: 1902Mb, iter_time: 0.296s, model_time: 0.282s, total_loss: 0.7, loss_cls: 0.1, loss_bbox: 0.4, loss_dfl: 0.1, lr: 2.500e-03, size: (640, 640), ETA: 1 day, 7:41:26
+2026-02-03 10:11:25.250 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 8/300, iter: 350/1300, mem: 1902Mb, iter_time: 0.296s, model_time: 0.281s, total_loss: 0.8, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 2.500e-03, size: (640, 640), ETA: 1 day, 7:41:02
+2026-02-03 10:11:40.055 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 8/300, iter: 400/1300, mem: 1902Mb, iter_time: 0.296s, model_time: 0.282s, total_loss: 0.7, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 2.500e-03, size: (640, 640), ETA: 1 day, 7:40:40
+2026-02-03 10:11:54.835 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 8/300, iter: 450/1300, mem: 1902Mb, iter_time: 0.296s, model_time: 0.281s, total_loss: 0.8, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 2.500e-03, size: (640, 640), ETA: 1 day, 7:40:17
+2026-02-03 10:12:09.668 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 8/300, iter: 500/1300, mem: 1902Mb, iter_time: 0.297s, model_time: 0.282s, total_loss: 0.8, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 2.500e-03, size: (640, 640), ETA: 1 day, 7:39:56
+2026-02-03 10:12:24.507 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 8/300, iter: 550/1300, mem: 1902Mb, iter_time: 0.297s, model_time: 0.282s, total_loss: 0.8, loss_cls: 0.2, loss_bbox: 0.5, loss_dfl: 0.2, lr: 2.500e-03, size: (640, 640), ETA: 1 day, 7:39:35
+2026-02-03 10:12:39.362 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 8/300, iter: 600/1300, mem: 1902Mb, iter_time: 0.297s, model_time: 0.283s, total_loss: 0.7, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 2.500e-03, size: (640, 640), ETA: 1 day, 7:39:15
+2026-02-03 10:12:54.700 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 8/300, iter: 650/1300, mem: 1902Mb, iter_time: 0.307s, model_time: 0.284s, total_loss: 0.7, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.1, lr: 2.500e-03, size: (640, 640), ETA: 1 day, 7:39:14
+2026-02-03 10:13:09.513 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 8/300, iter: 700/1300, mem: 1902Mb, iter_time: 0.296s, model_time: 0.282s, total_loss: 0.7, loss_cls: 0.1, loss_bbox: 0.4, loss_dfl: 0.2, lr: 2.500e-03, size: (640, 640), ETA: 1 day, 7:38:53
+2026-02-03 10:13:24.355 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 8/300, iter: 750/1300, mem: 1902Mb, iter_time: 0.297s, model_time: 0.283s, total_loss: 0.7, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 2.500e-03, size: (640, 640), ETA: 1 day, 7:38:32
+2026-02-03 10:13:39.127 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 8/300, iter: 800/1300, mem: 1902Mb, iter_time: 0.295s, model_time: 0.282s, total_loss: 0.7, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 2.499e-03, size: (640, 640), ETA: 1 day, 7:38:09
+2026-02-03 10:13:54.382 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 8/300, iter: 850/1300, mem: 1902Mb, iter_time: 0.305s, model_time: 0.291s, total_loss: 0.7, loss_cls: 0.1, loss_bbox: 0.4, loss_dfl: 0.2, lr: 2.499e-03, size: (640, 640), ETA: 1 day, 7:38:04
+2026-02-03 10:14:09.273 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 8/300, iter: 900/1300, mem: 1902Mb, iter_time: 0.298s, model_time: 0.284s, total_loss: 0.7, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 2.499e-03, size: (640, 640), ETA: 1 day, 7:37:46
+2026-02-03 10:14:24.093 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 8/300, iter: 950/1300, mem: 1902Mb, iter_time: 0.296s, model_time: 0.283s, total_loss: 0.8, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 2.499e-03, size: (640, 640), ETA: 1 day, 7:37:25
+2026-02-03 10:14:38.916 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 8/300, iter: 1000/1300, mem: 1902Mb, iter_time: 0.296s, model_time: 0.283s, total_loss: 0.7, loss_cls: 0.1, loss_bbox: 0.4, loss_dfl: 0.2, lr: 2.499e-03, size: (640, 640), ETA: 1 day, 7:37:04
+2026-02-03 10:14:53.770 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 8/300, iter: 1050/1300, mem: 1902Mb, iter_time: 0.297s, model_time: 0.283s, total_loss: 0.7, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 2.499e-03, size: (640, 640), ETA: 1 day, 7:36:44
+2026-02-03 10:15:08.614 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 8/300, iter: 1100/1300, mem: 1902Mb, iter_time: 0.297s, model_time: 0.283s, total_loss: 0.7, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 2.499e-03, size: (640, 640), ETA: 1 day, 7:36:24
+2026-02-03 10:15:23.435 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 8/300, iter: 1150/1300, mem: 1902Mb, iter_time: 0.296s, model_time: 0.283s, total_loss: 0.7, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 2.499e-03, size: (640, 640), ETA: 1 day, 7:36:03
+2026-02-03 10:15:38.590 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 8/300, iter: 1200/1300, mem: 1902Mb, iter_time: 0.303s, model_time: 0.290s, total_loss: 0.7, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 2.499e-03, size: (640, 640), ETA: 1 day, 7:35:55
+2026-02-03 10:15:53.386 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 8/300, iter: 1250/1300, mem: 1902Mb, iter_time: 0.296s, model_time: 0.282s, total_loss: 0.7, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 2.499e-03, size: (640, 640), ETA: 1 day, 7:35:33
+2026-02-03 10:16:08.170 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 8/300, iter: 0/1300, mem: 1902Mb, iter_time: 0.296s, model_time: 0.282s, total_loss: 0.7, loss_cls: 0.1, loss_bbox: 0.4, loss_dfl: 0.1, lr: 2.499e-03, size: (640, 640), ETA: 1 day, 7:35:11
+2026-02-03 10:16:23.022 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 9/300, iter: 50/1300, mem: 1902Mb, iter_time: 0.297s, model_time: 0.283s, total_loss: 0.7, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 2.499e-03, size: (640, 640), ETA: 1 day, 7:34:51
+2026-02-03 10:16:37.806 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 9/300, iter: 100/1300, mem: 1902Mb, iter_time: 0.296s, model_time: 0.283s, total_loss: 0.7, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 2.499e-03, size: (640, 640), ETA: 1 day, 7:34:30
+2026-02-03 10:16:52.632 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 9/300, iter: 150/1300, mem: 1902Mb, iter_time: 0.297s, model_time: 0.283s, total_loss: 0.7, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 2.499e-03, size: (640, 640), ETA: 1 day, 7:34:09
+2026-02-03 10:17:07.460 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 9/300, iter: 200/1300, mem: 1902Mb, iter_time: 0.297s, model_time: 0.283s, total_loss: 0.7, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 2.499e-03, size: (640, 640), ETA: 1 day, 7:33:49
+2026-02-03 10:17:22.229 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 9/300, iter: 250/1300, mem: 1902Mb, iter_time: 0.295s, model_time: 0.282s, total_loss: 0.7, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 2.499e-03, size: (640, 640), ETA: 1 day, 7:33:27
+2026-02-03 10:17:37.492 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 9/300, iter: 300/1300, mem: 1902Mb, iter_time: 0.305s, model_time: 0.292s, total_loss: 0.7, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 2.499e-03, size: (640, 640), ETA: 1 day, 7:33:22
+2026-02-03 10:17:52.279 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 9/300, iter: 350/1300, mem: 1902Mb, iter_time: 0.296s, model_time: 0.282s, total_loss: 0.7, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 2.499e-03, size: (640, 640), ETA: 1 day, 7:33:00
+2026-02-03 10:18:07.094 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 9/300, iter: 400/1300, mem: 1902Mb, iter_time: 0.296s, model_time: 0.283s, total_loss: 0.7, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 2.499e-03, size: (640, 640), ETA: 1 day, 7:32:40
+2026-02-03 10:18:21.916 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 9/300, iter: 450/1300, mem: 1902Mb, iter_time: 0.296s, model_time: 0.283s, total_loss: 0.7, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 2.499e-03, size: (640, 640), ETA: 1 day, 7:32:19
+2026-02-03 10:18:36.763 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 9/300, iter: 500/1300, mem: 1902Mb, iter_time: 0.297s, model_time: 0.283s, total_loss: 0.7, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 2.499e-03, size: (640, 640), ETA: 1 day, 7:32:00
+2026-02-03 10:18:51.615 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 9/300, iter: 550/1300, mem: 1902Mb, iter_time: 0.297s, model_time: 0.284s, total_loss: 0.7, loss_cls: 0.1, loss_bbox: 0.4, loss_dfl: 0.2, lr: 2.499e-03, size: (640, 640), ETA: 1 day, 7:31:41
+2026-02-03 10:19:06.845 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 9/300, iter: 600/1300, mem: 1902Mb, iter_time: 0.305s, model_time: 0.283s, total_loss: 0.7, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 2.499e-03, size: (640, 640), ETA: 1 day, 7:31:35
+2026-02-03 10:19:21.665 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 9/300, iter: 650/1300, mem: 1902Mb, iter_time: 0.296s, model_time: 0.283s, total_loss: 0.7, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 2.499e-03, size: (640, 640), ETA: 1 day, 7:31:15
+2026-02-03 10:19:36.550 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 9/300, iter: 700/1300, mem: 1902Mb, iter_time: 0.298s, model_time: 0.284s, total_loss: 0.7, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 2.499e-03, size: (640, 640), ETA: 1 day, 7:30:57
+2026-02-03 10:19:51.401 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 9/300, iter: 750/1300, mem: 1902Mb, iter_time: 0.297s, model_time: 0.283s, total_loss: 0.7, loss_cls: 0.1, loss_bbox: 0.4, loss_dfl: 0.2, lr: 2.499e-03, size: (640, 640), ETA: 1 day, 7:30:38
+2026-02-03 10:20:06.287 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 9/300, iter: 800/1300, mem: 1902Mb, iter_time: 0.298s, model_time: 0.284s, total_loss: 0.7, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 2.499e-03, size: (640, 640), ETA: 1 day, 7:30:20
+2026-02-03 10:20:21.558 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 9/300, iter: 850/1300, mem: 1902Mb, iter_time: 0.305s, model_time: 0.292s, total_loss: 0.7, loss_cls: 0.1, loss_bbox: 0.4, loss_dfl: 0.2, lr: 2.499e-03, size: (640, 640), ETA: 1 day, 7:30:15
+2026-02-03 10:20:36.419 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 9/300, iter: 900/1300, mem: 1902Mb, iter_time: 0.297s, model_time: 0.284s, total_loss: 0.7, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 2.499e-03, size: (640, 640), ETA: 1 day, 7:29:56
+2026-02-03 10:20:51.281 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 9/300, iter: 950/1300, mem: 1902Mb, iter_time: 0.297s, model_time: 0.284s, total_loss: 0.7, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 2.499e-03, size: (640, 640), ETA: 1 day, 7:29:37
+2026-02-03 10:21:02.695 | INFO     | damo.base_models.heads.zero_head:loss:428 - No Positive Samples on cuda:0! May cause performance decrease. loss_bbox:0.000, loss_dfl:0.000, loss_qfl:0.008 
+2026-02-03 10:21:06.122 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 9/300, iter: 1000/1300, mem: 1902Mb, iter_time: 0.297s, model_time: 0.283s, total_loss: 0.7, loss_cls: 0.1, loss_bbox: 0.4, loss_dfl: 0.1, lr: 2.499e-03, size: (640, 640), ETA: 1 day, 7:29:18
+2026-02-03 10:21:20.984 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 9/300, iter: 1050/1300, mem: 1902Mb, iter_time: 0.297s, model_time: 0.284s, total_loss: 0.7, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 2.499e-03, size: (640, 640), ETA: 1 day, 7:29:00
+2026-02-03 10:21:35.839 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 9/300, iter: 1100/1300, mem: 1902Mb, iter_time: 0.297s, model_time: 0.283s, total_loss: 0.7, loss_cls: 0.1, loss_bbox: 0.4, loss_dfl: 0.2, lr: 2.499e-03, size: (640, 640), ETA: 1 day, 7:28:41
+2026-02-03 10:21:50.683 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 9/300, iter: 1150/1300, mem: 1902Mb, iter_time: 0.297s, model_time: 0.283s, total_loss: 0.7, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 2.499e-03, size: (640, 640), ETA: 1 day, 7:28:22
+2026-02-03 10:22:05.548 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 9/300, iter: 1200/1300, mem: 1902Mb, iter_time: 0.297s, model_time: 0.284s, total_loss: 0.7, loss_cls: 0.1, loss_bbox: 0.4, loss_dfl: 0.2, lr: 2.499e-03, size: (640, 640), ETA: 1 day, 7:28:03
+2026-02-03 10:22:20.359 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 9/300, iter: 1250/1300, mem: 1902Mb, iter_time: 0.296s, model_time: 0.283s, total_loss: 0.7, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 2.499e-03, size: (640, 640), ETA: 1 day, 7:27:43
+2026-02-03 10:22:35.255 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 9/300, iter: 0/1300, mem: 1902Mb, iter_time: 0.298s, model_time: 0.284s, total_loss: 0.6, loss_cls: 0.1, loss_bbox: 0.4, loss_dfl: 0.1, lr: 2.499e-03, size: (640, 640), ETA: 1 day, 7:27:26
+2026-02-03 10:22:50.114 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 10/300, iter: 50/1300, mem: 1902Mb, iter_time: 0.297s, model_time: 0.284s, total_loss: 0.7, loss_cls: 0.1, loss_bbox: 0.4, loss_dfl: 0.2, lr: 2.499e-03, size: (640, 640), ETA: 1 day, 7:27:08
+2026-02-03 10:23:04.944 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 10/300, iter: 100/1300, mem: 1902Mb, iter_time: 0.297s, model_time: 0.283s, total_loss: 0.7, loss_cls: 0.1, loss_bbox: 0.4, loss_dfl: 0.2, lr: 2.499e-03, size: (640, 640), ETA: 1 day, 7:26:48
+2026-02-03 10:23:19.772 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 10/300, iter: 150/1300, mem: 1902Mb, iter_time: 0.297s, model_time: 0.283s, total_loss: 0.7, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 2.499e-03, size: (640, 640), ETA: 1 day, 7:26:29
+2026-02-03 10:23:34.612 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 10/300, iter: 200/1300, mem: 1902Mb, iter_time: 0.297s, model_time: 0.283s, total_loss: 0.7, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 2.499e-03, size: (640, 640), ETA: 1 day, 7:26:10
+2026-02-03 10:23:49.997 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 10/300, iter: 250/1300, mem: 1902Mb, iter_time: 0.308s, model_time: 0.294s, total_loss: 0.7, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 2.499e-03, size: (640, 640), ETA: 1 day, 7:26:08
+2026-02-03 10:24:04.856 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 10/300, iter: 300/1300, mem: 1902Mb, iter_time: 0.297s, model_time: 0.283s, total_loss: 0.7, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.1, lr: 2.499e-03, size: (640, 640), ETA: 1 day, 7:25:50
+2026-02-03 10:24:19.780 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 10/300, iter: 350/1300, mem: 1902Mb, iter_time: 0.298s, model_time: 0.284s, total_loss: 0.7, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 2.499e-03, size: (640, 640), ETA: 1 day, 7:25:33
+2026-02-03 10:24:34.978 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 10/300, iter: 400/1300, mem: 1902Mb, iter_time: 0.304s, model_time: 0.282s, total_loss: 0.7, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 2.499e-03, size: (640, 640), ETA: 1 day, 7:25:26
+2026-02-03 10:24:49.770 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 10/300, iter: 450/1300, mem: 1902Mb, iter_time: 0.296s, model_time: 0.282s, total_loss: 0.6, loss_cls: 0.1, loss_bbox: 0.4, loss_dfl: 0.1, lr: 2.499e-03, size: (640, 640), ETA: 1 day, 7:25:05
+2026-02-03 10:25:04.628 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 10/300, iter: 500/1300, mem: 1902Mb, iter_time: 0.297s, model_time: 0.283s, total_loss: 0.7, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 2.499e-03, size: (640, 640), ETA: 1 day, 7:24:47
+2026-02-03 10:25:19.490 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 10/300, iter: 550/1300, mem: 1902Mb, iter_time: 0.297s, model_time: 0.284s, total_loss: 0.7, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 2.499e-03, size: (640, 640), ETA: 1 day, 7:24:29
+2026-02-03 10:25:34.347 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 10/300, iter: 600/1300, mem: 1902Mb, iter_time: 0.297s, model_time: 0.283s, total_loss: 0.7, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 2.499e-03, size: (640, 640), ETA: 1 day, 7:24:10
+2026-02-03 10:25:49.225 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 10/300, iter: 650/1300, mem: 1902Mb, iter_time: 0.298s, model_time: 0.284s, total_loss: 0.7, loss_cls: 0.1, loss_bbox: 0.4, loss_dfl: 0.2, lr: 2.498e-03, size: (640, 640), ETA: 1 day, 7:23:53
+2026-02-03 10:26:04.073 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 10/300, iter: 700/1300, mem: 1902Mb, iter_time: 0.297s, model_time: 0.283s, total_loss: 0.7, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 2.498e-03, size: (640, 640), ETA: 1 day, 7:23:34
+2026-02-03 10:26:18.896 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 10/300, iter: 750/1300, mem: 1902Mb, iter_time: 0.296s, model_time: 0.283s, total_loss: 0.7, loss_cls: 0.1, loss_bbox: 0.4, loss_dfl: 0.1, lr: 2.498e-03, size: (640, 640), ETA: 1 day, 7:23:15
+2026-02-03 10:26:33.715 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 10/300, iter: 800/1300, mem: 1902Mb, iter_time: 0.296s, model_time: 0.283s, total_loss: 0.7, loss_cls: 0.1, loss_bbox: 0.4, loss_dfl: 0.2, lr: 2.498e-03, size: (640, 640), ETA: 1 day, 7:22:56
+2026-02-03 10:26:48.587 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 10/300, iter: 850/1300, mem: 1902Mb, iter_time: 0.297s, model_time: 0.284s, total_loss: 0.7, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 2.498e-03, size: (640, 640), ETA: 1 day, 7:22:38
+2026-02-03 10:27:03.447 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 10/300, iter: 900/1300, mem: 1902Mb, iter_time: 0.297s, model_time: 0.284s, total_loss: 0.6, loss_cls: 0.1, loss_bbox: 0.3, loss_dfl: 0.1, lr: 2.498e-03, size: (640, 640), ETA: 1 day, 7:22:20
+2026-02-03 10:27:18.277 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 10/300, iter: 950/1300, mem: 1902Mb, iter_time: 0.297s, model_time: 0.283s, total_loss: 0.7, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 2.498e-03, size: (640, 640), ETA: 1 day, 7:22:01
+2026-02-03 10:27:33.123 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 10/300, iter: 1000/1300, mem: 1902Mb, iter_time: 0.297s, model_time: 0.283s, total_loss: 0.7, loss_cls: 0.1, loss_bbox: 0.4, loss_dfl: 0.2, lr: 2.498e-03, size: (640, 640), ETA: 1 day, 7:21:42
+2026-02-03 10:27:47.949 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 10/300, iter: 1050/1300, mem: 1902Mb, iter_time: 0.297s, model_time: 0.283s, total_loss: 0.7, loss_cls: 0.1, loss_bbox: 0.4, loss_dfl: 0.2, lr: 2.498e-03, size: (640, 640), ETA: 1 day, 7:21:23
+2026-02-03 10:28:03.149 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 10/300, iter: 1100/1300, mem: 1902Mb, iter_time: 0.304s, model_time: 0.283s, total_loss: 0.6, loss_cls: 0.1, loss_bbox: 0.3, loss_dfl: 0.1, lr: 2.498e-03, size: (640, 640), ETA: 1 day, 7:21:16
+2026-02-03 10:28:17.989 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 10/300, iter: 1150/1300, mem: 1902Mb, iter_time: 0.297s, model_time: 0.283s, total_loss: 0.6, loss_cls: 0.1, loss_bbox: 0.3, loss_dfl: 0.1, lr: 2.498e-03, size: (640, 640), ETA: 1 day, 7:20:57
+2026-02-03 10:28:32.786 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 10/300, iter: 1200/1300, mem: 1902Mb, iter_time: 0.296s, model_time: 0.283s, total_loss: 0.7, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.1, lr: 2.498e-03, size: (640, 640), ETA: 1 day, 7:20:37
+2026-02-03 10:28:47.600 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 10/300, iter: 1250/1300, mem: 1902Mb, iter_time: 0.296s, model_time: 0.283s, total_loss: 0.7, loss_cls: 0.2, loss_bbox: 0.4, loss_dfl: 0.2, lr: 2.498e-03, size: (640, 640), ETA: 1 day, 7:20:18
+2026-02-03 10:29:02.460 | INFO     | damo.apis.detector_trainer:train:371 - epoch: 10/300, iter: 0/1300, mem: 1902Mb, iter_time: 0.297s, model_time: 0.283s, total_loss: 0.7, loss_cls: 0.1, loss_bbox: 0.4, loss_dfl: 0.1, lr: 2.498e-03, size: (640, 640), ETA: 1 day, 7:20:00
+2026-02-03 10:29:02.464 | INFO     | damo.apis.detector_inference:inference:122 - Start evaluation on shift_val_pretrain_equalized dataset(2800 images).
+2026-02-03 10:29:02.993 | ERROR    | __main__:<module>:64 - An error has been caught in function '<module>', process 'MainProcess' (34660), thread 'MainThread' (140038632517824):
+Traceback (most recent call last):
+
+  File "/home/vision/anaconda3/envs/clod/lib/python3.10/runpy.py", line 196, in _run_module_as_main
+    return _run_code(code, main_globals, None,
+           │         │     └ {'__name__': '__main__', '__doc__': None, '__package__': 'tools', '__loader__': <_frozen_importlib_external.SourceFileLoader ...
+           │         └ <code object <module> at 0x7f5d47aebcb0, file "/home/vision/syoon/Online_CLOD/tools/train.py", line 1>
+           └ <function _run_code at 0x7f5d47acb250>
+  File "/home/vision/anaconda3/envs/clod/lib/python3.10/runpy.py", line 86, in _run_code
+    exec(code, run_globals)
+         │     └ {'__name__': '__main__', '__doc__': None, '__package__': 'tools', '__loader__': <_frozen_importlib_external.SourceFileLoader ...
+         └ <code object <module> at 0x7f5d47aebcb0, file "/home/vision/syoon/Online_CLOD/tools/train.py", line 1>
+
+> File "/home/vision/syoon/Online_CLOD/tools/train.py", line 64, in <module>
+    main()
+    └ <function main at 0x7f5c816a7be0>
+
+  File "/home/vision/syoon/Online_CLOD/tools/train.py", line 60, in main
+    trainer.train(args.local_rank)
+    │       │     │    └ 0
+    │       │     └ Namespace(config_file='configs/pretrain_shift_equalized.py', local_rank=0, tea_config=None, tea_ckpt=None, opts=[])
+    │       └ <function Trainer.train at 0x7f5c68b7d6c0>
+    └ <damo.apis.detector_trainer.Trainer object at 0x7f5c68b8b8b0>
+
+  File "/home/vision/syoon/Online_CLOD/damo/apis/detector_trainer.py", line 389, in train
+    self.evaluate(local_rank, self.cfg.dataset.val_ann)
+    │    │        │           │    │   │       └ ('shift_val_pretrain_equalized',)
+    │    │        │           │    │   └ {'paths_catalog': '/home/vision/syoon/Online_CLOD/damo/config/paths_catalog.py', 'train_ann': ('shift_train_pretrain_equalize...
+    │    │        │           │    └ ╒═════════╤══════════════════════════════════════════════════════════════════════════════════╕
+    │    │        │           │      │ keys    │ values            ...
+    │    │        │           └ <damo.apis.detector_trainer.Trainer object at 0x7f5c68b8b8b0>
+    │    │        └ 0
+    │    └ <function Trainer.evaluate at 0x7f5c68b7d870>
+    └ <damo.apis.detector_trainer.Trainer object at 0x7f5c68b8b8b0>
+
+  File "/home/vision/syoon/Online_CLOD/damo/apis/detector_trainer.py", line 453, in evaluate
+    inference(
+    └ <function inference at 0x7f5c68b2b400>
+
+  File "/home/vision/syoon/Online_CLOD/damo/apis/detector_inference.py", line 131, in inference
+    predictions = compute_on_dataset(model, data_loader, device,
+                  │                  │      │            └ device(type='cuda', index=0)
+                  │                  │      └ <torch.utils.data.dataloader.DataLoader object at 0x7f5c2410d630>
+                  │                  └ Detector(
+                  │                      (backbone): TinyNAS(
+                  │                        (block_list): ModuleList(
+                  │                          (0): Focus(
+                  │                            (conv): ConvBNAct(
+                  │                              (conv):...
+                  └ <function compute_on_dataset at 0x7f5c816d1510>
+
+  File "/home/vision/syoon/Online_CLOD/damo/apis/detector_inference.py", line 41, in compute_on_dataset
+    output_reduced = nms_for_visual_analysis()
+                     └ <function nms_for_visual_analysis at 0x7f5c68b2b1c0>
+
+TypeError: nms_for_visual_analysis() missing 1 required positional argument: 'output'

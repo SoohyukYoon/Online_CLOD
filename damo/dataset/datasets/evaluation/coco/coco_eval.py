@@ -68,7 +68,7 @@ def prepare_for_coco_detection(predictions, dataset):
     # assert isinstance(dataset, COCODataset)
     coco_results = []
     for image_id, prediction in enumerate(predictions):
-        prediction = predictions[prediction]
+        # prediction = predictions[prediction]
         original_id = dataset.id_to_img_map[image_id]
         if len(prediction) == 0:
             continue
