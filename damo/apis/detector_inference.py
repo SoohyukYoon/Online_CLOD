@@ -5,6 +5,7 @@ import os
 import torch
 import cv2
 import numpy as np
+from PIL import Image
 from loguru import logger
 from tqdm import tqdm
 
@@ -25,13 +26,23 @@ def compute_on_dataset(model, data_loader, device, timer=None, tta=False,
     cpu_device = torch.device('cpu')
     for _, batch in enumerate(tqdm(data_loader)):
         images, targets, image_ids = batch
+        # os.makedirs("TEST_TEST", exist_ok=True)
+        # for i, img in enumerate(images.tensors):
+        #     if i > 1: 
+        #         break
+        #     # Convert tensor to numpy (assuming CHW format, values 0-1 or normalized)
+        #     img_np = img.cpu().permute(1, 2, 0).numpy()
+        #     # Denormalize and convert to uint8
+        #     if img_np.max() <= 1.0:
+        #         img_np = (img_np * 255).astype(np.uint8)
+        #     else:
+        #         img_np = np.clip(img_np, 0, 255).astype(np.uint8)
+        #     pil_img = Image.fromarray(img_np)
+        #     pil_img.save(f"TEST_TEST/{image_ids[i]}.jpg")
         with torch.no_grad():
             if timer:
                 timer.tic()
-                if 'equalized' in data_loader.dataset: 
-                    output = 
-                else:
-                    output = model(images.to(device))
+                output = model(images.to(device))
             if timer:
                 # torch.cuda.synchronize() # consume much time
                 timer.toc()
@@ -60,7 +71,7 @@ def compute_on_dataset(model, data_loader, device, timer=None, tta=False,
             continue
         
         # Apply NMS for visualization
-        output_reduced = nms_for_visual_analysis(first_output, threshold=0.9)
+        output_reduced = nms_for_visual_analysis(first_output, threshold=0.)
         
         # Check if GT has zero IoU with predictions
         gt_missing = gt_has_zero_IoU(first_target, output_reduced)
@@ -113,10 +124,9 @@ def nms_for_visual_analysis(output, threshold=0.9):
     scores = output.get_field('scores')
     labels = output.get_field('labels')
     
-    nms_out_index = torchvision.ops.batched_nms(
+    nms_out_index = torchvision.ops.nms(
         boxes,
         scores,
-        labels,
         threshold,
     )
     output_reduced = output[nms_out_index]
@@ -167,11 +177,11 @@ def create_bbox(image, target, output_reduced, gt_missing=False, image_id=None,
             x1, x2 = int(x1 * scale_x), int(x2 * scale_x)
             y1, y2 = int(y1 * scale_y), int(y2 * scale_y)
             # Draw GT box in red
-            cv2.rectangle(img_np, (x1, y1), (x2, y2), (0, 0, 255), 2)
+            cv2.rectangle(img_np, (x1, y1), (x2, y2), (0, 0, 255), 1)
             # Draw label above box
             label_text = f"{int(label)}"
             cv2.putText(img_np, label_text, (x1, y1 - 5), 
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)
     
     # Draw predicted boxes in blue
     if output_reduced is not None and len(output_reduced.bbox) > 0:
@@ -190,7 +200,7 @@ def create_bbox(image, target, output_reduced, gt_missing=False, image_id=None,
             x1, x2 = int(x1 * scale_x), int(x2 * scale_x)
             y1, y2 = int(y1 * scale_y), int(y2 * scale_y)
             # Draw predicted box in blue
-            cv2.rectangle(img_np, (x1, y1), (x2, y2), (255, 0, 0), 2)
+            cv2.rectangle(img_np, (x1, y1), (x2, y2), (255, 0, 0), 1)
             
             # Format score: remove 0 and decimal point (0.36 -> 36, 0.07 -> 7)
             # Convert to integer representation without decimal
@@ -200,7 +210,7 @@ def create_bbox(image, target, output_reduced, gt_missing=False, image_id=None,
             # Format: {class_index},{score}
             label_text = f"{int(label)},{score_str}"
             cv2.putText(img_np, label_text, (x1, y1 - 5), 
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 2)
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 1)
     
     return img_np
 
@@ -215,7 +225,7 @@ def store_bbox(img_np, gt_missing, image_id, dataset_name, batch_size, score_thr
     
     # Create directory name
     gt_suffix = "no_GT" if gt_missing else "None"
-    dir_name = f"{dataset_name}_{batch_size}_{score_threshold}_{gt_suffix}"
+    dir_name = f"{dataset_name}_{batch_size}_{score_threshold}_{gt_suffix}_FUCK"
     output_dir = os.path.join("results", dir_name)
     os.makedirs(output_dir, exist_ok=True)
     

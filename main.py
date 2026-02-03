@@ -142,21 +142,19 @@ def main():
     eval_results["data_cnt"].append(samples_cnt)
     # breakpoint()
     method.save(samples_cnt, args.output_dir)
-    for i in range(4): 
-        data = train_datalist[i]
-        #data in enumerate(train_datalist):
+    for i, data in enumerate(train_datalist):
         samples_cnt += 1
         method.online_step(data, samples_cnt, args.n_worker)
         
         if samples_cnt % args.save_period == 0:
             method.save(samples_cnt, args.output_dir)
             
-        #if samples_cnt % args.eval_period == 0:
-        eval_dict = method.online_evaluate(samples_cnt, data["time"])
-        eval_results["avg_mAP50"].append(eval_dict['avg_mAP50'])
-        eval_results["classwise_mAP50"].append(eval_dict['classwise_mAP50'])
-        eval_results["data_cnt"].append(samples_cnt)
-        
+        if samples_cnt % args.eval_period == 0:
+            eval_dict = method.online_evaluate(samples_cnt, data["time"])
+            eval_results["avg_mAP50"].append(eval_dict['avg_mAP50'])
+            eval_results["classwise_mAP50"].append(eval_dict['classwise_mAP50'])
+            eval_results["data_cnt"].append(samples_cnt)
+            
     if eval_results["data_cnt"][-1] != samples_cnt:
         eval_dict = method.online_evaluate(samples_cnt, data["time"])
 

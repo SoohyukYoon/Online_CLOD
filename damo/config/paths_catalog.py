@@ -101,11 +101,30 @@ class DatasetCatalog(object):
             # 'img_dir': '/disk1/jhpark/clod/data/shift_source/images/train',
             'ann_file': 'shift_source_equalized/annotations/instances_train.json'
         } ,
-
         'shift_val_pretrain_equalized': {
             'img_dir': 'shift_source_equalized/images/val',
             # 'img_dir': '/disk1/jhpark/clod/data/shift_source/images/val',
             'ann_file': 'shift_source_equalized/annotations/instances_val.json'
+        },
+        'shift_night_equalized_val': {
+            'img_dir': 'shift_night_equalized/images/val',
+            # 'img_dir': '/disk1/jhpark/clod/data/shift_night/images/val',
+            'ann_file': 'shift_night_equalized/annotations/instances_val.json'
+        },
+        'shift_foggy_equalized_val': {
+            'img_dir': 'shift_night_equalized/images/val',
+            # 'img_dir': '/disk1/jhpark/clod/data/shift_night/images/val',
+            'ann_file': 'shift_night_equalized/annotations/instances_val.json'
+        },
+        'shift_dawndusk_equalized_val': {
+            'img_dir': 'shift_night_equalized/images/val',
+            # 'img_dir': '/disk1/jhpark/clod/data/shift_night/images/val',
+            'ann_file': 'shift_night_equalized/annotations/instances_val.json'
+        },
+        'shift_source_equalized_val': {
+            'img_dir': 'shift_night_equalized/images/val',
+            # 'img_dir': '/disk1/jhpark/clod/data/shift_night/images/val',
+            'ann_file': 'shift_night_equalized/annotations/instances_val.json'
         },
         
         'shift_train': {
@@ -119,27 +138,27 @@ class DatasetCatalog(object):
             'ann_file': 'shift/annotations/instances_val.json'
         },
         'shift_source_val': {
-            'img_dir': 'shift_source/images/val',
+            'img_dir': 'shift/images/val',
             # 'img_dir': '/disk1/jhpark/clod/data/shift_source/images/val',
             'ann_file': 'shift_source/annotations/instances_val.json'
         },
         'shift_cloudy_val': {
-            'img_dir': 'shift_cloudy/images/val',
+            'img_dir': 'shift/images/val',
             # 'img_dir': '/disk1/jhpark/clod/data/shift_cloudy/images/val',
             'ann_file': 'shift_cloudy/annotations/instances_val.json'
         },
         'shift_dawndusk_val': {
-            'img_dir': 'shift_dawndusk/images/val',
+            'img_dir': 'shift/images/val',
             # 'img_dir': '/disk1/jhpark/clod/data/shift_dawndusk/images/val',
             'ann_file': 'shift_dawndusk/annotations/instances_val.json'
         },
         'shift_foggy_val': {
-            'img_dir': 'shift_foggy/images/val',
+            'img_dir': 'shift/images/val',
             # 'img_dir': '/disk1/jhpark/clod/data/shift_foggy/images/val',
             'ann_file': 'shift_foggy/annotations/instances_val.json'
         },
         'shift_night_val': {
-            'img_dir': 'shift_night/images/val',
+            'img_dir': 'shift/images/val',
             # 'img_dir': '/disk1/jhpark/clod/data/shift_night/images/val',
             'ann_file': 'shift_night/annotations/instances_val.json'
         },

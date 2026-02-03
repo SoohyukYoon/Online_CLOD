@@ -414,7 +414,36 @@ class ER:
         elif self.dataset=='SHIFT_domain_small2':
             eval_dict = {"avg_mAP50":0, "classwise_mAP50":[]}
             for data_name in ['shift_source', 'shift_dawndusk', 'shift_night','shift_foggy']: #self.exposed_domains:
-                datasets = build_dataset(self.damo_cfg, [data_name + '_val'], is_train=False)
+                # datasets = build_dataset(self.damo_cfg, [data_name + '_val'], is_train=False)
+                # dataloaders = build_dataloader(
+                #     datasets,
+                #     self.damo_cfg.test.augment,
+                #     batch_size=self.damo_cfg.train.batch_size,
+                #     is_train=False, 
+                #     num_workers=self.damo_cfg.train.get('num_workers', 8)
+                # )
+                # self.val_loader = dataloaders[0]
+                from damo.dataset import datasets as D
+                from os.path import join
+
+                # Get data config to extract annotation path
+                data_config = self.damo_cfg.get_data(data_name + '_val')
+                # Override root to use shared shift/images/val
+                shared_img_dir = join('data', 'shift', 'images', 'val')
+                # Keep original annotation file
+                ann_file = data_config['args']['ann_file']
+
+                # Create dataset manually
+                factory = getattr(D, data_config['factory'])
+                dataset = factory(
+                    root=shared_img_dir,
+                    ann_file=ann_file,
+                    transforms=None,
+                    class_names=self.damo_cfg.dataset.class_names
+                )
+
+                # Build dataloader
+                datasets = [dataset]
                 dataloaders = build_dataloader(
                     datasets,
                     self.damo_cfg.test.augment,

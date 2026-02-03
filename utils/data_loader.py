@@ -138,6 +138,7 @@ class MemoryDataset(COCODataset):
         
         with open(ann_file, 'r') as f:
             annotations = json.load(f)
+            # l
             self.name2id = {re.sub(r'\.(jpg|jpeg|png)$', '', ann['file_name'], flags=re.I): ann['id'] for ann in annotations['images']}
         
         if 'HS_TOD' not in self.dataset:
@@ -183,8 +184,7 @@ class MemoryDataset(COCODataset):
         else:
             idx = inp
 
-        # Feel like this is the source of all misery -- FUCK this function 
-        # 
+        # Feel like this is the source of all misery 
         img, anno = super(COCODataset, self).__getitem__(idx)
         # PIL to numpy array
         return img, anno, idx
@@ -2400,7 +2400,7 @@ class SelectionFreqBalancedDataset(FreqClsBalancedDataset):
 # MemoryPseudoDataset
 from damo.dataset.datasets.mosaic_wrapper import PseudoMosaicWrapper
 from damo.dataset.transforms import transforms as T
-def generate_pseudo_labels(model, img, score_thresh=0.7, transform=None,image_sizes=(640,640),device='cuda'):
+def generate_pseudo_labels(model, img, score_threshold=0.5, transform=None,image_sizes=(640,640),device='cuda'):
     # generate pseudo labels
     model.eval()
     if transform is not None:
@@ -2425,7 +2425,7 @@ def generate_pseudo_labels(model, img, score_thresh=0.7, transform=None,image_si
     boxes[:, 3] = boxes[:, 3] * height / image_sizes[0]
     
     # filter boxes by score threshold
-    keep_indices = np.where(scores >= score_thresh)[0]
+    keep_indices = np.where(scores >= score_threshold)[0]
     boxes = boxes[keep_indices]
     scores = scores[keep_indices]
     labels = labels[keep_indices]
@@ -2779,7 +2779,7 @@ class MemoryPseudoDataset(MemoryDataset):
 
     @torch.no_grad()
     def get_batch(self, batch_size, stream_batch_size=0, weight_method=None,
-                  model=None, score_thresh=0.7
+                  model=None, score_threshold=0.5
                   ):
         assert batch_size >= stream_batch_size
         stream_batch_size = min(stream_batch_size, len(self.stream_data))
@@ -2822,7 +2822,7 @@ class MemoryPseudoDataset(MemoryDataset):
                         img, label = self._transforms(img, target)
                     else:
                         # boxes, labels, scores = generate_pseudo_labels(model, img, score_thresh=score_thresh, transform=self.test_transform, image_sizes=self.image_sizes, device=self.device)
-                        boxes, labels, scores = generate_pseudo_labels(model, img, transform=self.test_transform, device=self.device)
+                        boxes, labels, scores = generate_pseudo_labels(model, img, transform=self.test_transform, device=self.device, score_threshold=score_threshold)
 
                         if len(boxes) > 0:
                             target = BoxList(torch.tensor(boxes), img.size, mode='xyxy')
@@ -2867,7 +2867,7 @@ class MemoryPseudoDataset(MemoryDataset):
                         img, label = self._transforms(img, target)
                     else:
                         # boxes, labels, scores = generate_pseudo_labels(model, img, score_thresh=score_thresh,transform=self.test_transform, image_sizes=self.image_sizes, device=self.device)
-                        boxes, labels, scores = generate_pseudo_labels(model, img, device=self.device)
+                        boxes, labels, scores = generate_pseudo_labels(model, img, transform=self.test_transform, device=self.device, score_threshold=score_threshold)
 
                         if len(boxes) > 0:
                             target = BoxList(torch.tensor(boxes), img.size, mode='xyxy')

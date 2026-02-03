@@ -55,7 +55,7 @@ class ERPseudo(ER):
         
         self.temp_batch.append(sample)
         self.num_updates += self.online_iter
-        if len(self.temp_batch) == 1:
+        if len(self.temp_batch) == 8:
             iteration = int(self.num_updates)
             if iteration != 0:
                 train_loss = self.online_train(self.temp_batch, self.batch_size, n_worker,
@@ -73,7 +73,7 @@ class ERPseudo(ER):
         if len(sample) > 0:
             self.memory.register_stream(sample)
         for i in range(iterations):
-            data = self.memory.get_batch(batch_size, stream_batch_size, model=self.ema_model, score_thresh=0.3)
+            data = self.memory.get_batch(batch_size, stream_batch_size, model=self.ema_model, score_thresh=self.score_threshold)
             self.model.train()
             self.optimizer.zero_grad()
 

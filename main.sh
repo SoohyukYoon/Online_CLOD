@@ -45,9 +45,9 @@ elif [ "$DATASET" == "SHIFT_domain_small" ]; then
     BATCHSIZE=16; LR=1e-5 OPT_NAME="SGD" SCHED_NAME="default"
 elif [ "$DATASET" == "SHIFT_domain_small2" ]; then
     MEM_SIZE=500 ONLINE_ITER=1
-    MODEL_NAME="damo" EVAL_PERIOD=1
+    MODEL_NAME="damo" EVAL_PERIOD=1000
     BATCHSIZE=16; LR=1e-6 OPT_NAME="SGD" SCHED_NAME="default"
-    SCORE_THRESHOLD=0.45 TEMP_BATCHSIZE=1
+    SCORE_THRESHOLD=0.45 TEMP_BATCHSIZE=4
 elif [[ "$DATASET" == *"SHIFT_hanhwa"* ]]; then
     MEM_SIZE=500 ONLINE_ITER=1
     MODEL_NAME="damo" EVAL_PERIOD=1000
@@ -73,5 +73,5 @@ do
     --lr $LR --batchsize $BATCHSIZE \
     --memory_size $MEM_SIZE  --online_iter $ONLINE_ITER \
     --score_threshold $SCORE_THRESHOLD  --temp_batchsize $TEMP_BATCHSIZE \
-    --note $NOTE --eval_period $EVAL_PERIOD $USE_AMP > ${DATASET}_${TEMP_BATCHSIZE}_${SCORE_THRESHOLD}.out 2>&1 &
+    --note $NOTE --eval_period $EVAL_PERIOD $USE_AMP > ${DATASET}_${TEMP_BATCHSIZE}_${SCORE_THRESHOLD}_${1}_direct_path.out 2>&1 &
 done
